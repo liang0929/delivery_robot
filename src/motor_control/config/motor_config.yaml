@@ -1,0 +1,8 @@
+esp32_motor_controller:
+  ros__parameters:
+    uart_port: "/dev/ttyTHS1"
+    baudrate: 115200
+    wheel_separation: 0.160
+    wheel_radius: 0.065
+    max_linear_vel: 0.5
+    max_angular_vel: 2.0

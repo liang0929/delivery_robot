@@ -1,0 +1,26 @@
+[2.280s] Invoking command in '/home/jetson/base_dev/build/teleop_twist_keyboard': PYTHONPATH=/home/jetson/base_dev/build/teleop_twist_keyboard/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/jetson/base_dev/install/teleop_twist_keyboard/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/jetson/base_dev/build/teleop_twist_keyboard/build --no-deps symlink_data
+[2.922s] running develop
+[3.332s] running egg_info
+[3.332s] creating teleop_twist_keyboard.egg-info
+[3.333s] writing teleop_twist_keyboard.egg-info/PKG-INFO
+[3.333s] writing dependency_links to teleop_twist_keyboard.egg-info/dependency_links.txt
+[3.333s] writing entry points to teleop_twist_keyboard.egg-info/entry_points.txt
+[3.334s] writing requirements to teleop_twist_keyboard.egg-info/requires.txt
+[3.334s] writing top-level names to teleop_twist_keyboard.egg-info/top_level.txt
+[3.334s] writing manifest file 'teleop_twist_keyboard.egg-info/SOURCES.txt'
+[3.338s] reading manifest file 'teleop_twist_keyboard.egg-info/SOURCES.txt'
+[3.339s] writing manifest file 'teleop_twist_keyboard.egg-info/SOURCES.txt'
+[3.343s] running build_ext
+[3.343s] Creating /home/jetson/base_dev/install/teleop_twist_keyboard/lib/python3.10/site-packages/teleop-twist-keyboard.egg-link (link to .)
+[3.345s] Installing teleop_twist_keyboard script to /home/jetson/base_dev/install/teleop_twist_keyboard/bin
+[3.346s] 
+[3.346s] Installed /home/jetson/base_dev/build/teleop_twist_keyboard
+[3.346s] running symlink_data
+[3.346s] creating /home/jetson/base_dev/install/teleop_twist_keyboard/lib/teleop_twist_keyboard
+[3.347s] symbolically linking /home/jetson/base_dev/build/teleop_twist_keyboard/teleop_twist_keyboard.py -> /home/jetson/base_dev/install/teleop_twist_keyboard/lib/teleop_twist_keyboard
+[3.347s] creating /home/jetson/base_dev/install/teleop_twist_keyboard/share/ament_index
+[3.347s] creating /home/jetson/base_dev/install/teleop_twist_keyboard/share/ament_index/resource_index
+[3.347s] creating /home/jetson/base_dev/install/teleop_twist_keyboard/share/ament_index/resource_index/packages
+[3.347s] symbolically linking /home/jetson/base_dev/build/teleop_twist_keyboard/resource/teleop_twist_keyboard -> /home/jetson/base_dev/install/teleop_twist_keyboard/share/ament_index/resource_index/packages
+[3.347s] symbolically linking /home/jetson/base_dev/build/teleop_twist_keyboard/package.xml -> /home/jetson/base_dev/install/teleop_twist_keyboard/share/teleop_twist_keyboard
+[3.453s] Invoked command in '/home/jetson/base_dev/build/teleop_twist_keyboard' returned '0': PYTHONPATH=/home/jetson/base_dev/build/teleop_twist_keyboard/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/jetson/base_dev/install/teleop_twist_keyboard/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/jetson/base_dev/build/teleop_twist_keyboard/build --no-deps symlink_data

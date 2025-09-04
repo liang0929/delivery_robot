@@ -1,0 +1,67 @@
+[0.064s] Invoking command in '/home/jetson/base_dev/build/imu_bno055': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/jetson/base_dev/install/motor_control:/home/jetson/delivery_robot/install/office_mapping:/home/jetson/delivery_robot/install/base_control:/opt/ros/humble /usr/bin/cmake /home/jetson/base_dev/src/ros-imu-bno055 -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/jetson/base_dev/install/imu_bno055
+[0.692s] -- The C compiler identification is GNU 11.4.0
+[0.692s] -- The CXX compiler identification is GNU 11.4.0
+[0.692s] -- Detecting C compiler ABI info
+[0.693s] -- Detecting C compiler ABI info - done
+[0.693s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.693s] -- Detecting C compile features
+[0.693s] -- Detecting C compile features - done
+[0.693s] -- Detecting CXX compiler ABI info
+[0.693s] -- Detecting CXX compiler ABI info - done
+[0.693s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.693s] -- Detecting CXX compile features
+[0.694s] -- Detecting CXX compile features - done
+[0.694s] -- Found ros_environment: 3.2.2 (/opt/ros/humble/share/ros_environment/cmake)
+[0.694s] -- Found ament_cmake: 1.3.12 (/opt/ros/humble/share/ament_cmake/cmake)
+[3.318s] -- Found Python3: /home/jetson/.pyenv/shims/python3 (found version "3.10.18") found components: Interpreter 
+[3.671s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[3.750s] -- Found rclcpp: 16.0.14 (/opt/ros/humble/share/rclcpp/cmake)
+[3.853s] -- Found rosidl_generator_c: 3.1.7 (/opt/ros/humble/share/rosidl_generator_c/cmake)
+[3.866s] -- Found rosidl_adapter: 3.1.7 (/opt/ros/humble/share/rosidl_adapter/cmake)
+[3.886s] -- Found rosidl_generator_cpp: 3.1.7 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)
+[3.914s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[3.952s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[4.058s] -- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)
+[4.065s] -- Found rmw_fastrtps_cpp: 6.2.8 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)
+[4.229s] -- Found OpenSSL: /usr/lib/aarch64-linux-gnu/libcrypto.so (found version "3.0.2")  
+[4.291s] -- Found FastRTPS: /opt/ros/humble/include  
+[4.383s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[4.407s] -- Looking for pthread.h
+[4.551s] -- Looking for pthread.h - found
+[4.551s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+[4.695s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+[4.697s] -- Found Threads: TRUE  
+[4.814s] -- Found sensor_msgs: 4.9.0 (/opt/ros/humble/share/sensor_msgs/cmake)
+[4.881s] -- Found diagnostic_msgs: 4.9.0 (/opt/ros/humble/share/diagnostic_msgs/cmake)
+[4.908s] -- Found std_srvs: 4.9.0 (/opt/ros/humble/share/std_srvs/cmake)
+[5.324s] -- Configuring done
+[5.348s] -- Generating done
+[5.356s] -- Build files have been written to: /home/jetson/base_dev/build/imu_bno055
+[5.383s] Invoked command in '/home/jetson/base_dev/build/imu_bno055' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/jetson/base_dev/install/motor_control:/home/jetson/delivery_robot/install/office_mapping:/home/jetson/delivery_robot/install/base_control:/opt/ros/humble /usr/bin/cmake /home/jetson/base_dev/src/ros-imu-bno055 -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/jetson/base_dev/install/imu_bno055
+[5.387s] Invoking command in '/home/jetson/base_dev/build/imu_bno055': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/jetson/base_dev/install/motor_control:/home/jetson/delivery_robot/install/office_mapping:/home/jetson/delivery_robot/install/base_control:/opt/ros/humble /usr/bin/cmake --build /home/jetson/base_dev/build/imu_bno055 -- -j8 -l8
+[5.483s] [ 75%] [32mBuilding CXX object CMakeFiles/bno055_i2c_node.dir/src/bno055_i2c_node_ros2.cpp.o[0m
+[5.483s] [ 75%] [32mBuilding CXX object CMakeFiles/bno055_i2c_node.dir/src/bno055_i2c_driver.cpp.o[0m
+[5.484s] [ 75%] [32mBuilding CXX object CMakeFiles/bno055_i2c_node.dir/src/watchdog.cpp.o[0m
+[22.219s] [100%] [32m[1mLinking CXX executable bno055_i2c_node[0m
+[22.861s] [100%] Built target bno055_i2c_node
+[22.885s] Invoked command in '/home/jetson/base_dev/build/imu_bno055' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/jetson/base_dev/install/motor_control:/home/jetson/delivery_robot/install/office_mapping:/home/jetson/delivery_robot/install/base_control:/opt/ros/humble /usr/bin/cmake --build /home/jetson/base_dev/build/imu_bno055 -- -j8 -l8
+[22.906s] Invoking command in '/home/jetson/base_dev/build/imu_bno055': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/jetson/base_dev/install/motor_control:/home/jetson/delivery_robot/install/office_mapping:/home/jetson/delivery_robot/install/base_control:/opt/ros/humble /usr/bin/cmake --install /home/jetson/base_dev/build/imu_bno055
+[22.920s] -- Install configuration: ""
+[22.921s] -- Execute custom install script
+[22.921s] -- Symlinking: /home/jetson/base_dev/install/imu_bno055/lib/imu_bno055/bno055_i2c_node
+[22.938s] -- Symlinking: /home/jetson/base_dev/install/imu_bno055/share/ament_index/resource_index/package_run_dependencies/imu_bno055
+[22.956s] -- Symlinking: /home/jetson/base_dev/install/imu_bno055/share/ament_index/resource_index/parent_prefix_path/imu_bno055
+[22.973s] -- Symlinking: /home/jetson/base_dev/install/imu_bno055/share/imu_bno055/environment/ament_prefix_path.sh
+[22.990s] -- Symlinking: /home/jetson/base_dev/install/imu_bno055/share/imu_bno055/environment/ament_prefix_path.dsv
+[23.007s] -- Symlinking: /home/jetson/base_dev/install/imu_bno055/share/imu_bno055/environment/path.sh
+[23.023s] -- Symlinking: /home/jetson/base_dev/install/imu_bno055/share/imu_bno055/environment/path.dsv
+[23.039s] -- Symlinking: /home/jetson/base_dev/install/imu_bno055/share/imu_bno055/local_setup.bash
+[23.057s] -- Symlinking: /home/jetson/base_dev/install/imu_bno055/share/imu_bno055/local_setup.sh
+[23.074s] -- Symlinking: /home/jetson/base_dev/install/imu_bno055/share/imu_bno055/local_setup.zsh
+[23.094s] -- Symlinking: /home/jetson/base_dev/install/imu_bno055/share/imu_bno055/local_setup.dsv
+[23.111s] -- Symlinking: /home/jetson/base_dev/install/imu_bno055/share/imu_bno055/package.dsv
+[23.128s] -- Symlinking: /home/jetson/base_dev/install/imu_bno055/share/ament_index/resource_index/packages/imu_bno055
+[23.147s] -- Symlinking: /home/jetson/base_dev/install/imu_bno055/share/imu_bno055/cmake/imu_bno055Config.cmake
+[23.168s] -- Symlinking: /home/jetson/base_dev/install/imu_bno055/share/imu_bno055/cmake/imu_bno055Config-version.cmake
+[23.185s] -- Symlinking: /home/jetson/base_dev/install/imu_bno055/share/imu_bno055/package.xml
+[23.208s] Invoked command in '/home/jetson/base_dev/build/imu_bno055' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/jetson/base_dev/install/motor_control:/home/jetson/delivery_robot/install/office_mapping:/home/jetson/delivery_robot/install/base_control:/opt/ros/humble /usr/bin/cmake --install /home/jetson/base_dev/build/imu_bno055

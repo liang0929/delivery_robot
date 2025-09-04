@@ -17,12 +17,12 @@ from tf2_ros import TransformBroadcaster
 
 class ESP32MotorController(Node):
     """ESP32馬達控制節點"""
-    
+
     def __init__(self):
         super().__init__('esp32_motor_controller')
         # 宣告參數
         self.declare_parameter('uart_port', '/dev/ttyTHS1')
-        self.declare_parameter('uart_baudrate', 115200)
+        self.declare_parameter('baudrate', 115200)
         self.declare_parameter('wheel_separation', 0.160)  # 輪距 (m)
         self.declare_parameter('wheel_radius', 0.065)      # 輪半徑 (m)
         self.declare_parameter('max_linear_vel', 0.5)      # 最大線速度 (m/s)
@@ -30,17 +30,16 @@ class ESP32MotorController(Node):
         
         # 獲取參數
         self.uart_port = self.get_parameter('uart_port').value
-        self.uart_baudrate = self.get_parameter('uart_baudrate').value
+        self.baudrate = self.get_parameter('baudrate').value
         self.wheel_separation = self.get_parameter('wheel_separation').value
         self.wheel_radius = self.get_parameter('wheel_radius').value
         self.max_linear_vel = self.get_parameter('max_linear_vel').value
         self.max_angular_vel = self.get_parameter('max_angular_vel').value
         
         # 初始化串口
-        self.get_logger().info('Before connect to serial')
         self.serial_conn = None
         self.connect_serial()
-        self.get_logger().info('After connect to serial')
+
         # ROS2 發布者和訂閱者
         qos = QoSProfile(depth=10)
         self.cmd_vel_sub = self.create_subscription(
@@ -77,7 +76,7 @@ class ESP32MotorController(Node):
         try:
             self.serial_conn = serial.Serial(
                 port=self.uart_port,
-                baudrate=self.uart_baudrate
+                baudrate=self.baudrate
             )
             time.sleep(2)  # 等待ESP32重啟完成
             self.get_logger().info(f'Connected to ESP32 on {self.uart_port}')
@@ -137,19 +136,16 @@ class ESP32MotorController(Node):
                 time.sleep(1)
                 continue
             try:
-                if self.serial_conn.in_waiting > 0:
-                    line = self.serial_conn.readline().decode('utf-8',errors='ignore')
-                    if line:
-                        self.process_received_data(line)
+                while self.serial_conn.in_waiting > 0:
+                    data = self.serial_conn.readline().decode('utf-8',errors='replace')
+                    self.process_received_data(data)
 
             except serial.SerialException as e:
                 self.get_logger().error(f'Serial read error: {e}')
-                time.sleep(1)
+                time.sleep(1)   
 
             except Exception as e:
                 self.get_logger().error(f'Data processing error: {e}')
-                
-            time.sleep(0.01)  # 10ms
 
     def process_received_data(self, data: str):
         """處理從ESP32接收的數據"""

@@ -1,4 +1,3 @@
 [console_scripts]
-teleop_twist_keyboard = teleop_twist_keyboard.teleop_twist_keyboard:main
-uart_send_to_esp32 = uart_send_to_esp32:main
+uart_send_to_esp32 = motor_control.uart_send_to_esp32:main
 

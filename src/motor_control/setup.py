@@ -20,8 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'uart_send_to_esp32 = uart_send_to_esp32:main',
-            'teleop_twist_keyboard = teleop_twist_keyboard.teleop_twist_keyboard:main'
+            'uart_send_to_esp32 = motor_control.uart_send_to_esp32:main'
         ],
     },
 )

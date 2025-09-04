@@ -1,1 +1,0 @@
-/home/jetson/base_dev/src/ros2_teleop_keyboard/teleop_twist_keyboard.py

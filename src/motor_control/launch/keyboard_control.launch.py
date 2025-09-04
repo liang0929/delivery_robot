@@ -31,7 +31,16 @@ def generate_launch_description():
         remappings=[('/cmd_vel', '/cmd_vel')]
     )
 
+    robot_localization_node = Node(
+            package='robot_localization',
+            executable='ekf_node',
+            name='ekf_filter_node',
+            output='screen',
+            parameters=[config]
+    )
+
     return LaunchDescription([
         teleop_twist_keyboard_node,
-        base_control_node
+        base_control_node,
+        robot_localization_node
     ])

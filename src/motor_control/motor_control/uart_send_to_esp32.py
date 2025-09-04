@@ -25,7 +25,7 @@ class ESP32MotorController(Node):
         self.declare_parameter('baudrate', 115200)
         self.declare_parameter('wheel_separation', 0.160)  # 輪距 (m)
         self.declare_parameter('wheel_radius', 0.065)      # 輪半徑 (m)
-        self.declare_parameter('max_linear_vel', 0.5)      # 最大線速度 (m/s)
+        self.declare_parameter('max_linear_vel', 1.11)      # 最大線速度 (m/s)
         self.declare_parameter('max_angular_vel', 2.0)     # 最大角速度 (rad/s)
         
         # 獲取參數
@@ -44,7 +44,7 @@ class ESP32MotorController(Node):
         qos = QoSProfile(depth=10)
         self.cmd_vel_sub = self.create_subscription(
             Twist, 'cmd_vel', self.cmd_vel_callback, qos)
-        self.odom_pub = self.create_publisher(Odometry, 'odom', qos)
+        self.odom_pub = self.create_publisher(Odometry, 'odom_raw', qos)
         
         # 初始化TF廣播器
         self.tf_broadcaster = TransformBroadcaster(self)
@@ -125,6 +125,7 @@ class ESP32MotorController(Node):
             }
             message = json.dumps(cmd) + '\n'
             self.serial_conn.write(message.encode())
+            self.get_logger().info(f'Sent: {message.strip()}')
 
         except serial.SerialException as e:
             self.get_logger().error(f'Serial write error: {e}')
@@ -300,6 +301,7 @@ def main(args=None):
         controller = ESP32MotorController()
         rclpy.spin(controller)
     except KeyboardInterrupt:
+        controller.connect_serial().close()
         pass
     finally:
         if 'controller' in locals():

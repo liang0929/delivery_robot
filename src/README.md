@@ -1,5 +1,5 @@
 motor_control -> motor control and get motor info. publish odomt
-'''
+```
 主要輸入 / 輸出（contract）
 輸入：
 ROS2 topic: cmd_vel (geometry_msgs/Twist)
@@ -53,7 +53,7 @@ destroy_node：停止接收執行緒、發送停止命令、關閉 serial。
 odometry: {"type":"odometry","x":..., "y":..., "theta":..., "vx":..., "vy":..., "vth":...}
 sensor: {"type":"sensor","sensor_type":"battery","voltage":12.3}
 status: {"type":"status","message":"ok"}
-'''
+```
 ros-imu-bno055 -> imu bno055 driver
 slliar_ros2 -> A2M12 lidar drive
 ros2_teleop_keyboard -> keybord control

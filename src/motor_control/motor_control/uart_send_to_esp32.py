@@ -125,7 +125,7 @@ class ESP32MotorController(Node):
             }
             message = json.dumps(cmd) + '\n'
             self.serial_conn.write(message.encode())
-            self.get_logger().info(f'Sent: {message.strip()}')
+            self.get_logger().debug(f'Sent: {message.strip()}')
 
         except serial.SerialException as e:
             self.get_logger().error(f'Serial write error: {e}')
@@ -167,7 +167,7 @@ class ESP32MotorController(Node):
         except json.JSONDecodeError:
             # 可能是普通的debug訊息
             if data.startswith('ESP32:'):
-                self.get_logger().info(data)
+                self.get_logger().debug(data)
 
     def update_odometry(self, odom_msg: Dict[str, Any]):
         """更新里程計數據並發布"""

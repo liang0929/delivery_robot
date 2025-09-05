@@ -9,7 +9,7 @@ esp32_motor_controller:
     
 ekf_filter_node:
   ros__parameters:
-    frequency: 30.0
+    frequency: 10.0
     two_d_mode: true   # 如果你的機器人在平面上運動（差速驅動建議開啟）
     publish_tf: true
 

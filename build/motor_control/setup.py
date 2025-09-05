@@ -1,1 +1,0 @@
-/home/jetson/base_dev/src/motor_control/setup.py

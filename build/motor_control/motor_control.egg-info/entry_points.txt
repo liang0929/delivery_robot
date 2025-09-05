@@ -1,3 +1,0 @@
-[console_scripts]
-uart_send_to_esp32 = motor_control.uart_send_to_esp32:main
-

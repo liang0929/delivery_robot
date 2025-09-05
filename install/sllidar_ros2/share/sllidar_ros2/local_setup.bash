@@ -1,1 +1,0 @@
-/home/jetson/base_dev/build/sllidar_ros2/ament_cmake_environment_hooks/local_setup.bash

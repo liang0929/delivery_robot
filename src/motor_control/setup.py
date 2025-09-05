@@ -8,7 +8,12 @@ setup(
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch', ['launch/keyboard_control.launch.py', 'launch/esp32_motor_controller.launch.py']),
+        ('share/' + package_name + '/launch', [
+            'launch/keyboard_control.launch.py', 
+            'launch/esp32_motor_controller.launch.py',
+            'launch/full_system.launch.py',
+            'launch/robot_state_publisher.launch.py'
+        ]),
         ('share/' + package_name + '/config', ['config/motor_config.yaml']),
     ],
     install_requires=['setuptools'],

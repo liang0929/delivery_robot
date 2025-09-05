@@ -23,7 +23,7 @@ class ESP32MotorController(Node):
         # 宣告參數
         self.declare_parameter('uart_port', '/dev/ttyTHS1')
         self.declare_parameter('baudrate', 115200)
-        self.declare_parameter('wheel_separation', 0.160)  # 輪距 (m)
+        self.declare_parameter('wheel_separation', 0.381)  # 輪距 (m)
         self.declare_parameter('wheel_radius', 0.065)      # 輪半徑 (m)
         self.declare_parameter('max_linear_vel', 1.11)      # 最大線速度 (m/s)
         self.declare_parameter('max_angular_vel', 2.0)     # 最大角速度 (rad/s)

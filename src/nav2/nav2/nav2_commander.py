@@ -2,7 +2,7 @@ import rclpy
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 from geometry_msgs.msg import PoseStamped
 import math
-
+# 用來直接給定目標點座標
 def send_goal(x, y, yaw_deg):
     rclpy.init()
     navigator = BasicNavigator()

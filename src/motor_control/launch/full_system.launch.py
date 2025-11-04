@@ -46,8 +46,8 @@ def generate_launch_description():
 
     # IMU 節點
     imu_node = Node(
-        package='ros_imu_bno055',
-        executable='bno055',
+        package='imu_bno055',
+        executable='bno055_i2c_node',
         name='bno055',
         output='screen',
         parameters=[{

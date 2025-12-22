@@ -150,13 +150,21 @@ class ESP32MotorController(Node):
 
     def process_received_data(self, data: str):
         """處理從ESP32接收的數據"""
-        start_idx = data.find(self.start_word)
-        end_idx = data.find(self.end_word, start_idx + 2)
-        payload = data[start_idx + len(self.start_word):end_idx]
-        msg = json.loads(payload) #string to json
-        self.get_logger().debug(f'Received: {msg}')
-        
         try:
+            start_idx = data.find(self.start_word)
+            end_idx = data.find(self.end_word, start_idx + 2)
+
+            # 邊界檢查
+            if start_idx == -1 or end_idx == -1 or end_idx <= start_idx:
+                self.get_logger().debug(f'Invalid data format: {data.strip()}')
+                return
+
+            payload = data[start_idx + len(self.start_word):end_idx]
+            if not payload:
+                return
+
+            msg = json.loads(payload)
+            self.get_logger().debug(f'Received: {msg}')
             if msg.get('type') == 'odometry':
                 self.update_odometry(msg)
             elif msg.get('type') == 'sensor':
@@ -252,10 +260,23 @@ class ESP32MotorController(Node):
             z=self.odom_data['vth']
         )
         
-        # 協方差矩陣 (簡化)
-        odom.pose.covariance[0] = 0.1   # x
-        odom.pose.covariance[7] = 0.1   # y
-        odom.pose.covariance[35] = 0.1  # theta
+        # 協方差矩陣 (6x6: x, y, z, roll, pitch, yaw)
+        odom.pose.covariance = [
+            0.01, 0.0,  0.0,  0.0,  0.0,  0.0,   # x
+            0.0,  0.01, 0.0,  0.0,  0.0,  0.0,   # y
+            0.0,  0.0,  1e6,  0.0,  0.0,  0.0,   # z (不使用，設大值)
+            0.0,  0.0,  0.0,  1e6,  0.0,  0.0,   # roll (不使用)
+            0.0,  0.0,  0.0,  0.0,  1e6,  0.0,   # pitch (不使用)
+            0.0,  0.0,  0.0,  0.0,  0.0,  0.03   # yaw
+        ]
+        odom.twist.covariance = [
+            0.01, 0.0,  0.0,  0.0,  0.0,  0.0,   # vx
+            0.0,  0.01, 0.0,  0.0,  0.0,  0.0,   # vy
+            0.0,  0.0,  1e6,  0.0,  0.0,  0.0,   # vz (不使用)
+            0.0,  0.0,  0.0,  1e6,  0.0,  0.0,   # roll rate (不使用)
+            0.0,  0.0,  0.0,  0.0,  1e6,  0.0,   # pitch rate (不使用)
+            0.0,  0.0,  0.0,  0.0,  0.0,  0.03   # yaw rate
+        ]
         
         self.odom_pub.publish(odom)
 
@@ -301,7 +322,6 @@ def main(args=None):
         controller = ESP32MotorController()
         rclpy.spin(controller)
     except KeyboardInterrupt:
-        controller.connect_serial().close()
         pass
     finally:
         if 'controller' in locals():

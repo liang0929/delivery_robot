@@ -8,13 +8,12 @@
 1. [硬體設置](#1-硬體設置)
 2. [環境依賴](#2-環境依賴)
 3. [安裝與建置](#3-安裝與建置)
-4. [Docker 使用說明](#4-docker-使用說明)
-5. [使用說明](#5-使用說明)
-   - [啟動機器人核心](#51-啟動機器人核心)
-   - [手動鍵盤控制](#52-手動鍵盤控制)
-   - [SLAM 建圖](#53-slam-建圖)
-   - [自主導航](#54-自主導航)
-6. [開發者與除錯](#6-開發者與除錯)
+4. [使用說明](#4-使用說明)
+   - [啟動機器人核心](#41-啟動機器人核心)
+   - [手動鍵盤控制](#42-手動鍵盤控制)
+   - [SLAM 建圖](#43-slam-建圖)
+   - [自主導航](#44-自主導航)
+5. [開發者與除錯](#5-開發者與除錯)
 
 ---
 
@@ -22,36 +21,50 @@
 
 在啟動系統前，請確保硬體已正確連接：
 
-- **LIDAR**: 連接到 `/dev/ttyUSB0`
-- **ESP32**: 連接到 `/dev/ttyTHS1` (Jetson 預設序列埠)
-- **馬達控制器**: 
+| 設備 | 連接介面 | 說明 |
+|------|----------|------|
+| 馬達驅動器 (AGV-BLD-2S) | `/dev/ttyUSB0` | USB-RS232 轉接，HS 協議，地址 127 |
+| LiDAR (SLAMTEC A2M12) | `/dev/ttyUSB1` | USB 連接，256000 baud |
+| IMU (BNO055) | `/dev/i2c-7` | I2C 連接，地址 0x28 |
 
-**注意**: 上述序列埠為目前程式中的預設值。如果您的設備連接到不同的序列埠，請修改對應的啟動或設定檔。
+### 馬達驅動器設定
 
-### ESP32 韌體
+本專案使用泰映科技 (TROY) AGV-BLD-2S 雙軸無刷馬達驅動器，通過 USB-RS232 直接連接 Jetson。
 
-本專案的馬達控制核心運行在 ESP32 上。您需要將 `src/motorControl/motor_control.ino` 的程式碼燒錄到您的 ESP32 開發板。
+**驅動器參數：**
+- 通訊協議：HS 協議 (RS-232 模式)
+- 波特率：115200
+- 設備地址：127
+- RPM 範圍：100-3000
 
-**韌體依賴的函式庫**:
-- `ArduinoJson`
-- `ModbusMaster`
-
-請在上傳前，透過 Arduino IDE 的程式庫管理員安裝以上兩個函式庫。
+**馬達方向設定：**
+- `invert_motor_a: true` (A 馬達反轉)
+- `invert_motor_b: false`
 
 ## 2. 環境依賴
 
 - **ROS2 Humble Hawksbill**
-- **robot_localization**: ROS2 的標準 EKF 狀態估算套件。
+- **Python 套件**:
+  ```bash
+  pip install pyserial
+  ```
+- **robot_localization**: ROS2 的標準 EKF 狀態估算套件
   ```bash
   sudo apt-get update
   sudo apt-get install ros-humble-robot-localization
   ```
+- **teleop_twist_keyboard**: 鍵盤控制
+  ```bash
+  sudo apt-get install ros-humble-teleop-twist-keyboard
+  ```
 
 ## 3. 安裝與建置
 
-專案根目錄下提供了一個自動化腳本，會自動清理舊的建置緩存並使用 `colcon` 進行編譯。
-
 ```bash
+# 建置所有套件
+colcon build
+
+# 或使用自動化腳本
 ./build_ros2.sh
 ```
 
@@ -65,7 +78,7 @@ source install/setup.bash
 
 ### 4.1. 啟動機器人核心
 
-此指令會啟動所有基礎節點，包括馬達控制器、LIDAR、IMU 以及 EKF 狀態估算。這是執行任何操作前的基礎。
+此指令會啟動所有基礎節點，包括馬達控制器、LiDAR、IMU 以及 EKF 狀態估算。
 
 ```bash
 ros2 launch motor_control full_system.launch.py
@@ -73,78 +86,124 @@ ros2 launch motor_control full_system.launch.py
 
 ### 4.2. 手動鍵盤控制
 
-在**另一個**終端機中（或透過 `docker exec` 開啟一個新的 shell），啟動鍵盤控制節點。您將可以在此終端機中透過鍵盤控制機器人移動。
+**方法一：使用 launch 檔案 + 另開終端**
 
+終端 1 - 啟動馬達控制器：
 ```bash
 ros2 launch motor_control keyboard_control.launch.py
 ```
 
+終端 2 - 啟動鍵盤控制：
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+```
+
+**方法二：分別啟動**
+
+終端 1：
+```bash
+ros2 run motor_control hs_motor_controller --ros-args -p device_id:=127
+```
+
+終端 2：
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+```
+
+**鍵盤操作說明：**
+| 按鍵 | 動作 |
+|------|------|
+| `i` | 前進 |
+| `,` | 後退 |
+| `j` | 左轉 |
+| `l` | 右轉 |
+| `k` | 停止 |
+| `q`/`z` | 增加/減少速度 |
+
 ### 4.3. SLAM 建圖
 
-1.  **啟動建圖模式**:
-    此模式會啟動 SLAM 相關節點。
-    ```bash
-    ros2 launch nav2 mapping.launch.py
-    ```
+1. **啟動建圖模式**:
+   ```bash
+   ros2 launch nav2 mapping.launch.py
+   ```
 
-2.  **啟動鍵盤控制**:
-    在另一個終端機中啟動鍵盤控制，手動遙控機器人探索環境。
-    ```bash
-    ros2 launch motor_control keyboard_control.launch.py
-    ```
+2. **啟動鍵盤控制** (另一個終端):
+   ```bash
+   ros2 run teleop_twist_keyboard teleop_twist_keyboard
+   ```
 
-3.  **啟動 RViz2 視覺化**:
-    在另一個終端機中啟動 RViz2，觀察即時的建圖過程。
-    ```bash
-    rviz2
-    ```
+3. **啟動 RViz2 視覺化** (另一個終端):
+   ```bash
+   rviz2
+   ```
 
-4.  **儲存地圖**:
-    當您對地圖感到滿意時，執行以下指令儲存地圖。地圖將被儲存為 `map.pgm` 和 `map.yaml`。
-    ```bash
-    ros2 run nav2_map_server map_saver_cli -f /ros2_ws/src/map/map
-    ```
-    建議將生成的地圖檔案儲存到 `src/map/` 目錄下，以供導航使用。
+4. **儲存地圖**:
+   ```bash
+   ros2 run nav2_map_server map_saver_cli -f ./map
+   ```
 
 ### 4.4. 自主導航
 
-1.  **啟動導航模式**:
-    此指令會載入已儲存的地圖，並啟動 Nav2 導航堆疊。
-    ```bash
-    ros2 launch nav2 autonomous_navigation.launch.py
-    ```
+1. **啟動導航模式**:
+   ```bash
+   ros2 launch nav2 autonomous_navigation.launch.py
+   ```
 
-2.  **啟動 RViz2**:
-    在另一個終端機中啟動 RViz2。
-    ```bash
-    rviz2
-    ```
+2. **啟動 RViz2** (另一個終端):
+   ```bash
+   rviz2
+   ```
 
-3.  **在 RViz2 中操作**:
-    - 使用工具列上的 **"2D Pose Estimate"** 按鈕，在地圖上標示出機器人的初始位置與方向。
-    - 使用工具列上的 **"Nav2 Goal"** 按鈕，在地圖上設定一個目標點。
-    - 機器人將會自動規劃路徑並駛向目標。
+3. **在 RViz2 中操作**:
+   - 使用 **"2D Pose Estimate"** 設定機器人初始位置
+   - 使用 **"Nav2 Goal"** 設定目標點
 
 ## 5. 開發者與除錯
 
-以下是一些在開發與除錯時常用的監控指令：
+### 常用監控指令
 
 ```bash
-# 監控里程計數據 (EKF融合後)
-ros2 topic echo /odom
-
-# 監控來自 ESP32 的原始里程計數據
+# 監控里程計數據
 ros2 topic echo /odom_raw
 
-# 監控發送給馬達的速度指令
+# 監控速度指令
 ros2 topic echo /cmd_vel
 
-# 監控 LIDAR 掃描數據
+# 監控 LiDAR 掃描數據
 ros2 topic echo /scan
 
 # 監控 IMU 數據
-ros2 topic echo /imu/data
+ros2 topic echo /data
 
-# 產生 TF 樹的 PDF 檔案
+# 查看 TF 樹
 ros2 run tf2_tools view_frames
+
+# 查看所有 topics
+ros2 topic list
+
+# 查看 topic 發布頻率
+ros2 topic hz /odom_raw
 ```
+
+### 單獨測試各感測器
+
+```bash
+# 測試馬達控制器
+ros2 run motor_control hs_motor_controller --ros-args -p device_id:=127
+
+# 測試 LiDAR
+ros2 launch sllidar_ros2 sllidar_a2m12_launch.py serial_port:=/dev/ttyUSB1
+
+# 測試 IMU
+ros2 run imu_bno055 bno055_i2c_node --ros-args -p device:=/dev/i2c-7 -p address:=40
+```
+
+### ROS2 Topics 一覽
+
+| Topic | 類型 | 說明 |
+|-------|------|------|
+| `/cmd_vel` | geometry_msgs/Twist | 速度命令輸入 |
+| `/odom_raw` | nav_msgs/Odometry | 馬達里程計輸出 |
+| `/scan` | sensor_msgs/LaserScan | LiDAR 掃描數據 |
+| `/data` | sensor_msgs/Imu | IMU 數據 |
+| `/tf` | tf2_msgs/TFMessage | 座標轉換 |

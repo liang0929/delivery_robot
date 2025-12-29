@@ -9,13 +9,13 @@ def generate_launch_description():
     motor_control_dir = get_package_share_directory('motor_control')
     
     # 配置文件路徑
-    config = os.path.join(motor_control_dir, 'config', 'motor_config.yaml')
-    
-    # ESP32 馬達控制器
-    esp32_motor_node = Node(
+    config = os.path.join(motor_control_dir, 'config', 'hs_motor_config.yaml')
+
+    # HS 協議馬達控制器（直連 RS-232）
+    hs_motor_node = Node(
         package='motor_control',
-        executable='uart_send_to_esp32',
-        name='esp32_motor_controller',
+        executable='hs_motor_controller',
+        name='hs_motor_controller',
         output='screen',
         parameters=[config]
     )
@@ -36,7 +36,7 @@ def generate_launch_description():
         name='sllidar_node',
         output='screen',
         parameters=[{
-            'serial_port': '/dev/ttyUSB0',
+            'serial_port': '/dev/ttyUSB1',
             'serial_baudrate': 256000,
             'frame_id': 'laser',
             'inverted': False,
@@ -51,13 +51,10 @@ def generate_launch_description():
         name='bno055',
         output='screen',
         parameters=[{
-            'connection_type': 'i2c',
-            'i2c_bus': 1,
-            'i2c_addr': 0x28,
+            'device': '/dev/i2c-7',
+            'address': 40,  # 0x28
             'frame_id': 'imu_link',
-            'frequency': 100.0
-        }],
-        remappings=[('/bno055/imu', '/imu/data')]
+        }]
     )
 
     # 靜態 TF 發布器
@@ -83,7 +80,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        esp32_motor_node,
+        hs_motor_node,
         robot_localization_node,
         lidar_node,
         imu_node,

@@ -122,39 +122,49 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 
 ### 4.3. SLAM 建圖
 
-1. **啟動建圖模式**:
+1. **啟動機器人核心** (終端 1):
+   ```bash
+   ros2 launch motor_control full_system.launch.py
+   ```
+
+2. **啟動建圖模式** (終端 2):
    ```bash
    ros2 launch nav2 mapping.launch.py
    ```
 
-2. **啟動鍵盤控制** (另一個終端):
+3. **啟動鍵盤控制** (終端 3):
    ```bash
    ros2 run teleop_twist_keyboard teleop_twist_keyboard
    ```
 
-3. **啟動 RViz2 視覺化** (另一個終端):
+4. **啟動 RViz2 視覺化** (終端 4):
    ```bash
    rviz2
    ```
 
-4. **儲存地圖**:
+5. **儲存地圖**:
    ```bash
    ros2 run nav2_map_server map_saver_cli -f ./map
    ```
 
 ### 4.4. 自主導航
 
-1. **啟動導航模式**:
+1. **啟動機器人核心** (終端 1):
+   ```bash
+   ros2 launch motor_control full_system.launch.py
+   ```
+
+2. **啟動導航模式** (終端 2):
    ```bash
    ros2 launch nav2 autonomous_navigation.launch.py
    ```
 
-2. **啟動 RViz2** (另一個終端):
+3. **啟動 RViz2** (終端 3):
    ```bash
    rviz2
    ```
 
-3. **在 RViz2 中操作**:
+4. **在 RViz2 中操作**:
    - 使用 **"2D Pose Estimate"** 設定機器人初始位置
    - 使用 **"Nav2 Goal"** 設定目標點
 

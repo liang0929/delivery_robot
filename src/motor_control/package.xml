@@ -3,7 +3,7 @@
 <package format="3">
   <name>motor_control</name>
   <version>1.0.0</version>
-  <description>ESP32 motor controller ROS2 package for differential drive robot</description>
+  <description>Motor controller ROS2 package for differential drive robot (supports ESP32 and direct Modbus)</description>
   <maintainer email="jetson@todo.todo">jetson</maintainer>
   <license>MIT</license>
 

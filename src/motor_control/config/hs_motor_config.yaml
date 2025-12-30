@@ -6,13 +6,14 @@ hs_motor_controller:
     device_id: 127
 
     # 機器人參數
-    wheel_separation: 0.381    # 輪距 (m)
+    wheel_separation: 0.27      # 輪距 (m) - 校正後
     wheel_radius: 0.065        # 輪半徑 (m)
-    max_linear_vel: 1.11       # 最大線速度 (m/s)
-    max_angular_vel: 2.0       # 最大角速度 (rad/s)
-    min_rpm: 100.0             # 最小 RPM
-    max_rpm: 3000.0            # 最大 RPM
-    control_frequency: 20.0    # 控制頻率 (Hz)
+    gear_ratio: 20.0           # 減速比 (馬達轉20圈=輪子轉1圈)
+    max_linear_vel: 0.05       # 最大線速度 (m/s)
+    max_angular_vel: 0.5       # 最大角速度 (rad/s)
+    min_rpm: 60.0              # 最小馬達 RPM
+    max_rpm: 3000.0            # 最大馬達 RPM
+    control_frequency: 50.0    # 控制頻率 (Hz)
 
 ekf_filter_node:
   ros__parameters:

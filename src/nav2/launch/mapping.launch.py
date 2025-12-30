@@ -7,11 +7,9 @@ SLAM 建圖 Launch 檔案
 3. 另開終端執行 RViz: rviz2
 """
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from launch_ros.substitutions import FindPackageShare
 from ament_index_python.packages import get_package_share_directory
 import os
 
@@ -22,17 +20,6 @@ def generate_launch_description():
     # 馬達控制器配置
     motor_control_dir = get_package_share_directory('motor_control')
     motor_config = os.path.join(motor_control_dir, 'config', 'hs_motor_config.yaml')
-
-    # Include the robot state publisher launch file
-    robot_state_publisher_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([
-            PathJoinSubstitution([
-                FindPackageShare('motor_control'),
-                'launch',
-                'robot_state_publisher.launch.py'
-            ])
-        ])
-    )
 
     # HS 協議馬達控制器
     hs_motor_node = Node(
@@ -83,6 +70,8 @@ def generate_launch_description():
             'map_frame': 'map',
             'resolution': 0.05,
             'max_laser_range': 12.0,
+            'transform_timeout': 0.5,
+            'tf_buffer_duration': 30.0,
         }],
         output='screen'
     )
@@ -111,7 +100,6 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='false'),
-        robot_state_publisher_launch,
         hs_motor_node,
         lidar_node,
         imu_node,

@@ -97,6 +97,7 @@ ros2 launch motor_control keyboard_control.launch.py
 ```bash
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
+> 提示：啟動後按 `z` 鍵降低速度（每次 -10%），按 `q` 增加速度
 
 **方法二：分別啟動**
 
@@ -131,6 +132,7 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
    ```bash
    ros2 run teleop_twist_keyboard teleop_twist_keyboard
    ```
+   > 啟動後按 `z` 降低速度至約 0.05 m/s（建議建圖時用低速）
 
 3. **啟動 RViz2 視覺化** (終端 3):
    ```bash

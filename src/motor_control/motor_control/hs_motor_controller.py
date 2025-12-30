@@ -46,6 +46,7 @@ class HSMotorController(Node):
         self.declare_parameter('device_id', 1)
         self.declare_parameter('wheel_separation', 0.381)
         self.declare_parameter('wheel_radius', 0.065)
+        self.declare_parameter('gear_ratio', 1.0)  # 減速比
         self.declare_parameter('max_linear_vel', 1.11)
         self.declare_parameter('max_angular_vel', 2.0)
         self.declare_parameter('min_rpm', 100.0)
@@ -60,6 +61,7 @@ class HSMotorController(Node):
         self.device_id = self.get_parameter('device_id').value
         self.wheel_separation = self.get_parameter('wheel_separation').value
         self.wheel_radius = self.get_parameter('wheel_radius').value
+        self.gear_ratio = self.get_parameter('gear_ratio').value
         self.max_linear_vel = self.get_parameter('max_linear_vel').value
         self.max_angular_vel = self.get_parameter('max_angular_vel').value
         self.min_rpm = self.get_parameter('min_rpm').value
@@ -84,8 +86,10 @@ class HSMotorController(Node):
         # 馬達狀態
         self.target_rpm_a = 0
         self.target_rpm_b = 0
-        self.dir_a = 0  # 0=正向, 1=反向
+        self.dir_a = 0  # 0=正向, 1=反向 (物理方向，發送給驅動器)
         self.dir_b = 0
+        self.logical_dir_a = 0  # 邏輯方向 (用於里程計，反轉前)
+        self.logical_dir_b = 0
         self.motor_enabled = True
 
         # 回饋數據
@@ -300,10 +304,6 @@ class HSMotorController(Node):
         if success:
             # 更新里程計
             self.update_odometry()
-            self.get_logger().debug(
-                f'RPM: A={self.actual_rpm_a:.0f} B={self.actual_rpm_b:.0f} '
-                f'V={self.voltage:.1f}V I={self.current_a:.1f}/{self.current_b:.1f}A'
-            )
 
             # 檢查故障
             if self.fault_code > 0:
@@ -314,18 +314,31 @@ class HSMotorController(Node):
     def update_odometry(self):
         """更新里程計"""
         # 獲取實際轉速並轉換為 m/s
-        vel_a = (self.actual_rpm_a / 60.0) * (2 * math.pi * self.wheel_radius)
-        vel_b = (self.actual_rpm_b / 60.0) * (2 * math.pi * self.wheel_radius)
+        # 忽略低於死區的 RPM (避免靜止時漂移)
+        rpm_deadzone = 10.0
+        motor_rpm_a = self.actual_rpm_a if self.actual_rpm_a > rpm_deadzone else 0.0
+        motor_rpm_b = self.actual_rpm_b if self.actual_rpm_b > rpm_deadzone else 0.0
 
-        # 加上方向
-        if self.dir_a == 1:
+        # 馬達 RPM 轉換為輪子 RPM (除以減速比)
+        wheel_rpm_a = motor_rpm_a / self.gear_ratio
+        wheel_rpm_b = motor_rpm_b / self.gear_ratio
+
+        vel_a = (wheel_rpm_a / 60.0) * (2 * math.pi * self.wheel_radius)
+        vel_b = (wheel_rpm_b / 60.0) * (2 * math.pi * self.wheel_radius)
+
+        # 使用邏輯方向 (反轉前的方向) 來決定速度符號
+        if motor_rpm_a > 0 and self.logical_dir_a == 1:
             vel_a = -vel_a
-        if self.dir_b == 1:
+        if motor_rpm_b > 0 and self.logical_dir_b == 1:
             vel_b = -vel_b
 
         # 計算機器人速度
         vx = (vel_a + vel_b) / 2.0
         vth = (vel_b - vel_a) / self.wheel_separation
+
+        # 方向修正 (實測需要反轉)
+        vx = -vx
+        vth = -vth
 
         # 計算時間差
         current_time = self.get_clock().now()
@@ -358,13 +371,21 @@ class HSMotorController(Node):
 
     def set_motor_speeds(self, left_vel: float, right_vel: float):
         """設定馬達速度 (m/s)"""
-        # 轉換為 RPM
-        left_rpm = abs(left_vel) / (2 * math.pi * self.wheel_radius) * 60.0
-        right_rpm = abs(right_vel) / (2 * math.pi * self.wheel_radius) * 60.0
+        # 轉換為輪子 RPM
+        left_wheel_rpm = abs(left_vel) / (2 * math.pi * self.wheel_radius) * 60.0
+        right_wheel_rpm = abs(right_vel) / (2 * math.pi * self.wheel_radius) * 60.0
 
-        # 方向 (考慮馬達反轉設定)
-        dir_a = 0 if left_vel >= 0 else 1
-        dir_b = 0 if right_vel >= 0 else 1
+        # 輪子 RPM 轉換為馬達 RPM (乘以減速比)
+        left_motor_rpm = left_wheel_rpm * self.gear_ratio
+        right_motor_rpm = right_wheel_rpm * self.gear_ratio
+
+        # 邏輯方向 (用於里程計，反轉前)
+        self.logical_dir_a = 0 if left_vel >= 0 else 1
+        self.logical_dir_b = 0 if right_vel >= 0 else 1
+
+        # 物理方向 (發送給驅動器，考慮馬達反轉設定)
+        dir_a = self.logical_dir_a
+        dir_b = self.logical_dir_b
 
         # 應用反轉
         if self.invert_motor_a:
@@ -375,14 +396,14 @@ class HSMotorController(Node):
         self.dir_a = dir_a
         self.dir_b = dir_b
 
-        # 處理死區
-        if left_rpm >= self.min_rpm:
-            self.target_rpm_a = int(min(left_rpm, self.max_rpm))
+        # 處理死區 (使用馬達 RPM)
+        if left_motor_rpm >= self.min_rpm:
+            self.target_rpm_a = int(min(left_motor_rpm, self.max_rpm))
         else:
             self.target_rpm_a = 0
 
-        if right_rpm >= self.min_rpm:
-            self.target_rpm_b = int(min(right_rpm, self.max_rpm))
+        if right_motor_rpm >= self.min_rpm:
+            self.target_rpm_b = int(min(right_motor_rpm, self.max_rpm))
         else:
             self.target_rpm_b = 0
 

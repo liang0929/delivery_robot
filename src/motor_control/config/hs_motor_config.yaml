@@ -10,7 +10,7 @@ hs_motor_controller:
     wheel_radius: 0.065        # 輪半徑 (m)
     gear_ratio: 20.0           # 減速比 (馬達轉20圈=輪子轉1圈)
     max_linear_vel: 0.05       # 最大線速度 (m/s)
-    max_angular_vel: 0.5       # 最大角速度 (rad/s)
+    max_angular_vel: 0.4       # 最大角速度 (rad/s)
     min_rpm: 60.0              # 最小馬達 RPM
     max_rpm: 3000.0            # 最大馬達 RPM
     control_frequency: 50.0    # 控制頻率 (Hz)

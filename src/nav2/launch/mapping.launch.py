@@ -70,8 +70,9 @@ def generate_launch_description():
             'map_frame': 'map',
             'resolution': 0.05,
             'max_laser_range': 12.0,
-            'transform_timeout': 0.5,
+            'transform_timeout': 1.0,
             'tf_buffer_duration': 30.0,
+            'transform_publish_period': 0.02,
         }],
         output='screen'
     )

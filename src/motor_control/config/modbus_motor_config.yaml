@@ -8,8 +8,8 @@ modbus_motor_controller:
     # 機器人參數
     wheel_separation: 0.381    # 輪距 (m)
     wheel_radius: 0.065        # 輪半徑 (m)
-    max_linear_vel: 1.11       # 最大線速度 (m/s)
-    max_angular_vel: 2.0       # 最大角速度 (rad/s)
+    max_linear_vel: 0.05       # 最大線速度 (m/s)
+    max_angular_vel: 0.4       # 最大角速度 (rad/s)
     min_rpm: 100.0             # 最小 RPM
     max_rpm: 3000.0            # 最大 RPM
     odom_frequency: 20.0       # 里程計更新頻率 (Hz)

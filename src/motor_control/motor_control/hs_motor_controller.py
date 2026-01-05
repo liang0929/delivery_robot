@@ -19,7 +19,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from geometry_msgs.msg import Twist, TransformStamped, Quaternion, Point, Vector3
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Header
+from std_msgs.msg import Header, Float32, Int32
 from tf2_ros import TransformBroadcaster
 
 
@@ -47,8 +47,8 @@ class HSMotorController(Node):
         self.declare_parameter('wheel_separation', 0.381)
         self.declare_parameter('wheel_radius', 0.065)
         self.declare_parameter('gear_ratio', 1.0)  # 減速比
-        self.declare_parameter('max_linear_vel', 1.11)
-        self.declare_parameter('max_angular_vel', 2.0)
+        self.declare_parameter('max_linear_vel', 0.05)
+        self.declare_parameter('max_angular_vel', 0.4)
         self.declare_parameter('min_rpm', 100.0)
         self.declare_parameter('max_rpm', 3000.0)
         self.declare_parameter('control_frequency', 20.0)
@@ -79,6 +79,10 @@ class HSMotorController(Node):
         self.cmd_vel_sub = self.create_subscription(
             Twist, 'cmd_vel', self.cmd_vel_callback, qos)
         self.odom_pub = self.create_publisher(Odometry, 'odom_raw', qos)
+        self.voltage_pub = self.create_publisher(Float32, 'motor/voltage', qos)
+        self.current_a_pub = self.create_publisher(Float32, 'motor/current_a', qos)
+        self.current_b_pub = self.create_publisher(Float32, 'motor/current_b', qos)
+        self.fault_pub = self.create_publisher(Int32, 'motor/fault', qos)
 
         # TF 廣播器
         self.tf_broadcaster = TransformBroadcaster(self)
@@ -305,9 +309,28 @@ class HSMotorController(Node):
             # 更新里程計
             self.update_odometry()
 
+            # 發布電壓
+            voltage_msg = Float32()
+            voltage_msg.data = self.voltage
+            self.voltage_pub.publish(voltage_msg)
+
+            # 發布電流
+            current_a_msg = Float32()
+            current_a_msg.data = self.current_a
+            self.current_a_pub.publish(current_a_msg)
+
+            current_b_msg = Float32()
+            current_b_msg.data = self.current_b
+            self.current_b_pub.publish(current_b_msg)
+
+            # 發布故障狀態
+            fault_msg = Int32()
+            fault_msg.data = self.fault_code
+            self.fault_pub.publish(fault_msg)
+
             # 檢查故障
             if self.fault_code > 0:
-                self.get_logger().warn(f'Motor fault: {self.fault_code}')
+                self.get_logger().warn(f'Motor fault code {self.fault_code}: {self.get_fault_description(self.fault_code)}')
         else:
             self.get_logger().warn('No response from motor driver')
 
@@ -454,6 +477,23 @@ class HSMotorController(Node):
         )
 
         self.tf_broadcaster.sendTransform(t)
+
+    def get_fault_description(self, fault_code: int) -> str:
+        """取得故障代碼描述"""
+        fault_descriptions = {
+            0: "正常",
+            1: "A電機短路保護",
+            2: "B電機短路保護",
+            3: "A電機超載保護",
+            4: "B電機超載保護",
+            5: "A電機堵轉保護",
+            6: "B電機堵轉保護",
+            7: "A電機霍爾感測器錯誤",
+            8: "B電機霍爾感測器錯誤",
+            10: "欠壓保護",
+            11: "過壓保護",
+        }
+        return fault_descriptions.get(fault_code, f"未知故障({fault_code})")
 
     def safety_check(self):
         """安全檢查"""

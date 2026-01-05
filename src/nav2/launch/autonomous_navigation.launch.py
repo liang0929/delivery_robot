@@ -2,8 +2,13 @@ from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
-from launch_ros.actions import Node
+from launch_ros.actions import Node, LifecycleNode
 from launch_ros.substitutions import FindPackageShare
+from launch.actions import EmitEvent
+from launch.events import matches_action
+from launch_ros.event_handlers import OnStateTransition
+from launch_ros.events.lifecycle import ChangeState
+from lifecycle_msgs.msg import Transition
 from ament_index_python.packages import get_package_share_directory
 import os
 
@@ -70,9 +75,78 @@ def generate_launch_description():
             PathJoinSubstitution([
                 FindPackageShare('motor_control'),
                 'launch',
-                'esp32_motor_controller.launch.py'
+                'hs_motor_controller.launch.py'
             ])
         ])
+    )
+
+    # IMU 節點
+    imu_node = Node(
+        package='imu_bno055',
+        executable='bno055_i2c_node',
+        name='bno055',
+        output='screen',
+        parameters=[{
+            'device': '/dev/i2c-7',
+            'address': 40,
+            'frame_id': 'imu_link',
+        }]
+    )
+
+    # 靜態 TF: base_link to imu_link
+    base_link_to_imu = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='base_link_to_imu',
+        arguments=['0', '0', '0.05', '0', '0', '0', 'base_link', 'imu_link']
+    )
+
+    # Map Server - 載入地圖
+    map_server_node = Node(
+        package='nav2_map_server',
+        executable='map_server',
+        name='map_server',
+        output='screen',
+        parameters=[{
+            'use_sim_time': use_sim_time,
+            'yaml_filename': map_yaml_file
+        }]
+    )
+
+    # AMCL - 定位
+    amcl_node = Node(
+        package='nav2_amcl',
+        executable='amcl',
+        name='amcl',
+        output='screen',
+        parameters=[{
+            'use_sim_time': use_sim_time,
+            'base_frame_id': 'base_footprint',
+            'odom_frame_id': 'odom',
+            'global_frame_id': 'map',
+            'scan_topic': '/scan',
+            'robot_model_type': 'nav2_amcl::DifferentialMotionModel',
+            'set_initial_pose': True,
+            'initial_pose.x': 0.0,
+            'initial_pose.y': 0.0,
+            'initial_pose.z': 0.0,
+            'initial_pose.yaw': 0.0,
+            'max_particles': 2000,
+            'min_particles': 500,
+        }]
+    )
+
+    # Lifecycle Manager for map_server and amcl
+    lifecycle_manager_localization = Node(
+        package='nav2_lifecycle_manager',
+        executable='lifecycle_manager',
+        name='lifecycle_manager_localization',
+        output='screen',
+        parameters=[{
+            'use_sim_time': use_sim_time,
+            'autostart': True,
+            'node_names': ['map_server', 'amcl']
+        }]
     )
 
     # Include Nav2 launch
@@ -100,5 +174,10 @@ def generate_launch_description():
         robot_state_publisher_launch,
         lidar_launch,
         motor_control_launch,
+        imu_node,
+        base_link_to_imu,
+        map_server_node,
+        amcl_node,
+        lifecycle_manager_localization,
         nav2_launch
     ])

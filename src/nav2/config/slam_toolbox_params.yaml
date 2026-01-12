@@ -1,0 +1,70 @@
+# SLAM Toolbox 參數配置
+
+slam_toolbox:
+  ros__parameters:
+    # ========== 座標系設定 ==========
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_footprint
+    scan_topic: /scan
+    use_sim_time: false
+
+    # ========== 地圖品質 ==========
+    resolution: 0.025              # 地圖解析度 (m)，越小越精細
+    max_laser_range: 12.0          # LiDAR 最大有效範圍 (m)
+    minimum_travel_distance: 0.2   # 移動多少距離才更新地圖 (m)
+    minimum_travel_heading: 0.2    # 轉動多少角度才更新地圖 (rad)
+
+    # ========== 掃描處理 ==========
+    scan_buffer_size: 10           # 掃描緩衝區大小
+    scan_buffer_maximum_scan_distance: 12.0
+    throttle_scans: 1              # 每 N 次掃描處理一次
+
+    # ========== 迴環檢測 (Loop Closure) ==========
+    do_loop_closing: true                    # 啟用迴環檢測
+    loop_match_minimum_chain_size: 3         # 最小匹配鏈長度
+    loop_match_maximum_variance_coarse: 3.0  # 粗匹配最大方差
+    loop_match_minimum_response_coarse: 0.35 # 粗匹配最小響應
+    loop_match_minimum_response_fine: 0.45   # 精匹配最小響應
+
+    # ========== 相關性掃描匹配 ==========
+    link_match_minimum_response_fine: 0.1
+    link_scan_maximum_distance: 1.5          # 掃描連結最大距離
+
+    correlation_search_space_dimension: 0.5
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.1
+
+    # ========== 迴環搜尋空間 ==========
+    loop_search_space_dimension: 8.0         # 迴環搜尋空間大小
+    loop_search_space_resolution: 0.05
+    loop_search_space_smear_deviation: 0.03
+    loop_search_maximum_distance: 3.0        # 迴環搜尋最大距離
+
+    # ========== 距離方差懲罰 ==========
+    distance_variance_penalty: 0.5
+    angle_variance_penalty: 1.0
+    fine_search_angle_offset: 0.00349        # 精搜尋角度偏移 (~0.2 度)
+    coarse_search_angle_offset: 0.349        # 粗搜尋角度偏移 (~20 度)
+    coarse_angle_resolution: 0.0349          # 粗角度解析度 (~2 度)
+
+    # ========== TF 設定 ==========
+    transform_publish_period: 0.02           # TF 發布週期 (s)
+    transform_timeout: 0.5                   # TF 超時 (s)
+    tf_buffer_duration: 30.0                 # TF 緩衝時間 (s)
+
+    # ========== 效能設定 ==========
+    enable_interactive_mode: false           # 互動模式 (RViz plugin)
+    use_scan_matching: true                  # 使用掃描匹配
+    use_scan_barycenter: true                # 使用掃描重心
+
+    # ========== 模式設定 ==========
+    # mapping: 建圖模式
+    # localization: 定位模式 (需要載入已有地圖)
+    mode: mapping
+
+    # ========== 地圖更新 ==========
+    map_update_interval: 2.0                 # 地圖發布間隔 (s)
+
+    # ========== 堆疊大小 (大空間需增加) ==========
+    stack_size_to_use: 40000000              # 40MB，大空間建圖用

@@ -1,32 +1,40 @@
 """
-SLAM 建圖 Launch 檔案
+機器人統一啟動 Launch 檔案
 
 使用方式：
-1. 啟動此 launch: ros2 launch nav2 mapping.launch.py
-2. 另開終端執行鍵盤控制: ros2 run teleop_twist_keyboard teleop_twist_keyboard
-3. 另開終端執行 RViz: rviz2
+  # 基本模式（核心節點）
+  ros2 launch motor_control bringup.launch.py
+
+  # 包含 Web 服務（推薦）
+  ros2 launch motor_control bringup.launch.py enable_web:=true
+
+啟動後，可透過 Web 前端選擇：
+  - 遙控模式（預設）
+  - 建圖模式（Start Mapping）
+  - 導航模式（Start Navigation）
 """
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, ExecuteProcess
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
 
+
 def generate_launch_description():
-    # Declare launch arguments
+    # ========== Launch 參數 ==========
+    enable_web = LaunchConfiguration('enable_web', default='true')
     use_sim_time = LaunchConfiguration('use_sim_time', default='false')
 
-    # 馬達控制器配置
+    # ========== 套件路徑 ==========
     motor_control_dir = get_package_share_directory('motor_control')
     motor_config = os.path.join(motor_control_dir, 'config', 'hs_motor_config.yaml')
 
-    # SLAM Toolbox 配置
-    nav2_dir = get_package_share_directory('nav2')
-    slam_config = os.path.join(nav2_dir, 'config', 'slam_toolbox_params.yaml')
+    # ========== 核心節點 ==========
 
     # HS 協議馬達控制器
-    hs_motor_node = Node(
+    motor_node = Node(
         package='motor_control',
         executable='hs_motor_controller',
         name='hs_motor_controller',
@@ -71,16 +79,7 @@ def generate_launch_description():
         parameters=[motor_config]
     )
 
-    # SLAM Toolbox
-    slam_toolbox_node = Node(
-        package='slam_toolbox',
-        executable='async_slam_toolbox_node',
-        name='slam_toolbox',
-        parameters=[slam_config],
-        output='screen'
-    )
-
-    # 靜態 TF
+    # ========== 靜態 TF ==========
     base_footprint_to_base_link = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
@@ -102,14 +101,56 @@ def generate_launch_description():
         arguments=['0', '0', '0.05', '0', '0', '0', 'base_link', 'imu_link']
     )
 
+    # ========== Web 服務 ==========
+    # rosbridge WebSocket
+    rosbridge_node = Node(
+        package='rosbridge_server',
+        executable='rosbridge_websocket',
+        name='rosbridge_websocket',
+        output='screen',
+        parameters=[{
+            'port': 9090,
+        }],
+        condition=IfCondition(enable_web)
+    )
+
+    # rosapi
+    rosapi_node = Node(
+        package='rosapi',
+        executable='rosapi_node',
+        name='rosapi',
+        output='screen',
+        condition=IfCondition(enable_web)
+    )
+
+    # API Server (控制建圖/導航模式)
+    api_server = ExecuteProcess(
+        cmd=['ros2', 'run', 'robot_api_server', 'api_server'],
+        output='screen',
+        condition=IfCondition(enable_web)
+    )
+
+    # ========== 組合 ==========
     return LaunchDescription([
-        DeclareLaunchArgument('use_sim_time', default_value='false'),
-        hs_motor_node,
+        # 參數宣告
+        DeclareLaunchArgument('enable_web', default_value='true',
+                             description='啟用 Web 服務 (rosbridge + API)'),
+        DeclareLaunchArgument('use_sim_time', default_value='false',
+                             description='使用模擬時間'),
+
+        # 核心節點
+        motor_node,
         lidar_node,
         imu_node,
         ekf_node,
-        slam_toolbox_node,
+
+        # 靜態 TF
         base_footprint_to_base_link,
         base_link_to_laser,
         base_link_to_imu,
+
+        # Web 服務
+        rosbridge_node,
+        rosapi_node,
+        api_server,
     ])

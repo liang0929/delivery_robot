@@ -37,7 +37,7 @@ def generate_launch_description():
         name='sllidar_node',
         output='screen',
         parameters=[{
-            'serial_port': '/dev/ttyUSB1',
+            'serial_port': '/dev/lidar',
             'serial_baudrate': 256000,
             'frame_id': 'laser',
             'inverted': False,
@@ -56,6 +56,15 @@ def generate_launch_description():
             'address': 40,
             'frame_id': 'imu_link',
         }]
+    )
+
+    # EKF 定位融合
+    ekf_node = Node(
+        package='robot_localization',
+        executable='ekf_node',
+        name='ekf_filter_node',
+        output='screen',
+        parameters=[motor_config]
     )
 
     # SLAM Toolbox
@@ -104,6 +113,7 @@ def generate_launch_description():
         hs_motor_node,
         lidar_node,
         imu_node,
+        ekf_node,
         slam_toolbox_node,
         base_footprint_to_base_link,
         base_link_to_laser,

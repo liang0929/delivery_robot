@@ -41,7 +41,7 @@ class HSMotorController(Node):
         super().__init__('hs_motor_controller')
 
         # 宣告參數
-        self.declare_parameter('serial_port', '/dev/ttyUSB0')
+        self.declare_parameter('serial_port', '/dev/motor')
         self.declare_parameter('baudrate', 115200)
         self.declare_parameter('device_id', 1)
         self.declare_parameter('wheel_separation', 0.381)

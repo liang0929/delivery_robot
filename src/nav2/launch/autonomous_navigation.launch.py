@@ -37,7 +37,7 @@ def generate_launch_description():
     
     declare_map_yaml_cmd = DeclareLaunchArgument(
         'map',
-        default_value=os.path.join(get_package_share_directory('nav2'), '..', '..', 'map', 'map.yaml'),
+        default_value='/home/jetson/base_dev/src/map/map.yaml',
         description='Full path to map yaml file to load'
     )
     

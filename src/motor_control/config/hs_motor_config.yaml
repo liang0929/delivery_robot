@@ -1,7 +1,7 @@
 hs_motor_controller:
   ros__parameters:
     # 串口設定
-    serial_port: "/dev/ttyUSB0"
+    serial_port: "/dev/motor"
     baudrate: 115200
     device_id: 127
 

@@ -5,3 +5,22 @@ log/
 __pycache__/
 *.pyc
 *.pyo
+
+# Node.js / Frontend
+node_modules/
+dist/
+*.log
+
+# Claude Code
+.claude/
+
+# System files
+.DS_Store
+*.swp
+*.swo
+
+# External ROS packages (have their own git repos)
+src/robot_localization/
+
+# Map files (can be regenerated)
+src/map/

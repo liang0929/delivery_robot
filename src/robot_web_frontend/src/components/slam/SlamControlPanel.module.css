@@ -1,0 +1,132 @@
+.container {
+  background: #1a1a1a;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.title {
+  margin: 0;
+  color: #fff;
+  font-size: 18px;
+}
+
+.statusBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: #222;
+  border-radius: 8px;
+}
+
+.statusLabel {
+  color: #888;
+}
+
+.statusValue {
+  font-weight: bold;
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+
+.statusValue.idle {
+  background: #333;
+  color: #888;
+}
+
+.statusValue.mapping {
+  background: #1a4a2a;
+  color: #00ff88;
+}
+
+.statusValue.saving {
+  background: #4a4a1a;
+  color: #ffff00;
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+}
+
+.button {
+  flex: 1;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button.start {
+  background: #1a4a2a;
+  color: #00ff88;
+}
+
+.button.start:hover:not(:disabled) {
+  background: #2a6a3a;
+}
+
+.button.stop {
+  background: #4a1a1a;
+  color: #ff6666;
+}
+
+.button.stop:hover:not(:disabled) {
+  background: #6a2a2a;
+}
+
+.saveSection {
+  display: flex;
+  gap: 10px;
+}
+
+.input {
+  flex: 1;
+  padding: 12px;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #00ff88;
+}
+
+.button.save {
+  background: #1a3a4a;
+  color: #66aaff;
+}
+
+.button.save:hover:not(:disabled) {
+  background: #2a4a5a;
+}
+
+.message {
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.message.success {
+  background: #1a4a2a;
+  color: #00ff88;
+}
+
+.message.error {
+  background: #4a1a1a;
+  color: #ff6666;
+}

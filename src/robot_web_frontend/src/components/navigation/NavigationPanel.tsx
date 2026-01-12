@@ -1,0 +1,121 @@
+import { useState, useEffect, useCallback } from 'react';
+import { apiService, NavigationStatus } from '../../services/api.service';
+import { MapView } from '../map/MapView';
+import styles from './NavigationPanel.module.css';
+
+export function NavigationPanel() {
+  const [goal, setGoal] = useState<{ x: number; y: number; yaw: number } | null>(null);
+  const [status, setStatus] = useState<NavigationStatus>({ is_complete: true, distance_remaining: null });
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Poll navigation status
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const s = await apiService.getNavigationStatus();
+        setStatus(s);
+      } catch (e) {
+        console.error('Failed to get navigation status:', e);
+      }
+    };
+
+    const interval = setInterval(fetchStatus, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleGoalSelect = useCallback((x: number, y: number, yaw: number) => {
+    setGoal({ x, y, yaw });
+    setMessage(null);
+  }, []);
+
+  const handleNavigate = async () => {
+    if (!goal) {
+      setMessage({ type: 'error', text: 'Please click on the map to select a goal' });
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+    try {
+      await apiService.navigateToGoal({
+        x: goal.x,
+        y: goal.y,
+        yaw_deg: goal.yaw * 180 / Math.PI,
+      });
+      setMessage({ type: 'success', text: 'Navigation started' });
+    } catch (e: unknown) {
+      const error = e as { response?: { data?: { detail?: string } } };
+      setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to start navigation' });
+    }
+    setLoading(false);
+  };
+
+  const handleCancel = async () => {
+    setLoading(true);
+    setMessage(null);
+    try {
+      await apiService.cancelNavigation();
+      setMessage({ type: 'success', text: 'Navigation cancelled' });
+      setGoal(null);
+    } catch (e: unknown) {
+      const error = e as { response?: { data?: { detail?: string } } };
+      setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to cancel navigation' });
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className={styles.container}>
+      <h3 className={styles.title}>Navigation</h3>
+
+      <div className={styles.statusBar}>
+        <div className={styles.statusItem}>
+          <span className={styles.label}>Status:</span>
+          <span className={`${styles.value} ${status.is_complete ? styles.idle : styles.active}`}>
+            {status.is_complete ? 'IDLE' : 'NAVIGATING'}
+          </span>
+        </div>
+        {status.distance_remaining !== null && (
+          <div className={styles.statusItem}>
+            <span className={styles.label}>Distance:</span>
+            <span className={styles.value}>{status.distance_remaining.toFixed(2)} m</span>
+          </div>
+        )}
+      </div>
+
+      <div className={styles.mapContainer}>
+        <MapView onClickGoal={handleGoalSelect} showGoalSelector={true} />
+      </div>
+
+      {goal && (
+        <div className={styles.goalInfo}>
+          <span>Goal: ({goal.x.toFixed(2)}, {goal.y.toFixed(2)})</span>
+        </div>
+      )}
+
+      <div className={styles.controls}>
+        <button
+          className={`${styles.button} ${styles.navigate}`}
+          onClick={handleNavigate}
+          disabled={loading || !goal}
+        >
+          Navigate to Goal
+        </button>
+        <button
+          className={`${styles.button} ${styles.cancel}`}
+          onClick={handleCancel}
+          disabled={loading || status.is_complete}
+        >
+          Cancel
+        </button>
+      </div>
+
+      {message && (
+        <div className={`${styles.message} ${styles[message.type]}`}>
+          {message.text}
+        </div>
+      )}
+    </div>
+  );
+}

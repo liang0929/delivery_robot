@@ -1,0 +1,118 @@
+.container {
+  background: #1a1a1a;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.title {
+  margin: 0;
+  color: #fff;
+  font-size: 18px;
+}
+
+.statusBar {
+  display: flex;
+  gap: 20px;
+  padding: 10px;
+  background: #222;
+  border-radius: 8px;
+}
+
+.statusItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label {
+  color: #888;
+}
+
+.value {
+  font-weight: bold;
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+
+.value.idle {
+  background: #333;
+  color: #888;
+}
+
+.value.active {
+  background: #1a4a2a;
+  color: #00ff88;
+}
+
+.mapContainer {
+  border: 1px solid #333;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.goalInfo {
+  padding: 10px;
+  background: #222;
+  border-radius: 8px;
+  color: #66aaff;
+  font-family: monospace;
+  text-align: center;
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+}
+
+.button {
+  flex: 1;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button.navigate {
+  background: #1a4a2a;
+  color: #00ff88;
+}
+
+.button.navigate:hover:not(:disabled) {
+  background: #2a6a3a;
+}
+
+.button.cancel {
+  background: #4a1a1a;
+  color: #ff6666;
+}
+
+.button.cancel:hover:not(:disabled) {
+  background: #6a2a2a;
+}
+
+.message {
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.message.success {
+  background: #1a4a2a;
+  color: #00ff88;
+}
+
+.message.error {
+  background: #4a1a1a;
+  color: #ff6666;
+}

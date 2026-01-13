@@ -13,6 +13,7 @@ from pydantic import BaseModel
 import uvicorn
 from typing import Optional
 from enum import Enum
+from contextlib import asynccontextmanager
 
 # --- Pydantic Models ---
 class Goal(BaseModel):
@@ -24,7 +25,7 @@ class MapSaveRequest(BaseModel):
     map_name: str
 
 class NavigationStartRequest(BaseModel):
-    map_name: Optional[str] = None  # 如果為 None，使用預設地圖
+    map_name: Optional[str] = None
 
 class SlamStatus(str, Enum):
     IDLE = "idle"
@@ -35,10 +36,203 @@ class NavStatus(str, Enum):
     IDLE = "idle"
     RUNNING = "running"
 
-# --- FastAPI App ---
-app = FastAPI(title="Robot Control API")
 
-# Enable CORS for web frontend
+# --- Thread-safe State Manager ---
+class RobotStateManager:
+    """Thread-safe manager for robot state and processes."""
+
+    MAP_SAVE_PATH = "/home/jetson/base_dev/src/map/"
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._ros_node: Optional[Node] = None
+        self._slam_process: Optional[subprocess.Popen] = None
+        self._slam_status = SlamStatus.IDLE
+        self._nav_process: Optional[subprocess.Popen] = None
+        self._nav_status = NavStatus.IDLE
+        self._robot_core_process: Optional[subprocess.Popen] = None
+        self._robot_core_running = False
+
+    # --- ROS Node ---
+    @property
+    def ros_node(self):
+        with self._lock:
+            return self._ros_node
+
+    @ros_node.setter
+    def ros_node(self, value):
+        with self._lock:
+            self._ros_node = value
+
+    # --- SLAM ---
+    @property
+    def slam_status(self) -> SlamStatus:
+        with self._lock:
+            return self._slam_status
+
+    @slam_status.setter
+    def slam_status(self, value: SlamStatus):
+        with self._lock:
+            self._slam_status = value
+
+    def start_slam(self) -> dict:
+        with self._lock:
+            if self._slam_status == SlamStatus.MAPPING:
+                raise HTTPException(status_code=400, detail="Mapping is already running.")
+
+            try:
+                self._slam_process = subprocess.Popen(
+                    ["ros2", "launch", "nav2", "mapping.launch.py"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    preexec_fn=os.setsid
+                )
+                self._slam_status = SlamStatus.MAPPING
+                return {"message": "Mapping started.", "status": self._slam_status}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to start mapping: {str(e)}")
+
+    def stop_slam(self) -> dict:
+        with self._lock:
+            if self._slam_status != SlamStatus.MAPPING:
+                raise HTTPException(status_code=400, detail="Mapping is not running.")
+
+            try:
+                if self._slam_process:
+                    os.killpg(os.getpgid(self._slam_process.pid), signal.SIGTERM)
+                    self._slam_process.wait(timeout=10)
+                    self._slam_process = None
+                self._slam_status = SlamStatus.IDLE
+                return {"message": "Mapping stopped.", "status": self._slam_status}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to stop mapping: {str(e)}")
+
+    # --- Navigation ---
+    @property
+    def nav_status(self) -> NavStatus:
+        with self._lock:
+            return self._nav_status
+
+    def start_navigation(self, map_name: Optional[str] = None) -> dict:
+        with self._lock:
+            if self._nav_status == NavStatus.RUNNING:
+                raise HTTPException(status_code=400, detail="Navigation is already running.")
+
+            if self._slam_status == SlamStatus.MAPPING:
+                raise HTTPException(status_code=400, detail="Cannot start navigation while mapping is running.")
+
+            try:
+                if map_name:
+                    map_yaml = os.path.join(self.MAP_SAVE_PATH, f"{map_name}.yaml")
+                    if not os.path.exists(map_yaml):
+                        raise HTTPException(status_code=404, detail=f"Map '{map_name}' not found.")
+                else:
+                    map_yaml = os.path.join(self.MAP_SAVE_PATH, "map.yaml")
+
+                self._nav_process = subprocess.Popen(
+                    ["ros2", "launch", "nav2", "autonomous_navigation.launch.py", f"map:={map_yaml}"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    preexec_fn=os.setsid
+                )
+                self._nav_status = NavStatus.RUNNING
+                return {"message": f"Navigation started with map: {map_yaml}", "status": self._nav_status}
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to start navigation: {str(e)}")
+
+    def stop_navigation(self) -> dict:
+        with self._lock:
+            if self._nav_status != NavStatus.RUNNING:
+                raise HTTPException(status_code=400, detail="Navigation is not running.")
+
+            try:
+                if self._nav_process:
+                    os.killpg(os.getpgid(self._nav_process.pid), signal.SIGTERM)
+                    self._nav_process.wait(timeout=10)
+                    self._nav_process = None
+                self._nav_status = NavStatus.IDLE
+                return {"message": "Navigation stopped.", "status": self._nav_status}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to stop navigation: {str(e)}")
+
+    # --- Robot Core ---
+    @property
+    def robot_core_running(self) -> bool:
+        with self._lock:
+            return self._robot_core_running
+
+    def start_robot_core(self) -> dict:
+        with self._lock:
+            if self._robot_core_running:
+                raise HTTPException(status_code=400, detail="Robot core is already running.")
+
+            try:
+                self._robot_core_process = subprocess.Popen(
+                    ["ros2", "launch", "motor_control", "full_system.launch.py"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    preexec_fn=os.setsid
+                )
+                self._robot_core_running = True
+                return {"message": "Robot core started.", "is_running": True}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to start robot core: {str(e)}")
+
+    def stop_robot_core(self) -> dict:
+        with self._lock:
+            if not self._robot_core_running:
+                raise HTTPException(status_code=400, detail="Robot core is not running.")
+
+            try:
+                if self._robot_core_process:
+                    os.killpg(os.getpgid(self._robot_core_process.pid), signal.SIGTERM)
+                    self._robot_core_process.wait(timeout=10)
+                    self._robot_core_process = None
+                self._robot_core_running = False
+                return {"message": "Robot core stopped.", "is_running": False}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to stop robot core: {str(e)}")
+
+    # --- Cleanup ---
+    def cleanup(self):
+        """Clean up all running processes."""
+        with self._lock:
+            for process, name in [
+                (self._slam_process, "SLAM"),
+                (self._nav_process, "Navigation"),
+                (self._robot_core_process, "Robot Core")
+            ]:
+                if process:
+                    try:
+                        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                        process.wait(timeout=5)
+                    except Exception:
+                        pass  # Best effort cleanup
+
+            self._slam_process = None
+            self._nav_process = None
+            self._robot_core_process = None
+            self._slam_status = SlamStatus.IDLE
+            self._nav_status = NavStatus.IDLE
+            self._robot_core_running = False
+
+
+# --- Global State Manager Instance ---
+state = RobotStateManager()
+
+
+# --- Lifespan for cleanup ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    state.cleanup()
+
+
+# --- FastAPI App ---
+app = FastAPI(title="Robot Control API", lifespan=lifespan)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -47,54 +241,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global state
-ros_node = None
-slam_process: Optional[subprocess.Popen] = None
-slam_status = SlamStatus.IDLE
-nav_process: Optional[subprocess.Popen] = None
-nav_status = NavStatus.IDLE
-robot_core_process: Optional[subprocess.Popen] = None
-robot_core_running = False
-MAP_SAVE_PATH = "/home/jetson/base_dev/src/map/"
 
 # --- Robot Core Endpoints ---
 @app.post("/robot/start")
 async def start_robot_core():
     """Start robot core system (motor controller, LiDAR, IMU, EKF)."""
-    global robot_core_process, robot_core_running
-
-    if robot_core_running:
-        raise HTTPException(status_code=400, detail="Robot core is already running.")
-
-    try:
-        robot_core_process = subprocess.Popen(
-            ["ros2", "launch", "motor_control", "full_system.launch.py"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            preexec_fn=os.setsid
-        )
-        robot_core_running = True
-        return {"message": "Robot core started.", "is_running": True}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to start robot core: {str(e)}")
+    return state.start_robot_core()
 
 @app.post("/robot/stop")
 async def stop_robot_core():
     """Stop robot core system."""
-    global robot_core_process, robot_core_running
-
-    if not robot_core_running:
-        raise HTTPException(status_code=400, detail="Robot core is not running.")
-
-    try:
-        if robot_core_process:
-            os.killpg(os.getpgid(robot_core_process.pid), signal.SIGTERM)
-            robot_core_process.wait(timeout=10)
-            robot_core_process = None
-        robot_core_running = False
-        return {"message": "Robot core stopped.", "is_running": False}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to stop robot core: {str(e)}")
+    return state.stop_robot_core()
 
 @app.post("/robot/start_lidar")
 async def start_lidar_motor():
@@ -117,14 +274,14 @@ async def start_lidar_motor():
 @app.get("/robot/status")
 async def get_robot_status():
     """Get robot core status."""
-    return {
-        "is_running": robot_core_running,
-    }
+    return {"is_running": state.robot_core_running}
+
 
 # --- Navigation Endpoints ---
 @app.post("/navigate_to_goal")
 async def navigate_to_goal(goal: Goal):
     """Send navigation goal to Nav2 stack."""
+    ros_node = state.ros_node
     if ros_node is None:
         raise HTTPException(status_code=503, detail="ROS2 node is not ready.")
 
@@ -140,6 +297,7 @@ async def navigate_to_goal(goal: Goal):
 @app.post("/navigation/cancel")
 async def cancel_navigation():
     """Cancel current navigation goal."""
+    ros_node = state.ros_node
     if ros_node is None:
         raise HTTPException(status_code=503, detail="ROS2 node is not ready.")
 
@@ -156,6 +314,7 @@ async def get_navigation_status():
         is_complete = True
         distance_remaining = None
 
+        ros_node = state.ros_node
         if ros_node is not None:
             is_complete = ros_node.navigator.isTaskComplete()
             feedback = ros_node.navigator.getFeedback()
@@ -164,23 +323,22 @@ async def get_navigation_status():
         return {
             "is_complete": is_complete,
             "distance_remaining": distance_remaining,
-            "nav_running": nav_status == NavStatus.RUNNING,
+            "nav_running": state.nav_status == NavStatus.RUNNING,
         }
-    except Exception as e:
-        return {"is_complete": True, "distance_remaining": None, "nav_running": nav_status == NavStatus.RUNNING}
+    except Exception:
+        return {"is_complete": True, "distance_remaining": None, "nav_running": state.nav_status == NavStatus.RUNNING}
 
 @app.get("/maps/list")
 async def list_maps():
     """List all available maps in the map directory."""
     try:
         maps = []
-        if os.path.exists(MAP_SAVE_PATH):
-            for file in os.listdir(MAP_SAVE_PATH):
+        if os.path.exists(state.MAP_SAVE_PATH):
+            for file in os.listdir(state.MAP_SAVE_PATH):
                 if file.endswith('.yaml'):
-                    map_name = file[:-5]  # 移除 .yaml 副檔名
-                    yaml_path = os.path.join(MAP_SAVE_PATH, file)
-                    pgm_path = os.path.join(MAP_SAVE_PATH, f"{map_name}.pgm")
-                    # 只有 yaml 和 pgm 都存在才算有效地圖
+                    map_name = file[:-5]
+                    yaml_path = os.path.join(state.MAP_SAVE_PATH, file)
+                    pgm_path = os.path.join(state.MAP_SAVE_PATH, f"{map_name}.pgm")
                     if os.path.exists(pgm_path):
                         maps.append({
                             "name": map_name,
@@ -194,108 +352,38 @@ async def list_maps():
 @app.post("/navigation/start")
 async def start_navigation(request: NavigationStartRequest = None):
     """Start autonomous navigation by launching autonomous_navigation.launch.py."""
-    global nav_process, nav_status
-
-    if nav_status == NavStatus.RUNNING:
-        raise HTTPException(status_code=400, detail="Navigation is already running.")
-
-    if slam_status == SlamStatus.MAPPING:
-        raise HTTPException(status_code=400, detail="Cannot start navigation while mapping is running. Stop mapping first.")
-
-    try:
-        # 決定地圖路徑
-        if request and request.map_name:
-            map_yaml = os.path.join(MAP_SAVE_PATH, f"{request.map_name}.yaml")
-            if not os.path.exists(map_yaml):
-                raise HTTPException(status_code=404, detail=f"Map '{request.map_name}' not found.")
-        else:
-            map_yaml = os.path.join(MAP_SAVE_PATH, "map.yaml")
-
-        nav_process = subprocess.Popen(
-            ["ros2", "launch", "nav2", "autonomous_navigation.launch.py", f"map:={map_yaml}"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            preexec_fn=os.setsid
-        )
-        nav_status = NavStatus.RUNNING
-        return {"message": f"Navigation started with map: {map_yaml}", "status": nav_status}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to start navigation: {str(e)}")
+    map_name = request.map_name if request else None
+    return state.start_navigation(map_name)
 
 @app.post("/navigation/stop")
 async def stop_navigation():
     """Stop autonomous navigation."""
-    global nav_process, nav_status
+    return state.stop_navigation()
 
-    if nav_status != NavStatus.RUNNING:
-        raise HTTPException(status_code=400, detail="Navigation is not running.")
-
-    try:
-        if nav_process:
-            os.killpg(os.getpgid(nav_process.pid), signal.SIGTERM)
-            nav_process.wait(timeout=10)
-            nav_process = None
-        nav_status = NavStatus.IDLE
-        return {"message": "Navigation stopped.", "status": nav_status}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to stop navigation: {str(e)}")
 
 # --- SLAM Endpoints ---
 @app.post("/slam/start")
 async def start_mapping():
     """Start SLAM mapping by launching mapping.launch.py."""
-    global slam_process, slam_status
-
-    if slam_status == SlamStatus.MAPPING:
-        raise HTTPException(status_code=400, detail="Mapping is already running.")
-
-    try:
-        # Launch the mapping launch file
-        slam_process = subprocess.Popen(
-            ["ros2", "launch", "nav2", "mapping.launch.py"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            preexec_fn=os.setsid
-        )
-        slam_status = SlamStatus.MAPPING
-        return {"message": "Mapping started.", "status": slam_status}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to start mapping: {str(e)}")
+    return state.start_slam()
 
 @app.post("/slam/stop")
 async def stop_mapping():
     """Stop SLAM mapping."""
-    global slam_process, slam_status
-
-    if slam_status != SlamStatus.MAPPING:
-        raise HTTPException(status_code=400, detail="Mapping is not running.")
-
-    try:
-        if slam_process:
-            os.killpg(os.getpgid(slam_process.pid), signal.SIGTERM)
-            slam_process.wait(timeout=10)
-            slam_process = None
-        slam_status = SlamStatus.IDLE
-        return {"message": "Mapping stopped.", "status": slam_status}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to stop mapping: {str(e)}")
+    return state.stop_slam()
 
 @app.post("/slam/save_map")
 async def save_map(request: MapSaveRequest):
     """Save the current map using nav2_map_server."""
-    global slam_status
-
     map_name = request.map_name.strip()
     if not map_name:
         raise HTTPException(status_code=400, detail="Map name is required.")
 
     map_name = "".join(c for c in map_name if c.isalnum() or c in ('-', '_'))
-    map_path = os.path.join(MAP_SAVE_PATH, map_name)
+    map_path = os.path.join(state.MAP_SAVE_PATH, map_name)
 
     try:
-        slam_status = SlamStatus.SAVING
+        state.slam_status = SlamStatus.SAVING
 
         result = subprocess.run(
             ["ros2", "run", "nav2_map_server", "map_saver_cli", "-f", map_path],
@@ -305,29 +393,32 @@ async def save_map(request: MapSaveRequest):
         )
 
         if result.returncode != 0:
-            slam_status = SlamStatus.MAPPING
+            state.slam_status = SlamStatus.MAPPING
             raise HTTPException(status_code=500, detail=f"Map save failed: {result.stderr}")
 
-        slam_status = SlamStatus.MAPPING
+        state.slam_status = SlamStatus.MAPPING
         return {
             "message": "Map saved successfully.",
             "map_path": map_path,
             "files": [f"{map_path}.pgm", f"{map_path}.yaml"]
         }
     except subprocess.TimeoutExpired:
-        slam_status = SlamStatus.MAPPING
+        state.slam_status = SlamStatus.MAPPING
         raise HTTPException(status_code=500, detail="Map save timed out.")
+    except HTTPException:
+        raise
     except Exception as e:
-        slam_status = SlamStatus.MAPPING
+        state.slam_status = SlamStatus.MAPPING
         raise HTTPException(status_code=500, detail=f"Failed to save map: {str(e)}")
 
 @app.get("/slam/status")
 async def get_slam_status():
     """Get current SLAM status."""
     return {
-        "status": slam_status,
-        "is_mapping": slam_status == SlamStatus.MAPPING,
+        "status": state.slam_status,
+        "is_mapping": state.slam_status == SlamStatus.MAPPING,
     }
+
 
 # --- ROS2 Node ---
 class ApiNavigatorNode(Node):
@@ -364,18 +455,20 @@ class ApiNavigatorNode(Node):
         elif result == TaskResult.FAILED:
             self.get_logger().error('Goal failed!')
 
+
 def run_ros_node():
-    global ros_node
     rclpy.init()
-    ros_node = ApiNavigatorNode()
+    node = ApiNavigatorNode()
+    state.ros_node = node
     try:
         while rclpy.ok():
-            rclpy.spin_once(ros_node, timeout_sec=0.1)
+            rclpy.spin_once(node, timeout_sec=0.1)
     except KeyboardInterrupt:
         pass
     finally:
-        ros_node.destroy_node()
+        node.destroy_node()
         rclpy.shutdown()
+
 
 def main():
     ros_thread = threading.Thread(target=run_ros_node)
@@ -383,6 +476,7 @@ def main():
     ros_thread.start()
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
 
 if __name__ == '__main__':
     main()

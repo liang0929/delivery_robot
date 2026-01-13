@@ -28,6 +28,10 @@ class SlamStatus(str, Enum):
     MAPPING = "mapping"
     SAVING = "saving"
 
+class NavStatus(str, Enum):
+    IDLE = "idle"
+    RUNNING = "running"
+
 # --- FastAPI App ---
 app = FastAPI(title="Robot Control API")
 
@@ -44,6 +48,8 @@ app.add_middleware(
 ros_node = None
 slam_process: Optional[subprocess.Popen] = None
 slam_status = SlamStatus.IDLE
+nav_process: Optional[subprocess.Popen] = None
+nav_status = NavStatus.IDLE
 robot_core_process: Optional[subprocess.Popen] = None
 robot_core_running = False
 MAP_SAVE_PATH = "/home/jetson/base_dev/src/map/"
@@ -143,19 +149,63 @@ async def cancel_navigation():
 @app.get("/navigation/status")
 async def get_navigation_status():
     """Get current navigation status."""
-    if ros_node is None:
-        raise HTTPException(status_code=503, detail="ROS2 node is not ready.")
-
     try:
-        is_complete = ros_node.navigator.isTaskComplete()
-        feedback = ros_node.navigator.getFeedback()
+        is_complete = True
+        distance_remaining = None
+
+        if ros_node is not None:
+            is_complete = ros_node.navigator.isTaskComplete()
+            feedback = ros_node.navigator.getFeedback()
+            distance_remaining = feedback.distance_remaining if feedback else None
 
         return {
             "is_complete": is_complete,
-            "distance_remaining": feedback.distance_remaining if feedback else None,
+            "distance_remaining": distance_remaining,
+            "nav_running": nav_status == NavStatus.RUNNING,
         }
     except Exception as e:
-        return {"is_complete": True, "distance_remaining": None}
+        return {"is_complete": True, "distance_remaining": None, "nav_running": nav_status == NavStatus.RUNNING}
+
+@app.post("/navigation/start")
+async def start_navigation():
+    """Start autonomous navigation by launching autonomous_navigation.launch.py."""
+    global nav_process, nav_status
+
+    if nav_status == NavStatus.RUNNING:
+        raise HTTPException(status_code=400, detail="Navigation is already running.")
+
+    if slam_status == SlamStatus.MAPPING:
+        raise HTTPException(status_code=400, detail="Cannot start navigation while mapping is running. Stop mapping first.")
+
+    try:
+        nav_process = subprocess.Popen(
+            ["ros2", "launch", "nav2", "autonomous_navigation.launch.py"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            preexec_fn=os.setsid
+        )
+        nav_status = NavStatus.RUNNING
+        return {"message": "Navigation started.", "status": nav_status}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start navigation: {str(e)}")
+
+@app.post("/navigation/stop")
+async def stop_navigation():
+    """Stop autonomous navigation."""
+    global nav_process, nav_status
+
+    if nav_status != NavStatus.RUNNING:
+        raise HTTPException(status_code=400, detail="Navigation is not running.")
+
+    try:
+        if nav_process:
+            os.killpg(os.getpgid(nav_process.pid), signal.SIGTERM)
+            nav_process.wait(timeout=10)
+            nav_process = None
+        nav_status = NavStatus.IDLE
+        return {"message": "Navigation stopped.", "status": nav_status}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to stop navigation: {str(e)}")
 
 # --- SLAM Endpoints ---
 @app.post("/slam/start")

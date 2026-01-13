@@ -42,6 +42,7 @@ class RobotStateManager:
     """Thread-safe manager for robot state and processes."""
 
     MAP_SAVE_PATH = "/home/jetson/base_dev/src/map/"
+    HEALTH_CHECK_INTERVAL = 2.0  # 每 2 秒檢查一次
 
     def __init__(self):
         self._lock = threading.Lock()
@@ -52,6 +53,10 @@ class RobotStateManager:
         self._nav_status = NavStatus.IDLE
         self._robot_core_process: Optional[subprocess.Popen] = None
         self._robot_core_running = False
+        # Health monitor
+        self._health_thread: Optional[threading.Thread] = None
+        self._health_stop_event = threading.Event()
+        self._crash_info: dict = {}  # 記錄 crash 資訊
 
     # --- ROS Node ---
     @property
@@ -195,9 +200,87 @@ class RobotStateManager:
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Failed to stop robot core: {str(e)}")
 
+    # --- Health Monitor ---
+    def start_health_monitor(self):
+        """啟動背景健康檢查執行緒"""
+        if self._health_thread is not None:
+            return
+        self._health_stop_event.clear()
+        self._health_thread = threading.Thread(target=self._health_check_loop, daemon=True)
+        self._health_thread.start()
+
+    def stop_health_monitor(self):
+        """停止健康檢查執行緒"""
+        self._health_stop_event.set()
+        if self._health_thread:
+            self._health_thread.join(timeout=3)
+            self._health_thread = None
+
+    def _health_check_loop(self):
+        """健康檢查迴圈"""
+        while not self._health_stop_event.is_set():
+            self._check_processes()
+            self._health_stop_event.wait(self.HEALTH_CHECK_INTERVAL)
+
+    def _check_processes(self):
+        """檢查所有子程序是否存活"""
+        with self._lock:
+            # 檢查 SLAM 程序
+            if self._slam_process and self._slam_status == SlamStatus.MAPPING:
+                ret = self._slam_process.poll()
+                if ret is not None:
+                    self._crash_info['slam'] = {
+                        'exit_code': ret,
+                        'time': self._get_timestamp()
+                    }
+                    self._slam_process = None
+                    self._slam_status = SlamStatus.IDLE
+
+            # 檢查 Navigation 程序
+            if self._nav_process and self._nav_status == NavStatus.RUNNING:
+                ret = self._nav_process.poll()
+                if ret is not None:
+                    self._crash_info['navigation'] = {
+                        'exit_code': ret,
+                        'time': self._get_timestamp()
+                    }
+                    self._nav_process = None
+                    self._nav_status = NavStatus.IDLE
+
+            # 檢查 Robot Core 程序
+            if self._robot_core_process and self._robot_core_running:
+                ret = self._robot_core_process.poll()
+                if ret is not None:
+                    self._crash_info['robot_core'] = {
+                        'exit_code': ret,
+                        'time': self._get_timestamp()
+                    }
+                    self._robot_core_process = None
+                    self._robot_core_running = False
+
+    def _get_timestamp(self) -> str:
+        """取得時間戳記"""
+        from datetime import datetime
+        return datetime.now().isoformat()
+
+    @property
+    def crash_info(self) -> dict:
+        """取得最近的 crash 資訊"""
+        with self._lock:
+            return self._crash_info.copy()
+
+    def clear_crash_info(self, service: Optional[str] = None):
+        """清除 crash 資訊"""
+        with self._lock:
+            if service:
+                self._crash_info.pop(service, None)
+            else:
+                self._crash_info.clear()
+
     # --- Cleanup ---
     def cleanup(self):
         """Clean up all running processes."""
+        self.stop_health_monitor()
         with self._lock:
             for process, name in [
                 (self._slam_process, "SLAM"),
@@ -226,6 +309,7 @@ state = RobotStateManager()
 # --- Lifespan for cleanup ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    state.start_health_monitor()
     yield
     state.cleanup()
 
@@ -275,6 +359,34 @@ async def start_lidar_motor():
 async def get_robot_status():
     """Get robot core status."""
     return {"is_running": state.robot_core_running}
+
+@app.get("/health")
+async def get_health_status():
+    """Get overall system health status including crash info."""
+    crash_info = state.crash_info
+    return {
+        "robot_core": {
+            "running": state.robot_core_running,
+            "crashed": "robot_core" in crash_info,
+            "last_crash": crash_info.get("robot_core"),
+        },
+        "slam": {
+            "status": state.slam_status,
+            "crashed": "slam" in crash_info,
+            "last_crash": crash_info.get("slam"),
+        },
+        "navigation": {
+            "status": state.nav_status,
+            "crashed": "navigation" in crash_info,
+            "last_crash": crash_info.get("navigation"),
+        },
+    }
+
+@app.post("/health/clear")
+async def clear_crash_info(service: Optional[str] = None):
+    """Clear crash info for a specific service or all services."""
+    state.clear_crash_info(service)
+    return {"message": f"Crash info cleared for: {service or 'all'}"}
 
 
 # --- Navigation Endpoints ---

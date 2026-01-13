@@ -119,17 +119,17 @@ def generate_launch_description():
         condition=IfCondition(enable_web)
     )
 
-    # rosapi
-    rosapi_node = Node(
-        package='rosapi',
-        executable='rosapi_node',
-        name='rosapi',
-        output='screen',
-        parameters=[{
-            'call_services_in_new_thread': True,
-        }],
-        condition=IfCondition(enable_web)
-    )
+    # rosapi (暫時停用 - 在 Jetson 上不穩定)
+    # rosapi_node = Node(
+    #     package='rosapi',
+    #     executable='rosapi_node',
+    #     name='rosapi',
+    #     output='screen',
+    #     parameters=[{
+    #         'call_services_in_new_thread': True,
+    #     }],
+    #     condition=IfCondition(enable_web)
+    # )
 
     # API Server (控制建圖/導航模式)
     api_server = ExecuteProcess(
@@ -159,6 +159,6 @@ def generate_launch_description():
 
         # Web 服務
         rosbridge_node,
-        rosapi_node,
+        # rosapi_node,  # 暫時停用
         api_server,
     ])

@@ -27,10 +27,27 @@ export interface RobotStatus {
   is_running: boolean;
 }
 
+export interface MapInfo {
+  name: string;
+  yaml_path: string;
+  pgm_path: string;
+}
+
+export interface MapsListResponse {
+  maps: MapInfo[];
+  default: string;
+}
+
 export const apiService = {
+  // Maps
+  async getMaps(): Promise<MapsListResponse> {
+    const response = await api.get('/maps/list');
+    return response.data;
+  },
+
   // Navigation
-  async startNavigation(): Promise<void> {
-    await api.post('/navigation/start');
+  async startNavigation(mapName?: string): Promise<void> {
+    await api.post('/navigation/start', mapName ? { map_name: mapName } : {});
   },
 
   async stopNavigation(): Promise<void> {

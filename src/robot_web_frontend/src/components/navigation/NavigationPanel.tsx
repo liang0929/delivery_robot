@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { apiService, NavigationStatus } from '../../services/api.service';
+import { apiService, NavigationStatus, MapInfo } from '../../services/api.service';
 import { MapView } from '../map/MapView';
 import styles from './NavigationPanel.module.css';
 
@@ -8,6 +8,26 @@ export function NavigationPanel() {
   const [status, setStatus] = useState<NavigationStatus>({ is_complete: true, distance_remaining: null, nav_running: false });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [maps, setMaps] = useState<MapInfo[]>([]);
+  const [selectedMap, setSelectedMap] = useState<string>('');
+
+  // Fetch available maps
+  useEffect(() => {
+    const fetchMaps = async () => {
+      try {
+        const result = await apiService.getMaps();
+        setMaps(result.maps);
+        if (result.maps.length > 0) {
+          // 優先選擇 default，否則選第一個
+          const defaultMap = result.maps.find(m => m.name === result.default);
+          setSelectedMap(defaultMap ? defaultMap.name : result.maps[0].name);
+        }
+      } catch (e) {
+        console.error('Failed to fetch maps:', e);
+      }
+    };
+    fetchMaps();
+  }, []);
 
   // Poll navigation status
   useEffect(() => {
@@ -26,11 +46,15 @@ export function NavigationPanel() {
   }, []);
 
   const handleStartNavigation = async () => {
+    if (!selectedMap) {
+      setMessage({ type: 'error', text: 'Please select a map first' });
+      return;
+    }
     setLoading(true);
     setMessage(null);
     try {
-      await apiService.startNavigation();
-      setMessage({ type: 'success', text: 'Navigation mode started. Loading map...' });
+      await apiService.startNavigation(selectedMap);
+      setMessage({ type: 'success', text: `Navigation started with map: ${selectedMap}` });
     } catch (e: unknown) {
       const error = e as { response?: { data?: { detail?: string } } };
       setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to start navigation' });
@@ -118,11 +142,31 @@ export function NavigationPanel() {
         )}
       </div>
 
+      <div className={styles.mapSelector}>
+        <label className={styles.mapLabel}>Select Map:</label>
+        <select
+          className={styles.mapSelect}
+          value={selectedMap}
+          onChange={(e) => setSelectedMap(e.target.value)}
+          disabled={status.nav_running || maps.length === 0}
+        >
+          {maps.length === 0 ? (
+            <option value="">No maps available</option>
+          ) : (
+            maps.map((map) => (
+              <option key={map.name} value={map.name}>
+                {map.name}
+              </option>
+            ))
+          )}
+        </select>
+      </div>
+
       <div className={styles.modeControls}>
         <button
           className={`${styles.button} ${styles.start}`}
           onClick={handleStartNavigation}
-          disabled={loading || status.nav_running}
+          disabled={loading || status.nav_running || !selectedMap}
         >
           Start Navigation
         </button>

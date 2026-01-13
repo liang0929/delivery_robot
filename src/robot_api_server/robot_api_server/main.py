@@ -23,6 +23,9 @@ class Goal(BaseModel):
 class MapSaveRequest(BaseModel):
     map_name: str
 
+class NavigationStartRequest(BaseModel):
+    map_name: Optional[str] = None  # 如果為 None，使用預設地圖
+
 class SlamStatus(str, Enum):
     IDLE = "idle"
     MAPPING = "mapping"
@@ -166,8 +169,30 @@ async def get_navigation_status():
     except Exception as e:
         return {"is_complete": True, "distance_remaining": None, "nav_running": nav_status == NavStatus.RUNNING}
 
+@app.get("/maps/list")
+async def list_maps():
+    """List all available maps in the map directory."""
+    try:
+        maps = []
+        if os.path.exists(MAP_SAVE_PATH):
+            for file in os.listdir(MAP_SAVE_PATH):
+                if file.endswith('.yaml'):
+                    map_name = file[:-5]  # 移除 .yaml 副檔名
+                    yaml_path = os.path.join(MAP_SAVE_PATH, file)
+                    pgm_path = os.path.join(MAP_SAVE_PATH, f"{map_name}.pgm")
+                    # 只有 yaml 和 pgm 都存在才算有效地圖
+                    if os.path.exists(pgm_path):
+                        maps.append({
+                            "name": map_name,
+                            "yaml_path": yaml_path,
+                            "pgm_path": pgm_path,
+                        })
+        return {"maps": maps, "default": "map"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list maps: {str(e)}")
+
 @app.post("/navigation/start")
-async def start_navigation():
+async def start_navigation(request: NavigationStartRequest = None):
     """Start autonomous navigation by launching autonomous_navigation.launch.py."""
     global nav_process, nav_status
 
@@ -178,14 +203,24 @@ async def start_navigation():
         raise HTTPException(status_code=400, detail="Cannot start navigation while mapping is running. Stop mapping first.")
 
     try:
+        # 決定地圖路徑
+        if request and request.map_name:
+            map_yaml = os.path.join(MAP_SAVE_PATH, f"{request.map_name}.yaml")
+            if not os.path.exists(map_yaml):
+                raise HTTPException(status_code=404, detail=f"Map '{request.map_name}' not found.")
+        else:
+            map_yaml = os.path.join(MAP_SAVE_PATH, "map.yaml")
+
         nav_process = subprocess.Popen(
-            ["ros2", "launch", "nav2", "autonomous_navigation.launch.py"],
+            ["ros2", "launch", "nav2", "autonomous_navigation.launch.py", f"map:={map_yaml}"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             preexec_fn=os.setsid
         )
         nav_status = NavStatus.RUNNING
-        return {"message": "Navigation started.", "status": nav_status}
+        return {"message": f"Navigation started with map: {map_yaml}", "status": nav_status}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to start navigation: {str(e)}")
 

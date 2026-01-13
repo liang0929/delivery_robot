@@ -1,28 +1,19 @@
-import { useState, useEffect } from 'react';
-import { apiService, SlamStatus } from '../../services/api.service';
+import { useState } from 'react';
+import { apiService } from '../../services/api.service';
+import { useSlamStatus } from '../../hooks/useStatusWs';
 import styles from './SlamControlPanel.module.css';
 
 export function SlamControlPanel() {
-  const [status, setStatus] = useState<SlamStatus>({ status: 'idle', is_mapping: false });
+  const { slamStatus } = useSlamStatus();
   const [mapName, setMapName] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Poll status
-  useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const s = await apiService.getSlamStatus();
-        setStatus(s);
-      } catch (e) {
-        console.error('Failed to get SLAM status:', e);
-      }
-    };
-
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 2000);
-    return () => clearInterval(interval);
-  }, []);
+  // 從 WebSocket 取得狀態，提供預設值
+  const status = {
+    status: slamStatus?.status ?? 'idle',
+    is_mapping: slamStatus?.is_mapping ?? false,
+  };
 
   const handleStartMapping = async () => {
     setLoading(true);

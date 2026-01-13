@@ -7,13 +7,15 @@ import threading
 import subprocess
 import os
 import signal
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
-from typing import Optional
+from typing import Optional, Set
 from enum import Enum
 from contextlib import asynccontextmanager
+import asyncio
+import json
 
 # --- Pydantic Models ---
 class Goal(BaseModel):
@@ -306,11 +308,107 @@ class RobotStateManager:
 state = RobotStateManager()
 
 
+# --- WebSocket Connection Manager ---
+class ConnectionManager:
+    """管理 WebSocket 連線"""
+
+    def __init__(self):
+        self._connections: Set[WebSocket] = set()
+        self._lock = asyncio.Lock()
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        async with self._lock:
+            self._connections.add(websocket)
+
+    async def disconnect(self, websocket: WebSocket):
+        async with self._lock:
+            self._connections.discard(websocket)
+
+    async def broadcast(self, message: dict):
+        """廣播訊息給所有連線"""
+        async with self._lock:
+            dead_connections = set()
+            for conn in self._connections:
+                try:
+                    await conn.send_json(message)
+                except Exception:
+                    dead_connections.add(conn)
+            # 移除斷線的連線
+            self._connections -= dead_connections
+
+    @property
+    def connection_count(self) -> int:
+        return len(self._connections)
+
+
+ws_manager = ConnectionManager()
+
+
+async def status_broadcast_loop():
+    """定期廣播狀態更新"""
+    last_status = {}
+    while True:
+        await asyncio.sleep(1)  # 每秒檢查一次
+        if ws_manager.connection_count == 0:
+            continue
+
+        # 取得當前狀態
+        current_status = get_full_status()
+
+        # 只在狀態變化時廣播
+        if current_status != last_status:
+            await ws_manager.broadcast({
+                "type": "status_update",
+                "data": current_status
+            })
+            last_status = current_status
+
+
+def get_full_status() -> dict:
+    """取得完整系統狀態"""
+    ros_node = state.ros_node
+    is_complete = True
+    distance_remaining = None
+
+    if ros_node is not None:
+        try:
+            is_complete = ros_node.navigator.isTaskComplete()
+            feedback = ros_node.navigator.getFeedback()
+            distance_remaining = feedback.distance_remaining if feedback else None
+        except Exception:
+            pass
+
+    return {
+        "robot_core": {
+            "running": state.robot_core_running,
+        },
+        "slam": {
+            "status": state.slam_status.value,
+            "is_mapping": state.slam_status == SlamStatus.MAPPING,
+        },
+        "navigation": {
+            "status": state.nav_status.value,
+            "nav_running": state.nav_status == NavStatus.RUNNING,
+            "is_complete": is_complete,
+            "distance_remaining": distance_remaining,
+        },
+        "crash_info": state.crash_info,
+    }
+
+
 # --- Lifespan for cleanup ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     state.start_health_monitor()
+    # 啟動狀態廣播任務
+    broadcast_task = asyncio.create_task(status_broadcast_loop())
     yield
+    broadcast_task.cancel()
+    try:
+        await broadcast_task
+    except asyncio.CancelledError:
+        pass
     state.cleanup()
 
 
@@ -324,6 +422,29 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# --- WebSocket Endpoint ---
+@app.websocket("/ws/status")
+async def websocket_status(websocket: WebSocket):
+    """WebSocket 端點：即時狀態更新"""
+    await ws_manager.connect(websocket)
+    try:
+        # 連線時立即發送當前狀態
+        await websocket.send_json({
+            "type": "status_update",
+            "data": get_full_status()
+        })
+        # 保持連線，等待客戶端斷線
+        while True:
+            # 接收心跳或指令（目前只是保持連線）
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await ws_manager.disconnect(websocket)
 
 
 # --- Robot Core Endpoints ---

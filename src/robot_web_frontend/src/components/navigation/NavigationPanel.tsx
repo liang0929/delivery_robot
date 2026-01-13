@@ -1,24 +1,31 @@
 import { useState, useEffect, useCallback } from 'react';
-import { apiService, NavigationStatus, MapInfo } from '../../services/api.service';
+import { apiService, MapInfo } from '../../services/api.service';
+import { useNavigationStatus } from '../../hooks/useStatusWs';
 import { MapView } from '../map/MapView';
 import styles from './NavigationPanel.module.css';
 
 export function NavigationPanel() {
   const [goal, setGoal] = useState<{ x: number; y: number; yaw: number } | null>(null);
-  const [status, setStatus] = useState<NavigationStatus>({ is_complete: true, distance_remaining: null, nav_running: false });
+  const { navStatus } = useNavigationStatus();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [maps, setMaps] = useState<MapInfo[]>([]);
   const [selectedMap, setSelectedMap] = useState<string>('');
 
-  // Fetch available maps
+  // 從 WebSocket 取得狀態，提供預設值
+  const status = {
+    is_complete: navStatus?.is_complete ?? true,
+    distance_remaining: navStatus?.distance_remaining ?? null,
+    nav_running: navStatus?.nav_running ?? false,
+  };
+
+  // Fetch available maps (只在載入時執行一次)
   useEffect(() => {
     const fetchMaps = async () => {
       try {
         const result = await apiService.getMaps();
         setMaps(result.maps);
         if (result.maps.length > 0) {
-          // 優先選擇 default，否則選第一個
           const defaultMap = result.maps.find(m => m.name === result.default);
           setSelectedMap(defaultMap ? defaultMap.name : result.maps[0].name);
         }
@@ -27,22 +34,6 @@ export function NavigationPanel() {
       }
     };
     fetchMaps();
-  }, []);
-
-  // Poll navigation status
-  useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const s = await apiService.getNavigationStatus();
-        setStatus(s);
-      } catch (e) {
-        console.error('Failed to get navigation status:', e);
-      }
-    };
-
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 1000);
-    return () => clearInterval(interval);
   }, []);
 
   const handleStartNavigation = async () => {

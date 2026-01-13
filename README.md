@@ -9,7 +9,7 @@
 2. [環境依賴](#2-環境依賴)
 3. [安裝與建置](#3-安裝與建置)
 4. [使用說明](#4-使用說明)
-   - [啟動機器人核心](#41-啟動機器人核心)
+   - [一鍵啟動（推薦）](#41-一鍵啟動推薦)
    - [網頁前端控制](#42-網頁前端控制)
    - [手動鍵盤控制](#43-手動鍵盤控制)
    - [SLAM 建圖](#44-slam-建圖)
@@ -97,42 +97,33 @@ npm install
 source install/setup.bash
 ```
 
-### 4.1. 啟動機器人核心
+### 4.1. 一鍵啟動（推薦）
 
-此指令會啟動所有基礎節點，包括馬達控制器、LiDAR、IMU 以及 EKF 狀態估算。
+使用統一 launch 檔案啟動所有核心節點與 Web 服務：
 
 ```bash
-ros2 launch motor_control full_system.launch.py
+ros2 launch motor_control bringup.launch.py
 ```
 
-啟動後需要啟動 LiDAR 馬達：
-```bash
-ros2 service call /start_motor std_srvs/srv/Empty
-```
+此指令會啟動：
+- 馬達控制器、LiDAR、IMU、EKF 狀態估算
+- rosbridge WebSocket 通訊
+- API Server (REST API)
+- 靜態 TF 發布器
 
-### 4.2. 網頁前端控制
-
-網頁前端提供三大功能：遙控機器人、SLAM 建圖、自主導航。
-
-**啟動步驟：**
-
-終端 1 - rosbridge (WebSocket 通訊)：
-```bash
-source install/setup.bash
-ros2 launch rosbridge_server rosbridge_websocket_launch.xml
-```
-
-終端 2 - API Server (REST API)：
-```bash
-source install/setup.bash
-ros2 run robot_api_server api_server
-```
-
-終端 3 - 前端開發伺服器：
+啟動後，開啟前端開發伺服器：
 ```bash
 cd src/robot_web_frontend
 npm run dev
 ```
+
+**開啟瀏覽器：** `http://<機器人IP>:3000`
+
+> 網頁前端可動態切換模式（遙控、建圖、導航），無需重新啟動 launch。
+
+### 4.2. 網頁前端控制
+
+網頁前端提供三大功能：遙控機器人、SLAM 建圖、自主導航。
 
 **開啟瀏覽器：** `http://<機器人IP>:3000`
 
@@ -170,9 +161,9 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 
 ### 4.4. SLAM 建圖
 
-**方法一：使用網頁前端**
-1. 開啟網頁前端 (參考 4.2)
-2. 點擊 "SLAM Mapping" 頁面
+**方法一：使用網頁前端（推薦）**
+1. 使用統一 launch 啟動系統 (參考 4.1)
+2. 開啟網頁前端，點擊 "SLAM Mapping" 頁面
 3. 點擊 "Start Mapping" 開始建圖
 4. 使用虛擬搖桿控制機器人移動
 5. 輸入地圖名稱，點擊 "Save Map" 儲存
@@ -184,45 +175,44 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
    ros2 launch nav2 mapping.launch.py
    ```
 
-2. **啟動 LiDAR 馬達**:
-   ```bash
-   ros2 service call /start_motor std_srvs/srv/Empty
-   ```
-
-3. **啟動鍵盤控制** (終端 2):
+2. **啟動鍵盤控制** (終端 2):
    ```bash
    ros2 run teleop_twist_keyboard teleop_twist_keyboard
    ```
    > 啟動後按 `z` 降低速度至約 0.05 m/s（建議建圖時用低速）
 
-4. **啟動 RViz2 視覺化** (終端 3):
+3. **啟動 RViz2 視覺化** (終端 3，可選):
    ```bash
    rviz2
    ```
    在 RViz2 中加入顯示：Add → By topic → `/map` → Map
 
-5. **儲存地圖**:
+4. **儲存地圖**:
    ```bash
    ros2 run nav2_map_server map_saver_cli -f src/map/map
    ```
 
+**SLAM 參數調整：**
+SLAM Toolbox 參數配置檔位於 `src/nav2/config/slam_toolbox_params.yaml`，可調整：
+- `resolution`: 地圖解析度（預設 0.025m）
+- `max_laser_range`: LiDAR 最大有效範圍
+- `do_loop_closing`: 迴環檢測開關
+
 ### 4.5. 自主導航
 
-**方法一：使用網頁前端**
+**方法一：使用網頁前端（推薦）**
 1. 確保已有儲存的地圖
-2. 啟動自主導航 (終端):
-   ```bash
-   ros2 launch nav2 autonomous_navigation.launch.py
-   ```
+2. 使用統一 launch 啟動系統 (參考 4.1)
 3. 開啟網頁前端，點擊 "Navigation" 頁面
-4. 點擊地圖選擇目標位置
-5. 點擊 "Navigate to Goal" 開始導航
+4. 點擊 "Start Navigation" 開始導航模式
+5. 點擊地圖選擇目標位置
+6. 機器人自動導航至目標
 
 **方法二：使用 RViz2**
 
-1. **啟動機器人核心** (終端 1):
+1. **啟動系統** (終端 1):
    ```bash
-   ros2 launch motor_control full_system.launch.py
+   ros2 launch motor_control bringup.launch.py enable_web:=false
    ```
 
 2. **啟動導航模式** (終端 2):

@@ -1,0 +1,23 @@
+[Unit]
+Description=Robot Web Frontend
+After=network.target robot-core.service
+Wants=robot-core.service
+
+[Service]
+Type=simple
+User=jetson
+Group=jetson
+WorkingDirectory=/home/jetson/base_dev/src/robot_web_frontend
+ExecStart=/home/jetson/base_dev/scripts/web_frontend.sh
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Node.js 環境
+Environment="HOME=/home/jetson"
+Environment="USER=jetson"
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+
+[Install]
+WantedBy=multi-user.target

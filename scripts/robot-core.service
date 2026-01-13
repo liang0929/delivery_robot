@@ -1,0 +1,21 @@
+[Unit]
+Description=Robot ROS2 Core Services
+After=network.target
+
+[Service]
+Type=simple
+User=jetson
+Group=jetson
+WorkingDirectory=/home/jetson/base_dev
+ExecStart=/home/jetson/base_dev/scripts/robot_bringup.sh
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# 環境變數
+Environment="HOME=/home/jetson"
+Environment="USER=jetson"
+
+[Install]
+WantedBy=multi-user.target

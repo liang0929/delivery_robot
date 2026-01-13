@@ -16,7 +16,7 @@ export const ROBOT_CONFIG = {
   // Topics
   TOPICS: {
     CMD_VEL: '/cmd_vel',
-    MAP: '/map',
+    MAP: '/map_relay',  // 使用 relay 節點解決 QoS 不相容
     SCAN: '/scan',
     ODOM: '/odometry/filtered',
     ROBOT_POSE: '/amcl_pose',

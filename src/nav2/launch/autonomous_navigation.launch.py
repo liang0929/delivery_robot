@@ -113,6 +113,14 @@ def generate_launch_description():
         }]
     )
 
+    # Map Relay (解決 map_server 與 rosbridge QoS 不相容問題)
+    map_relay_node = Node(
+        package='motor_control',
+        executable='map_relay',
+        name='map_relay',
+        output='screen'
+    )
+
     # AMCL - 定位
     amcl_node = Node(
         package='nav2_amcl',
@@ -177,6 +185,7 @@ def generate_launch_description():
         imu_node,
         base_link_to_imu,
         map_server_node,
+        map_relay_node,
         amcl_node,
         lifecycle_manager_localization,
         nav2_launch

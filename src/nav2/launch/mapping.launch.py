@@ -80,6 +80,14 @@ def generate_launch_description():
         output='screen'
     )
 
+    # Map Relay (解決 slam_toolbox 與 rosbridge QoS 不相容問題)
+    map_relay_node = Node(
+        package='motor_control',
+        executable='map_relay',
+        name='map_relay',
+        output='screen'
+    )
+
     # 靜態 TF
     base_footprint_to_base_link = Node(
         package='tf2_ros',
@@ -109,6 +117,7 @@ def generate_launch_description():
         imu_node,
         ekf_node,
         slam_toolbox_node,
+        map_relay_node,
         base_footprint_to_base_link,
         base_link_to_laser,
         base_link_to_imu,

@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""
+Map Relay Node - 解決 slam_toolbox 與 rosbridge QoS 不相容問題
+
+slam_toolbox 發布 /map 使用 TRANSIENT_LOCAL + RELIABLE
+rosbridge 訂閱使用 VOLATILE + BEST_EFFORT
+此節點轉發地圖到相容的 QoS 設定
+"""
+
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
+from nav_msgs.msg import OccupancyGrid
+
+
+class MapRelayNode(Node):
+    def __init__(self):
+        super().__init__('map_relay')
+
+        # 訂閱 /map (使用與 slam_toolbox 相容的 QoS)
+        sub_qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1
+        )
+
+        # 發布 /map_relay (使用與 rosbridge 相容的 QoS)
+        pub_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1
+        )
+
+        self.subscription = self.create_subscription(
+            OccupancyGrid,
+            '/map',
+            self.map_callback,
+            sub_qos
+        )
+
+        self.publisher = self.create_publisher(
+            OccupancyGrid,
+            '/map_relay',
+            pub_qos
+        )
+
+        self.get_logger().info('Map relay node started: /map -> /map_relay')
+
+    def map_callback(self, msg: OccupancyGrid):
+        self.publisher.publish(msg)
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = MapRelayNode()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()

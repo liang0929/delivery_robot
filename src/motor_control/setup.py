@@ -31,7 +31,8 @@ setup(
     entry_points={
         'console_scripts': [
             'modbus_motor_controller = motor_control.modbus_motor_controller:main',
-            'hs_motor_controller = motor_control.hs_motor_controller:main'
+            'hs_motor_controller = motor_control.hs_motor_controller:main',
+            'map_relay = motor_control.map_relay:main',
         ],
     },
 )

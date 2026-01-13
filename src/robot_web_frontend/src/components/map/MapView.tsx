@@ -23,22 +23,48 @@ export function MapView({ onClickGoal, showGoalSelector = false }: MapViewProps)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [goalMarker, setGoalMarker] = useState<{ x: number; y: number } | null>(null);
 
-  // Subscribe to map and odom
+  // Subscribe to map and odom with retry mechanism
   useEffect(() => {
-    rosbridgeService.subscribeToMap((map) => {
-      setMapData(map);
-    });
+    let retryInterval: number | null = null;
+    let subscribed = false;
 
-    rosbridgeService.subscribeToOdom((odom) => {
-      const { position, orientation } = odom.pose.pose;
-      const yaw = Math.atan2(
-        2.0 * (orientation.w * orientation.z + orientation.x * orientation.y),
-        1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z)
-      );
-      setRobotPose({ x: position.x, y: position.y, yaw });
-    });
+    const trySubscribe = () => {
+      if (!rosbridgeService.isConnected()) {
+        return; // 等待下次重試
+      }
+
+      if (!subscribed) {
+        rosbridgeService.subscribeToMap((map) => {
+          setMapData(map);
+        });
+
+        rosbridgeService.subscribeToOdom((odom) => {
+          const { position, orientation } = odom.pose.pose;
+          const yaw = Math.atan2(
+            2.0 * (orientation.w * orientation.z + orientation.x * orientation.y),
+            1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z)
+          );
+          setRobotPose({ x: position.x, y: position.y, yaw });
+        });
+
+        subscribed = true;
+        // 訂閱成功後停止重試
+        if (retryInterval) {
+          clearInterval(retryInterval);
+          retryInterval = null;
+        }
+      }
+    };
+
+    // 立即嘗試訂閱
+    trySubscribe();
+    // 每秒重試直到成功
+    retryInterval = window.setInterval(trySubscribe, 1000);
 
     return () => {
+      if (retryInterval) {
+        clearInterval(retryInterval);
+      }
       rosbridgeService.unsubscribeFromMap();
       rosbridgeService.unsubscribeFromOdom();
     };

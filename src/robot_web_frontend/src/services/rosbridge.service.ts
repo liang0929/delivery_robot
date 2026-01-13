@@ -69,15 +69,22 @@ class RosbridgeService {
     this.cmdVelPublisher.publish(twist);
   }
 
-  // Subscribe to map
+  // Subscribe to map with throttling for performance
   subscribeToMap(callback: (map: OccupancyGridData) => void): void {
-    if (!this.ros) return;
+    if (!this.ros || !this.connected) return;
 
+    // 取消現有訂閱
+    if (this.mapSubscriber) {
+      this.mapSubscriber.unsubscribe();
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.mapSubscriber = new ROSLIB.Topic({
       ros: this.ros,
       name: ROBOT_CONFIG.TOPICS.MAP,
       messageType: 'nav_msgs/msg/OccupancyGrid',
-    });
+      throttle_rate: 500,  // 每 500ms 最多收一次 (2Hz)
+    } as any);
 
     this.mapSubscriber.subscribe((message: unknown) => {
       callback(message as OccupancyGridData);

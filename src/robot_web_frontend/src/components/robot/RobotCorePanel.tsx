@@ -61,16 +61,7 @@ export function RobotCorePanel() {
     setMessage(null);
     try {
       await apiService.startRobotCore();
-      setMessage({ type: 'success', text: 'Robot core starting...' });
-      // Wait a bit then start LiDAR
-      setTimeout(async () => {
-        try {
-          await apiService.startLidar();
-          setMessage({ type: 'success', text: 'Robot core and LiDAR started!' });
-        } catch {
-          setMessage({ type: 'success', text: 'Robot core started. LiDAR may need manual start.' });
-        }
-      }, 5000);
+      setMessage({ type: 'success', text: 'Robot core started!' });
     } catch (e: unknown) {
       const error = e as { response?: { data?: { detail?: string } } };
       setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to start' });
@@ -87,19 +78,6 @@ export function RobotCorePanel() {
     } catch (e: unknown) {
       const error = e as { response?: { data?: { detail?: string } } };
       setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to stop' });
-    }
-    setLoading(false);
-  };
-
-  const handleStartLidar = async () => {
-    setLoading(true);
-    setMessage(null);
-    try {
-      await apiService.startLidar();
-      setMessage({ type: 'success', text: 'LiDAR motor started' });
-    } catch (e: unknown) {
-      const error = e as { response?: { data?: { detail?: string } } };
-      setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to start LiDAR' });
     }
     setLoading(false);
   };
@@ -146,13 +124,6 @@ export function RobotCorePanel() {
           disabled={loading || !status.is_running}
         >
           Stop
-        </button>
-        <button
-          className={`${styles.button} ${styles.lidar}`}
-          onClick={handleStartLidar}
-          disabled={loading}
-        >
-          Start LiDAR
         </button>
       </div>
 

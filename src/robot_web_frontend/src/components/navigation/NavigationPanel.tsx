@@ -5,7 +5,7 @@ import styles from './NavigationPanel.module.css';
 
 export function NavigationPanel() {
   const [goal, setGoal] = useState<{ x: number; y: number; yaw: number } | null>(null);
-  const [status, setStatus] = useState<NavigationStatus>({ is_complete: true, distance_remaining: null });
+  const [status, setStatus] = useState<NavigationStatus>({ is_complete: true, distance_remaining: null, nav_running: false });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -20,9 +20,37 @@ export function NavigationPanel() {
       }
     };
 
+    fetchStatus();
     const interval = setInterval(fetchStatus, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleStartNavigation = async () => {
+    setLoading(true);
+    setMessage(null);
+    try {
+      await apiService.startNavigation();
+      setMessage({ type: 'success', text: 'Navigation mode started. Loading map...' });
+    } catch (e: unknown) {
+      const error = e as { response?: { data?: { detail?: string } } };
+      setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to start navigation' });
+    }
+    setLoading(false);
+  };
+
+  const handleStopNavigation = async () => {
+    setLoading(true);
+    setMessage(null);
+    try {
+      await apiService.stopNavigation();
+      setMessage({ type: 'success', text: 'Navigation mode stopped' });
+      setGoal(null);
+    } catch (e: unknown) {
+      const error = e as { response?: { data?: { detail?: string } } };
+      setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to stop navigation' });
+    }
+    setLoading(false);
+  };
 
   const handleGoalSelect = useCallback((x: number, y: number, yaw: number) => {
     setGoal({ x, y, yaw });
@@ -71,6 +99,12 @@ export function NavigationPanel() {
 
       <div className={styles.statusBar}>
         <div className={styles.statusItem}>
+          <span className={styles.label}>Navigation:</span>
+          <span className={`${styles.value} ${status.nav_running ? styles.active : styles.idle}`}>
+            {status.nav_running ? 'RUNNING' : 'STOPPED'}
+          </span>
+        </div>
+        <div className={styles.statusItem}>
           <span className={styles.label}>Status:</span>
           <span className={`${styles.value} ${status.is_complete ? styles.idle : styles.active}`}>
             {status.is_complete ? 'IDLE' : 'NAVIGATING'}
@@ -84,8 +118,25 @@ export function NavigationPanel() {
         )}
       </div>
 
+      <div className={styles.modeControls}>
+        <button
+          className={`${styles.button} ${styles.start}`}
+          onClick={handleStartNavigation}
+          disabled={loading || status.nav_running}
+        >
+          Start Navigation
+        </button>
+        <button
+          className={`${styles.button} ${styles.stop}`}
+          onClick={handleStopNavigation}
+          disabled={loading || !status.nav_running}
+        >
+          Stop Navigation
+        </button>
+      </div>
+
       <div className={styles.mapContainer}>
-        <MapView onClickGoal={handleGoalSelect} showGoalSelector={true} />
+        <MapView onClickGoal={handleGoalSelect} showGoalSelector={status.nav_running === true} />
       </div>
 
       {goal && (
@@ -98,14 +149,14 @@ export function NavigationPanel() {
         <button
           className={`${styles.button} ${styles.navigate}`}
           onClick={handleNavigate}
-          disabled={loading || !goal}
+          disabled={loading || !goal || !status.nav_running}
         >
           Navigate to Goal
         </button>
         <button
           className={`${styles.button} ${styles.cancel}`}
           onClick={handleCancel}
-          disabled={loading || status.is_complete}
+          disabled={loading || status.is_complete || !status.nav_running}
         >
           Cancel
         </button>

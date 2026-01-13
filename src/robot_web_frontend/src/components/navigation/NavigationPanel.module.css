@@ -47,6 +47,29 @@
   color: #00ff88;
 }
 
+.modeControls {
+  display: flex;
+  gap: 10px;
+}
+
+.button.start {
+  background: #1a3a5a;
+  color: #66aaff;
+}
+
+.button.start:hover:not(:disabled) {
+  background: #2a4a6a;
+}
+
+.button.stop {
+  background: #4a3a1a;
+  color: #ffaa66;
+}
+
+.button.stop:hover:not(:disabled) {
+  background: #6a4a2a;
+}
+
 .mapContainer {
   border: 1px solid #333;
   border-radius: 8px;

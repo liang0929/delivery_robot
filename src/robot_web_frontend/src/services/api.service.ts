@@ -20,6 +20,7 @@ export interface SlamStatus {
 export interface NavigationStatus {
   is_complete: boolean;
   distance_remaining: number | null;
+  nav_running?: boolean;
 }
 
 export interface RobotStatus {
@@ -28,6 +29,14 @@ export interface RobotStatus {
 
 export const apiService = {
   // Navigation
+  async startNavigation(): Promise<void> {
+    await api.post('/navigation/start');
+  },
+
+  async stopNavigation(): Promise<void> {
+    await api.post('/navigation/stop');
+  },
+
   async navigateToGoal(goal: NavigationGoal): Promise<void> {
     await api.post('/navigate_to_goal', goal);
   },

@@ -13,6 +13,8 @@ export function VirtualJoystick() {
   const [joystick, setJoystick] = useState<JoystickState>({ x: 0, y: 0 });
   const [isActive, setIsActive] = useState(false);
   const publishIntervalRef = useRef<number | null>(null);
+  // Use ref to avoid recreating interval on every state change
+  const joystickRef = useRef<JoystickState>({ x: 0, y: 0 });
 
   const canvasSize = 200;
   const baseRadius = 80;
@@ -87,6 +89,7 @@ export function VirtualJoystick() {
       dy /= magnitude;
     }
 
+    joystickRef.current = { x: dx, y: dy };
     setJoystick({ x: dx, y: dy });
   }, []);
 
@@ -109,6 +112,7 @@ export function VirtualJoystick() {
 
   const handleEnd = useCallback(() => {
     setIsActive(false);
+    joystickRef.current = { x: 0, y: 0 };
     setJoystick({ x: 0, y: 0 });
     // Immediately send stop command
     rosbridgeService.publishCmdVel(0, 0);
@@ -119,11 +123,12 @@ export function VirtualJoystick() {
     draw(joystick.x, joystick.y);
   }, [joystick, draw]);
 
-  // Publish cmd_vel at fixed rate
+  // Publish cmd_vel at fixed rate - use ref to avoid recreating interval
   useEffect(() => {
     publishIntervalRef.current = window.setInterval(() => {
-      const linear = joystick.y * ROBOT_CONFIG.MAX_LINEAR_VEL;
-      const angular = -joystick.x * ROBOT_CONFIG.MAX_ANGULAR_VEL;
+      const { x, y } = joystickRef.current;
+      const linear = y * ROBOT_CONFIG.MAX_LINEAR_VEL;
+      const angular = -x * ROBOT_CONFIG.MAX_ANGULAR_VEL;
       rosbridgeService.publishCmdVel(linear, angular);
     }, 1000 / ROBOT_CONFIG.CMD_VEL_RATE);
 
@@ -132,7 +137,7 @@ export function VirtualJoystick() {
         clearInterval(publishIntervalRef.current);
       }
     };
-  }, [joystick]);
+  }, []); // Empty deps - interval created once on mount
 
   // Global mouse/touch up handlers
   useEffect(() => {

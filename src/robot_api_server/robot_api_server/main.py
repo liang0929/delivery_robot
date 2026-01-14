@@ -1,5 +1,4 @@
 import rclpy
-from rclpy.node import Node
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 from geometry_msgs.msg import PoseStamped
 import math
@@ -48,7 +47,6 @@ class RobotStateManager:
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._ros_node: Optional[Node] = None
         self._slam_process: Optional[subprocess.Popen] = None
         self._slam_status = SlamStatus.IDLE
         self._nav_process: Optional[subprocess.Popen] = None
@@ -59,17 +57,6 @@ class RobotStateManager:
         self._health_thread: Optional[threading.Thread] = None
         self._health_stop_event = threading.Event()
         self._crash_info: dict = {}  # 記錄 crash 資訊
-
-    # --- ROS Node ---
-    @property
-    def ros_node(self):
-        with self._lock:
-            return self._ros_node
-
-    @ros_node.setter
-    def ros_node(self, value):
-        with self._lock:
-            self._ros_node = value
 
     # --- SLAM ---
     @property
@@ -82,10 +69,33 @@ class RobotStateManager:
         with self._lock:
             self._slam_status = value
 
+    def _cleanup_nav_processes(self):
+        """清理所有導航相關殘留進程"""
+        cleanup_commands = [
+            "pkill -f 'nav2_'",
+            "pkill -f 'autonomous_navigation.launch'",
+            "pkill -f 'basic_navigator'",
+        ]
+        for cmd in cleanup_commands:
+            subprocess.run(cmd, shell=True, capture_output=True)
+
+    def _cleanup_slam_processes(self):
+        """清理所有建圖相關殘留進程"""
+        cleanup_commands = [
+            "pkill -f 'slam_toolbox'",
+            "pkill -f 'mapping.launch'",
+            "pkill -f 'map_relay'",
+        ]
+        for cmd in cleanup_commands:
+            subprocess.run(cmd, shell=True, capture_output=True)
+
     def start_slam(self) -> dict:
         with self._lock:
             if self._slam_status == SlamStatus.MAPPING:
                 raise HTTPException(status_code=400, detail="Mapping is already running.")
+
+            # 先清理可能殘留的導航進程
+            self._cleanup_nav_processes()
 
             try:
                 self._slam_process = subprocess.Popen(
@@ -128,6 +138,10 @@ class RobotStateManager:
             if self._slam_status == SlamStatus.MAPPING:
                 raise HTTPException(status_code=400, detail="Cannot start navigation while mapping is running.")
 
+            # 先清理可能殘留的建圖和導航進程
+            self._cleanup_slam_processes()
+            self._cleanup_nav_processes()
+
             try:
                 if map_name:
                     map_yaml = os.path.join(self.MAP_SAVE_PATH, f"{map_name}.yaml")
@@ -159,6 +173,7 @@ class RobotStateManager:
                     os.killpg(os.getpgid(self._nav_process.pid), signal.SIGTERM)
                     self._nav_process.wait(timeout=10)
                     self._nav_process = None
+
                 self._nav_status = NavStatus.IDLE
                 return {"message": "Navigation stopped.", "status": self._nav_status}
             except Exception as e:
@@ -367,17 +382,9 @@ async def status_broadcast_loop():
 
 def get_full_status() -> dict:
     """取得完整系統狀態"""
-    ros_node = state.ros_node
-    is_complete = True
-    distance_remaining = None
-
-    if ros_node is not None:
-        try:
-            is_complete = ros_node.navigator.isTaskComplete()
-            feedback = ros_node.navigator.getFeedback()
-            distance_remaining = feedback.distance_remaining if feedback else None
-        except Exception:
-            pass
+    is_complete = nav_manager.is_task_complete()
+    feedback = nav_manager.get_feedback()
+    distance_remaining = feedback.distance_remaining if feedback else None
 
     return {
         "robot_core": {
@@ -514,28 +521,27 @@ async def clear_crash_info(service: Optional[str] = None):
 @app.post("/navigate_to_goal")
 async def navigate_to_goal(goal: Goal):
     """Send navigation goal to Nav2 stack."""
-    ros_node = state.ros_node
-    if ros_node is None:
-        raise HTTPException(status_code=503, detail="ROS2 node is not ready.")
+    # 檢查導航是否已啟動
+    if state.nav_status != NavStatus.RUNNING:
+        raise HTTPException(status_code=400, detail="Navigation is not running. Please start navigation first.")
+
+    # 確保 Nav2 已準備好
+    if not nav_manager.ensure_nav2_ready():
+        raise HTTPException(status_code=503, detail="Nav2 is not ready. Please wait and try again.")
 
     try:
-        ros_node.get_logger().info(f"Received goal: x={goal.x}, y={goal.y}, yaw={goal.yaw_deg}")
-        thread = threading.Thread(target=ros_node.send_goal_to_nav2, args=(goal.x, goal.y, goal.yaw_deg))
-        thread.start()
+        print(f"[API] Received goal: x={goal.x}, y={goal.y}, yaw={goal.yaw_deg}")
+        nav_manager.send_goal(goal.x, goal.y, goal.yaw_deg)
         return {"message": "Goal received, navigation started."}
     except Exception as e:
-        ros_node.get_logger().error(f"Failed to send goal: {e}")
+        print(f"[API] Failed to send goal: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/navigation/cancel")
 async def cancel_navigation():
     """Cancel current navigation goal."""
-    ros_node = state.ros_node
-    if ros_node is None:
-        raise HTTPException(status_code=503, detail="ROS2 node is not ready.")
-
     try:
-        ros_node.navigator.cancelTask()
+        nav_manager.cancel_task()
         return {"message": "Navigation cancelled."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -544,14 +550,9 @@ async def cancel_navigation():
 async def get_navigation_status():
     """Get current navigation status."""
     try:
-        is_complete = True
-        distance_remaining = None
-
-        ros_node = state.ros_node
-        if ros_node is not None:
-            is_complete = ros_node.navigator.isTaskComplete()
-            feedback = ros_node.navigator.getFeedback()
-            distance_remaining = feedback.distance_remaining if feedback else None
+        is_complete = nav_manager.is_task_complete()
+        feedback = nav_manager.get_feedback()
+        distance_remaining = feedback.distance_remaining if feedback else None
 
         return {
             "is_complete": is_complete,
@@ -653,15 +654,58 @@ async def get_slam_status():
     }
 
 
-# --- ROS2 Node ---
-class ApiNavigatorNode(Node):
-    def __init__(self):
-        super().__init__('api_navigator_node')
-        self.navigator = BasicNavigator()
-        self.navigator.waitUntilNav2Active()
-        self.get_logger().info('Nav2 is active. API Navigator Node is ready.')
+# --- Navigator Manager ---
+class NavigatorManager:
+    """管理 BasicNavigator 的生命週期"""
 
-    def send_goal_to_nav2(self, x: float, y: float, yaw_deg: float):
+    def __init__(self):
+        self.navigator: Optional[BasicNavigator] = None
+        self._nav2_ready = False
+        self._rclpy_initialized = False
+        self._lock = threading.Lock()
+
+    def ensure_nav2_ready(self) -> bool:
+        """確保 Nav2 已準備好"""
+        with self._lock:
+            if self._nav2_ready and self.navigator is not None:
+                return True
+
+            try:
+                if self.navigator is None:
+                    # 確保 rclpy 已初始化
+                    if not self._rclpy_initialized:
+                        print("[NavigatorManager] Initializing rclpy...")
+                        rclpy.init()
+                        self._rclpy_initialized = True
+
+                    print("[NavigatorManager] Creating BasicNavigator...")
+                    self.navigator = BasicNavigator()
+
+                print("[NavigatorManager] Waiting for Nav2 to become active...")
+                self.navigator.waitUntilNav2Active()
+                self._nav2_ready = True
+                print("[NavigatorManager] Nav2 is active.")
+                return True
+            except Exception as e:
+                print(f"[NavigatorManager] Failed to connect to Nav2: {e}")
+                return False
+
+    def reset(self):
+        """重置 navigator"""
+        with self._lock:
+            self._nav2_ready = False
+            if self.navigator is not None:
+                try:
+                    self.navigator.lifecycleShutdown()
+                except Exception:
+                    pass
+                self.navigator = None
+
+    def send_goal(self, x: float, y: float, yaw_deg: float):
+        """發送導航目標（非阻塞）"""
+        if self.navigator is None:
+            raise RuntimeError("Navigator not initialized")
+
         goal_pose = PoseStamped()
         goal_pose.header.frame_id = 'map'
         goal_pose.header.stamp = self.navigator.get_clock().now().to_msg()
@@ -672,42 +716,36 @@ class ApiNavigatorNode(Node):
         goal_pose.pose.orientation.z = math.sin(yaw_rad / 2.0)
         goal_pose.pose.orientation.w = math.cos(yaw_rad / 2.0)
 
-        self.get_logger().info(f"Sending goal to Nav2: Pose(x={x}, y={y}, yaw={yaw_deg})")
+        print(f"[NavigatorManager] Sending goal: x={x}, y={y}, yaw={yaw_deg}")
         self.navigator.goToPose(goal_pose)
+        print("[NavigatorManager] Goal sent (non-blocking)")
 
-        while not self.navigator.isTaskComplete():
-            feedback = self.navigator.getFeedback()
-            if feedback:
-                self.get_logger().info(f'Distance remaining: {feedback.distance_remaining:.2f} m')
+    def is_task_complete(self) -> bool:
+        if self.navigator is None or not self._nav2_ready:
+            return True
+        try:
+            return self.navigator.isTaskComplete()
+        except Exception:
+            return True
 
-        result = self.navigator.getResult()
-        if result == TaskResult.SUCCEEDED:
-            self.get_logger().info('Goal succeeded!')
-        elif result == TaskResult.CANCELED:
-            self.get_logger().warn('Goal was canceled!')
-        elif result == TaskResult.FAILED:
-            self.get_logger().error('Goal failed!')
+    def get_feedback(self):
+        if self.navigator is None or not self._nav2_ready:
+            return None
+        try:
+            return self.navigator.getFeedback()
+        except Exception:
+            return None
+
+    def cancel_task(self):
+        if self.navigator is not None:
+            self.navigator.cancelTask()
 
 
-def run_ros_node():
-    rclpy.init()
-    node = ApiNavigatorNode()
-    state.ros_node = node
-    try:
-        while rclpy.ok():
-            rclpy.spin_once(node, timeout_sec=0.1)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
+# Global navigator manager
+nav_manager = NavigatorManager()
 
 
 def main():
-    ros_thread = threading.Thread(target=run_ros_node)
-    ros_thread.daemon = True
-    ros_thread.start()
-
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
 

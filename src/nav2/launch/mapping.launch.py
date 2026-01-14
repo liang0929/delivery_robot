@@ -2,9 +2,17 @@
 SLAM 建圖 Launch 檔案
 
 使用方式：
-1. 啟動此 launch: ros2 launch nav2 mapping.launch.py
-2. 另開終端執行鍵盤控制: ros2 run teleop_twist_keyboard teleop_twist_keyboard
-3. 另開終端執行 RViz: rviz2
+1. 確保 bringup.launch.py 已啟動（robot-core.service）
+2. 啟動此 launch: ros2 launch nav2 mapping.launch.py
+3. 另開終端執行鍵盤控制: ros2 run teleop_twist_keyboard teleop_twist_keyboard
+4. 另開終端執行 RViz: rviz2
+
+注意：以下節點已被 bringup.launch.py 啟動，這裡不再重複啟動：
+- hs_motor_controller
+- sllidar_node
+- bno055 (IMU)
+- ekf_filter_node
+- 靜態 TF (base_footprint_to_base_link, base_link_to_laser, base_link_to_imu)
 """
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
@@ -17,59 +25,9 @@ def generate_launch_description():
     # Declare launch arguments
     use_sim_time = LaunchConfiguration('use_sim_time', default='false')
 
-    # 馬達控制器配置
-    motor_control_dir = get_package_share_directory('motor_control')
-    motor_config = os.path.join(motor_control_dir, 'config', 'hs_motor_config.yaml')
-
     # SLAM Toolbox 配置
     nav2_dir = get_package_share_directory('nav2')
     slam_config = os.path.join(nav2_dir, 'config', 'slam_toolbox_params.yaml')
-
-    # HS 協議馬達控制器
-    hs_motor_node = Node(
-        package='motor_control',
-        executable='hs_motor_controller',
-        name='hs_motor_controller',
-        output='screen',
-        parameters=[motor_config]
-    )
-
-    # LiDAR 節點
-    lidar_node = Node(
-        package='sllidar_ros2',
-        executable='sllidar_node',
-        name='sllidar_node',
-        output='screen',
-        parameters=[{
-            'serial_port': '/dev/lidar',
-            'serial_baudrate': 256000,
-            'frame_id': 'laser',
-            'inverted': False,
-            'angle_compensate': True,
-        }]
-    )
-
-    # IMU 節點
-    imu_node = Node(
-        package='imu_bno055',
-        executable='bno055_i2c_node',
-        name='bno055',
-        output='screen',
-        parameters=[{
-            'device': '/dev/i2c-7',
-            'address': 40,
-            'frame_id': 'imu_link',
-        }]
-    )
-
-    # EKF 定位融合
-    ekf_node = Node(
-        package='robot_localization',
-        executable='ekf_node',
-        name='ekf_filter_node',
-        output='screen',
-        parameters=[motor_config]
-    )
 
     # SLAM Toolbox
     slam_toolbox_node = Node(
@@ -88,37 +46,17 @@ def generate_launch_description():
         output='screen'
     )
 
-    # 靜態 TF
-    base_footprint_to_base_link = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='base_footprint_to_base_link',
-        arguments=['0', '0', '0.05', '0', '0', '0', 'base_footprint', 'base_link']
-    )
-
-    base_link_to_laser = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='base_link_to_laser',
-        arguments=['0', '0', '0.1', '0', '0', '0', 'base_link', 'laser']
-    )
-
-    base_link_to_imu = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='base_link_to_imu',
-        arguments=['0', '0', '0.05', '0', '0', '0', 'base_link', 'imu_link']
-    )
+    # 注意：以下節點已被 bringup.launch.py 啟動，不再重複
+    # - hs_motor_controller
+    # - sllidar_node (lidar)
+    # - bno055 (imu)
+    # - ekf_filter_node
+    # - base_footprint_to_base_link
+    # - base_link_to_laser
+    # - base_link_to_imu
 
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='false'),
-        hs_motor_node,
-        lidar_node,
-        imu_node,
-        ekf_node,
         slam_toolbox_node,
         map_relay_node,
-        base_footprint_to_base_link,
-        base_link_to_laser,
-        base_link_to_imu,
     ])

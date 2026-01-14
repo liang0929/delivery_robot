@@ -15,91 +15,41 @@ import os
 def generate_launch_description():
     # Get the launch directory
     nav2_dir = get_package_share_directory('nav2')
-    
+
     # Create launch configuration variables
     namespace = LaunchConfiguration('namespace')
     use_sim_time = LaunchConfiguration('use_sim_time')
     map_yaml_file = LaunchConfiguration('map')
     params_file = LaunchConfiguration('params_file')
-    
+
     # Declare launch arguments
     declare_namespace_cmd = DeclareLaunchArgument(
         'namespace',
         default_value='',
         description='Top-level namespace'
     )
-    
+
     declare_use_sim_time_cmd = DeclareLaunchArgument(
         'use_sim_time',
         default_value='false',
         description='Use simulation clock if true'
     )
-    
+
     declare_map_yaml_cmd = DeclareLaunchArgument(
         'map',
         default_value='/home/jetson/base_dev/src/map/map.yaml',
         description='Full path to map yaml file to load'
     )
-    
+
     declare_params_file_cmd = DeclareLaunchArgument(
         'params_file',
         default_value=os.path.join(nav2_dir, 'config', 'nav2_params.yaml'),
         description='Full path to the ROS2 parameters file'
     )
 
-    # Include the robot state publisher launch file
-    robot_state_publisher_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([
-            PathJoinSubstitution([
-                FindPackageShare('motor_control'),
-                'launch',
-                'robot_state_publisher.launch.py'
-            ])
-        ])
-    )
-    
-    # Include the LIDAR launch file
-    lidar_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([
-            PathJoinSubstitution([
-                FindPackageShare('sllidar_ros2'),
-                'launch',
-                'sllidar_a2m12_launch.py'
-            ])
-        ])
-    )
-    
-    # Launch motor control node
-    motor_control_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([
-            PathJoinSubstitution([
-                FindPackageShare('motor_control'),
-                'launch',
-                'hs_motor_controller.launch.py'
-            ])
-        ])
-    )
-
-    # IMU 節點
-    imu_node = Node(
-        package='imu_bno055',
-        executable='bno055_i2c_node',
-        name='bno055',
-        output='screen',
-        parameters=[{
-            'device': '/dev/i2c-7',
-            'address': 40,
-            'frame_id': 'imu_link',
-        }]
-    )
-
-    # 靜態 TF: base_link to imu_link
-    base_link_to_imu = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='base_link_to_imu',
-        arguments=['0', '0', '0.05', '0', '0', '0', 'base_link', 'imu_link']
-    )
+    # 注意：以下節點 (robot_state_publisher, lidar, motor_control, imu)
+    # 已被 bringup.launch.py 啟動，這裡不再重複啟動
+    # 如果需要獨立運行導航（不用 bringup），可以取消註解
 
     # Map Server - 載入地圖
     map_server_node = Node(
@@ -179,11 +129,12 @@ def generate_launch_description():
         declare_use_sim_time_cmd,
         declare_map_yaml_cmd,
         declare_params_file_cmd,
-        robot_state_publisher_launch,
-        lidar_launch,
-        motor_control_launch,
-        imu_node,
-        base_link_to_imu,
+        # 以下節點已被 bringup.launch.py 啟動，不再重複
+        # robot_state_publisher_launch,
+        # lidar_launch,
+        # motor_control_launch,
+        # imu_node,
+        # base_link_to_imu,
         map_server_node,
         map_relay_node,
         amcl_node,

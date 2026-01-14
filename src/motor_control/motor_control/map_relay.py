@@ -26,9 +26,17 @@ class MapRelayNode(Node):
         )
 
         # 發布 /map_relay (使用與 rosbridge 相容的 QoS)
-        pub_qos = QoSProfile(
+        pub_qos_rosbridge = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1
+        )
+
+        # 發布 /map_saver (使用與 map_saver 相容的 QoS)
+        pub_qos_saver = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
             history=HistoryPolicy.KEEP_LAST,
             depth=1
         )
@@ -40,16 +48,25 @@ class MapRelayNode(Node):
             sub_qos
         )
 
-        self.publisher = self.create_publisher(
+        # 給 rosbridge/前端用
+        self.publisher_relay = self.create_publisher(
             OccupancyGrid,
             '/map_relay',
-            pub_qos
+            pub_qos_rosbridge
         )
 
-        self.get_logger().info('Map relay node started: /map -> /map_relay')
+        # 給 map_saver 用
+        self.publisher_saver = self.create_publisher(
+            OccupancyGrid,
+            '/map_saver',
+            pub_qos_saver
+        )
+
+        self.get_logger().info('Map relay node started: /map -> /map_relay, /map_saver')
 
     def map_callback(self, msg: OccupancyGrid):
-        self.publisher.publish(msg)
+        self.publisher_relay.publish(msg)
+        self.publisher_saver.publish(msg)
 
 
 def main(args=None):

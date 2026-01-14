@@ -619,7 +619,7 @@ async def save_map(request: MapSaveRequest):
         state.slam_status = SlamStatus.SAVING
 
         result = subprocess.run(
-            ["ros2", "run", "nav2_map_server", "map_saver_cli", "-f", map_path],
+            ["ros2", "run", "nav2_map_server", "map_saver_cli", "-f", map_path, "-t", "/map_saver"],
             capture_output=True,
             text=True,
             timeout=30

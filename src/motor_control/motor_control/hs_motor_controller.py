@@ -359,9 +359,9 @@ class HSMotorController(Node):
         vx = (vel_a + vel_b) / 2.0
         vth = (vel_b - vel_a) / self.wheel_separation
 
-        # 方向修正 (實測需要反轉)
-        vx = -vx
-        vth = -vth
+        # 只反轉角速度 (旋轉方向)
+        # vx = -vx  # 前後方向正確，不需反轉
+        vth = -vth  # 旋轉方向需要反轉
 
         # 計算時間差
         current_time = self.get_clock().now()

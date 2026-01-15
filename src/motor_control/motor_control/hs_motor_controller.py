@@ -70,6 +70,9 @@ class HSMotorController(Node):
         self.invert_motor_a = self.get_parameter('invert_motor_a').value
         self.invert_motor_b = self.get_parameter('invert_motor_b').value
 
+        # 驗證參數
+        self._validate_parameters()
+
         # 串口連接
         self.serial_conn: Optional[serial.Serial] = None
         self.connect_serial()
@@ -127,6 +130,34 @@ class HSMotorController(Node):
         self.get_logger().info(
             f'HS Motor Controller initialized on {self.serial_port}'
         )
+
+    def _validate_parameters(self):
+        """驗證參數有效性"""
+        errors = []
+
+        if self.wheel_radius <= 0:
+            errors.append(f"wheel_radius must be positive, got {self.wheel_radius}")
+        if self.wheel_separation <= 0:
+            errors.append(f"wheel_separation must be positive, got {self.wheel_separation}")
+        if self.control_frequency <= 0:
+            errors.append(f"control_frequency must be positive, got {self.control_frequency}")
+        if self.max_rpm <= self.min_rpm:
+            errors.append(f"max_rpm ({self.max_rpm}) must be greater than min_rpm ({self.min_rpm})")
+        if self.max_linear_vel <= 0:
+            errors.append(f"max_linear_vel must be positive, got {self.max_linear_vel}")
+        if self.max_angular_vel <= 0:
+            errors.append(f"max_angular_vel must be positive, got {self.max_angular_vel}")
+        if self.gear_ratio <= 0:
+            errors.append(f"gear_ratio must be positive, got {self.gear_ratio}")
+        if self.device_id < 0 or self.device_id > 255:
+            errors.append(f"device_id must be 0-255, got {self.device_id}")
+
+        if errors:
+            for error in errors:
+                self.get_logger().error(f"Parameter validation failed: {error}")
+            raise ValueError(f"Invalid parameters: {'; '.join(errors)}")
+
+        self.get_logger().info("All parameters validated successfully")
 
     def connect_serial(self) -> bool:
         """連接串口"""

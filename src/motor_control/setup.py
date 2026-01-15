@@ -18,7 +18,8 @@ setup(
         ]),
         ('share/' + package_name + '/config', [
             'config/modbus_motor_config.yaml',
-            'config/hs_motor_config.yaml'
+            'config/hs_motor_config.yaml',
+            'config/tf_config.yaml'
         ]),
     ],
     install_requires=['setuptools', 'pyserial'],

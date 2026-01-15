@@ -1,0 +1,43 @@
+# TF 轉換配置
+# 所有靜態 TF 轉換的參數集中定義於此
+# 修改此文件即可更新所有 launch 文件的 TF 設定
+
+tf_transforms:
+  # base_footprint -> base_link
+  base_footprint_to_base_link:
+    parent_frame: "base_footprint"
+    child_frame: "base_link"
+    translation:
+      x: 0.0
+      y: 0.0
+      z: 0.05
+    rotation:  # roll, pitch, yaw (radians)
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+
+  # base_link -> laser (LiDAR)
+  base_link_to_laser:
+    parent_frame: "base_link"
+    child_frame: "laser"
+    translation:
+      x: 0.0
+      y: 0.0
+      z: 0.1
+    rotation:
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+
+  # base_link -> imu_link
+  base_link_to_imu:
+    parent_frame: "base_link"
+    child_frame: "imu_link"
+    translation:
+      x: 0.0
+      y: 0.0
+      z: 0.05
+    rotation:
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0

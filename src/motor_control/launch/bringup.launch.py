@@ -20,6 +20,40 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
+import yaml
+
+
+def load_tf_config():
+    """從配置文件載入 TF 轉換參數"""
+    motor_control_dir = get_package_share_directory('motor_control')
+    tf_config_path = os.path.join(motor_control_dir, 'config', 'tf_config.yaml')
+
+    with open(tf_config_path, 'r') as f:
+        config = yaml.safe_load(f)
+
+    return config.get('tf_transforms', {})
+
+
+def create_static_tf_node(name: str, tf_config: dict) -> Node:
+    """根據配置創建靜態 TF 節點"""
+    t = tf_config.get('translation', {})
+    r = tf_config.get('rotation', {})
+
+    return Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name=name,
+        arguments=[
+            str(t.get('x', 0.0)),
+            str(t.get('y', 0.0)),
+            str(t.get('z', 0.0)),
+            str(r.get('roll', 0.0)),
+            str(r.get('pitch', 0.0)),
+            str(r.get('yaw', 0.0)),
+            tf_config.get('parent_frame', 'base_link'),
+            tf_config.get('child_frame', 'child')
+        ]
+    )
 
 
 def generate_launch_description():
@@ -79,26 +113,22 @@ def generate_launch_description():
         parameters=[motor_config]
     )
 
-    # ========== 靜態 TF ==========
-    base_footprint_to_base_link = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='base_footprint_to_base_link',
-        arguments=['0', '0', '0.05', '0', '0', '0', 'base_footprint', 'base_link']
+    # ========== 靜態 TF (從配置文件載入) ==========
+    tf_config = load_tf_config()
+
+    base_footprint_to_base_link = create_static_tf_node(
+        'base_footprint_to_base_link',
+        tf_config.get('base_footprint_to_base_link', {})
     )
 
-    base_link_to_laser = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='base_link_to_laser',
-        arguments=['0', '0', '0.1', '0', '0', '0', 'base_link', 'laser']
+    base_link_to_laser = create_static_tf_node(
+        'base_link_to_laser',
+        tf_config.get('base_link_to_laser', {})
     )
 
-    base_link_to_imu = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='base_link_to_imu',
-        arguments=['0', '0', '0.05', '0', '0', '0', 'base_link', 'imu_link']
+    base_link_to_imu = create_static_tf_node(
+        'base_link_to_imu',
+        tf_config.get('base_link_to_imu', {})
     )
 
     # ========== Web 服務 ==========

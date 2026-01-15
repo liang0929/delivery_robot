@@ -6,6 +6,7 @@ import threading
 import subprocess
 import os
 import signal
+import logging
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -15,6 +16,13 @@ from enum import Enum
 from contextlib import asynccontextmanager
 import asyncio
 import json
+
+# --- Logging Setup ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # --- Pydantic Models ---
 class Goal(BaseModel):
@@ -71,23 +79,21 @@ class RobotStateManager:
 
     def _cleanup_nav_processes(self):
         """清理所有導航相關殘留進程"""
-        cleanup_commands = [
-            "pkill -f 'nav2_'",
-            "pkill -f 'autonomous_navigation.launch'",
-            "pkill -f 'basic_navigator'",
-        ]
-        for cmd in cleanup_commands:
-            subprocess.run(cmd, shell=True, capture_output=True)
+        patterns = ["nav2_", "autonomous_navigation.launch", "basic_navigator"]
+        for pattern in patterns:
+            try:
+                subprocess.run(["pkill", "-f", pattern], capture_output=True)
+            except Exception as e:
+                logger.warning(f"Failed to kill processes matching '{pattern}': {e}")
 
     def _cleanup_slam_processes(self):
         """清理所有建圖相關殘留進程"""
-        cleanup_commands = [
-            "pkill -f 'slam_toolbox'",
-            "pkill -f 'mapping.launch'",
-            "pkill -f 'map_relay'",
-        ]
-        for cmd in cleanup_commands:
-            subprocess.run(cmd, shell=True, capture_output=True)
+        patterns = ["slam_toolbox", "mapping.launch", "map_relay"]
+        for pattern in patterns:
+            try:
+                subprocess.run(["pkill", "-f", pattern], capture_output=True)
+            except Exception as e:
+                logger.warning(f"Failed to kill processes matching '{pattern}': {e}")
 
     def start_slam(self) -> dict:
         with self._lock:

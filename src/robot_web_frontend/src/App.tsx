@@ -3,6 +3,7 @@ import { Layout } from './components/layout/Layout';
 import { RemoteControl } from './pages/RemoteControl';
 import { SlamMapping } from './pages/SlamMapping';
 import { Navigation } from './pages/Navigation';
+import { SystemStatus } from './pages/SystemStatus';
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
           <Route path="/" element={<RemoteControl />} />
           <Route path="/slam" element={<SlamMapping />} />
           <Route path="/navigation" element={<Navigation />} />
+          <Route path="/status" element={<SystemStatus />} />
         </Routes>
       </Layout>
     </BrowserRouter>

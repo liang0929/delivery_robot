@@ -1,0 +1,134 @@
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.title {
+  margin: 0 0 24px 0;
+  color: #fff;
+}
+
+.section {
+  background: #1a1a1a;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.sectionTitle {
+  margin: 0 0 16px 0;
+  color: #fff;
+  font-size: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #333;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+
+.statusRow + .statusRow {
+  border-top: 1px solid #222;
+}
+
+.label {
+  color: #888;
+  font-size: 14px;
+}
+
+.value {
+  color: #fff;
+  font-family: monospace;
+  font-size: 14px;
+}
+
+.badge {
+  font-weight: bold;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.badge.online {
+  background: #1a4a2a;
+  color: #00ff88;
+}
+
+.badge.offline {
+  background: #4a1a1a;
+  color: #ff6666;
+}
+
+.badge.running {
+  background: #1a4a2a;
+  color: #00ff88;
+}
+
+.badge.stopped {
+  background: #4a1a1a;
+  color: #ff6666;
+}
+
+.badge.idle {
+  background: #333;
+  color: #888;
+}
+
+.badge.warning {
+  background: #4a3a1a;
+  color: #ffaa00;
+}
+
+/* Crash Info */
+.crashInfo {
+  margin-top: 12px;
+  padding: 12px;
+  background: #2a1a1a;
+  border-radius: 8px;
+  border-left: 3px solid #ff6666;
+}
+
+.crashLabel {
+  display: block;
+  color: #ff6666;
+  font-weight: bold;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.crashDetail {
+  display: block;
+  color: #ccc;
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.crashTime {
+  display: block;
+  color: #666;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* Footer */
+.footer {
+  text-align: center;
+  color: #666;
+  font-size: 12px;
+  padding: 16px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .container {
+    padding: 0 16px;
+  }
+
+  .section {
+    padding: 16px;
+  }
+}

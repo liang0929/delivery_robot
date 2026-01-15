@@ -33,6 +33,7 @@ export function Layout({ children }: LayoutProps) {
     { path: '/', label: 'Remote Control', icon: '🎮' },
     { path: '/slam', label: 'SLAM Mapping', icon: '🗺️' },
     { path: '/navigation', label: 'Navigation', icon: '📍' },
+    { path: '/status', label: 'System Status', icon: '📊' },
   ];
 
   return (

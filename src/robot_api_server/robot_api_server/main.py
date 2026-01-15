@@ -392,7 +392,8 @@ class ConnectionManager:
             for conn in self._connections:
                 try:
                     await conn.send_json(message)
-                except Exception:
+                except (ConnectionError, RuntimeError) as e:
+                    logger.debug(f"WebSocket connection lost: {e}")
                     dead_connections.add(conn)
             # 移除斷線的連線
             self._connections -= dead_connections
@@ -575,11 +576,11 @@ async def navigate_to_goal(goal: Goal):
         raise HTTPException(status_code=503, detail="Nav2 is not ready. Please wait and try again.")
 
     try:
-        print(f"[API] Received goal: x={goal.x}, y={goal.y}, yaw={goal.yaw_deg}")
+        logger.info(f"Received goal: x={goal.x}, y={goal.y}, yaw={goal.yaw_deg}")
         nav_manager.send_goal(goal.x, goal.y, goal.yaw_deg)
         return {"message": "Goal received, navigation started."}
-    except Exception as e:
-        print(f"[API] Failed to send goal: {e}")
+    except RuntimeError as e:
+        logger.error(f"Failed to send goal: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/navigation/cancel")
@@ -604,7 +605,8 @@ async def get_navigation_status():
             "distance_remaining": distance_remaining,
             "nav_running": state.nav_status == NavStatus.RUNNING,
         }
-    except Exception:
+    except RuntimeError as e:
+        logger.warning(f"Navigation status check failed: {e}")
         return {"is_complete": True, "distance_remaining": None, "nav_running": state.nav_status == NavStatus.RUNNING}
 
 @app.get("/maps/list")
@@ -719,20 +721,20 @@ class NavigatorManager:
                 if self.navigator is None:
                     # 確保 rclpy 已初始化
                     if not self._rclpy_initialized:
-                        print("[NavigatorManager] Initializing rclpy...")
+                        logger.info("Initializing rclpy...")
                         rclpy.init()
                         self._rclpy_initialized = True
 
-                    print("[NavigatorManager] Creating BasicNavigator...")
+                    logger.info("Creating BasicNavigator...")
                     self.navigator = BasicNavigator()
 
-                print("[NavigatorManager] Waiting for Nav2 to become active...")
+                logger.info("Waiting for Nav2 to become active...")
                 self.navigator.waitUntilNav2Active()
                 self._nav2_ready = True
-                print("[NavigatorManager] Nav2 is active.")
+                logger.info("Nav2 is active.")
                 return True
-            except Exception as e:
-                print(f"[NavigatorManager] Failed to connect to Nav2: {e}")
+            except RuntimeError as e:
+                logger.error(f"Failed to connect to Nav2: {e}")
                 return False
 
     def reset(self):
@@ -742,8 +744,8 @@ class NavigatorManager:
             if self.navigator is not None:
                 try:
                     self.navigator.lifecycleShutdown()
-                except Exception:
-                    pass
+                except RuntimeError as e:
+                    logger.warning(f"Error during navigator shutdown: {e}")
                 self.navigator = None
 
     def send_goal(self, x: float, y: float, yaw_deg: float):
@@ -761,16 +763,17 @@ class NavigatorManager:
         goal_pose.pose.orientation.z = math.sin(yaw_rad / 2.0)
         goal_pose.pose.orientation.w = math.cos(yaw_rad / 2.0)
 
-        print(f"[NavigatorManager] Sending goal: x={x}, y={y}, yaw={yaw_deg}")
+        logger.info(f"Sending goal: x={x}, y={y}, yaw={yaw_deg}")
         self.navigator.goToPose(goal_pose)
-        print("[NavigatorManager] Goal sent (non-blocking)")
+        logger.info("Goal sent (non-blocking)")
 
     def is_task_complete(self) -> bool:
         if self.navigator is None or not self._nav2_ready:
             return True
         try:
             return self.navigator.isTaskComplete()
-        except Exception:
+        except RuntimeError as e:
+            logger.debug(f"Task complete check failed: {e}")
             return True
 
     def get_feedback(self):
@@ -778,7 +781,8 @@ class NavigatorManager:
             return None
         try:
             return self.navigator.getFeedback()
-        except Exception:
+        except RuntimeError as e:
+            logger.debug(f"Get feedback failed: {e}")
             return None
 
     def cancel_task(self):

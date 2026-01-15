@@ -468,11 +468,26 @@ async def lifespan(app: FastAPI):
 # --- FastAPI App ---
 app = FastAPI(title="Robot Control API", lifespan=lifespan)
 
+# CORS 設定：從環境變數讀取允許的來源，預設只允許本機和常見內網 IP
+ALLOWED_ORIGINS = os.environ.get("CORS_ORIGINS", "").split(",") if os.environ.get("CORS_ORIGINS") else [
+    "http://localhost:3000",
+    "http://localhost:8080",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:8080",
+    # Jetson 本機
+    "http://192.168.0.1:3000",
+    "http://192.168.1.1:3000",
+]
+# 過濾空字串
+ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS if origin.strip()]
+
+logger.info(f"CORS allowed origins: {ALLOWED_ORIGINS}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 

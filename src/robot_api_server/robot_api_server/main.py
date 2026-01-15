@@ -46,11 +46,20 @@ class NavStatus(str, Enum):
     RUNNING = "running"
 
 
+# --- Configuration ---
+# 從環境變數讀取配置，提供合理預設值
+DEFAULT_MAP_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'map')
+MAP_SAVE_PATH = os.environ.get('ROBOT_MAP_PATH', os.path.abspath(DEFAULT_MAP_PATH))
+
+# 確保地圖目錄存在
+os.makedirs(MAP_SAVE_PATH, exist_ok=True)
+logger.info(f"Map save path: {MAP_SAVE_PATH}")
+
+
 # --- Thread-safe State Manager ---
 class RobotStateManager:
     """Thread-safe manager for robot state and processes."""
 
-    MAP_SAVE_PATH = "/home/jetson/base_dev/src/map/"
     HEALTH_CHECK_INTERVAL = 2.0  # 每 2 秒檢查一次
 
     def __init__(self):
@@ -189,11 +198,11 @@ class RobotStateManager:
 
             try:
                 if map_name:
-                    map_yaml = os.path.join(self.MAP_SAVE_PATH, f"{map_name}.yaml")
+                    map_yaml = os.path.join(MAP_SAVE_PATH, f"{map_name}.yaml")
                     if not os.path.exists(map_yaml):
                         raise HTTPException(status_code=404, detail=f"Map '{map_name}' not found.")
                 else:
-                    map_yaml = os.path.join(self.MAP_SAVE_PATH, "map.yaml")
+                    map_yaml = os.path.join(MAP_SAVE_PATH, "map.yaml")
 
                 self._nav_process = subprocess.Popen(
                     ["ros2", "launch", "nav2", "autonomous_navigation.launch.py", f"map:={map_yaml}"],
@@ -629,12 +638,12 @@ async def list_maps():
     """List all available maps in the map directory."""
     try:
         maps = []
-        if os.path.exists(state.MAP_SAVE_PATH):
-            for file in os.listdir(state.MAP_SAVE_PATH):
+        if os.path.exists(MAP_SAVE_PATH):
+            for file in os.listdir(MAP_SAVE_PATH):
                 if file.endswith('.yaml'):
                     map_name = file[:-5]
-                    yaml_path = os.path.join(state.MAP_SAVE_PATH, file)
-                    pgm_path = os.path.join(state.MAP_SAVE_PATH, f"{map_name}.pgm")
+                    yaml_path = os.path.join(MAP_SAVE_PATH, file)
+                    pgm_path = os.path.join(MAP_SAVE_PATH, f"{map_name}.pgm")
                     if os.path.exists(pgm_path):
                         maps.append({
                             "name": map_name,
@@ -676,7 +685,7 @@ async def save_map(request: MapSaveRequest):
         raise HTTPException(status_code=400, detail="Map name is required.")
 
     map_name = "".join(c for c in map_name if c.isalnum() or c in ('-', '_'))
-    map_path = os.path.join(state.MAP_SAVE_PATH, map_name)
+    map_path = os.path.join(MAP_SAVE_PATH, map_name)
 
     try:
         state.slam_status = SlamStatus.SAVING

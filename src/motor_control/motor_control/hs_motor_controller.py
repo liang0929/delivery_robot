@@ -159,22 +159,52 @@ class HSMotorController(Node):
 
         self.get_logger().info("All parameters validated successfully")
 
-    def connect_serial(self) -> bool:
-        """連接串口"""
-        try:
-            self.serial_conn = serial.Serial(
-                port=self.serial_port,
-                baudrate=self.baudrate,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE,
-                timeout=0.1
-            )
-            self.get_logger().info(f'Connected to {self.serial_port}')
-            return True
-        except serial.SerialException as e:
-            self.get_logger().error(f'Failed to connect: {e}')
-            return False
+    def connect_serial(self, max_retries: int = 3, retry_delay: float = 1.0) -> bool:
+        """連接串口，支援重試機制
+
+        Args:
+            max_retries: 最大重試次數
+            retry_delay: 重試間隔（秒），使用指數退避
+
+        Returns:
+            bool: 連接是否成功
+        """
+        for attempt in range(max_retries):
+            try:
+                self.serial_conn = serial.Serial(
+                    port=self.serial_port,
+                    baudrate=self.baudrate,
+                    bytesize=serial.EIGHTBITS,
+                    parity=serial.PARITY_NONE,
+                    stopbits=serial.STOPBITS_ONE,
+                    timeout=0.1
+                )
+                self.get_logger().info(f'Connected to {self.serial_port}')
+                return True
+            except serial.SerialException as e:
+                if attempt < max_retries - 1:
+                    wait_time = retry_delay * (2 ** attempt)  # 指數退避
+                    self.get_logger().warn(
+                        f'Connection attempt {attempt + 1}/{max_retries} failed: {e}. '
+                        f'Retrying in {wait_time:.1f}s...'
+                    )
+                    time.sleep(wait_time)
+                else:
+                    self.get_logger().error(
+                        f'Failed to connect after {max_retries} attempts: {e}'
+                    )
+        return False
+
+    def reconnect_serial(self) -> bool:
+        """嘗試重新連接串口"""
+        self.get_logger().info('Attempting to reconnect serial port...')
+        if self.serial_conn is not None:
+            try:
+                self.serial_conn.close()
+            except Exception:
+                pass
+            self.serial_conn = None
+        return self.connect_serial()
 
     def crc16(self, data: bytes) -> int:
         """計算 CRC16 校驗碼 (Modbus CRC16)"""

@@ -95,6 +95,44 @@ class RobotStateManager:
             except Exception as e:
                 logger.warning(f"Failed to kill processes matching '{pattern}': {e}")
 
+    def _terminate_process_safely(self, process: subprocess.Popen, name: str, timeout: int = 5) -> bool:
+        """安全終止進程，先 SIGTERM 後 SIGKILL"""
+        if process is None:
+            return True
+
+        try:
+            pgid = os.getpgid(process.pid)
+
+            # 第一階段：SIGTERM
+            logger.info(f"Sending SIGTERM to {name} (pgid={pgid})")
+            os.killpg(pgid, signal.SIGTERM)
+
+            try:
+                process.wait(timeout=timeout)
+                logger.info(f"{name} terminated gracefully")
+                return True
+            except subprocess.TimeoutExpired:
+                pass
+
+            # 第二階段：SIGKILL
+            logger.warning(f"{name} did not terminate, sending SIGKILL")
+            os.killpg(pgid, signal.SIGKILL)
+
+            try:
+                process.wait(timeout=3)
+                logger.info(f"{name} killed forcefully")
+                return True
+            except subprocess.TimeoutExpired:
+                logger.error(f"Failed to kill {name}")
+                return False
+
+        except ProcessLookupError:
+            logger.info(f"{name} already terminated")
+            return True
+        except Exception as e:
+            logger.error(f"Error terminating {name}: {e}")
+            return False
+
     def start_slam(self) -> dict:
         with self._lock:
             if self._slam_status == SlamStatus.MAPPING:
@@ -122,12 +160,13 @@ class RobotStateManager:
 
             try:
                 if self._slam_process:
-                    os.killpg(os.getpgid(self._slam_process.pid), signal.SIGTERM)
-                    self._slam_process.wait(timeout=10)
+                    if not self._terminate_process_safely(self._slam_process, "SLAM"):
+                        logger.error("SLAM process may still be running")
                     self._slam_process = None
                 self._slam_status = SlamStatus.IDLE
                 return {"message": "Mapping stopped.", "status": self._slam_status}
             except Exception as e:
+                logger.error(f"Failed to stop mapping: {e}")
                 raise HTTPException(status_code=500, detail=f"Failed to stop mapping: {str(e)}")
 
     # --- Navigation ---
@@ -176,13 +215,14 @@ class RobotStateManager:
 
             try:
                 if self._nav_process:
-                    os.killpg(os.getpgid(self._nav_process.pid), signal.SIGTERM)
-                    self._nav_process.wait(timeout=10)
+                    if not self._terminate_process_safely(self._nav_process, "Navigation"):
+                        logger.error("Navigation process may still be running")
                     self._nav_process = None
 
                 self._nav_status = NavStatus.IDLE
                 return {"message": "Navigation stopped.", "status": self._nav_status}
             except Exception as e:
+                logger.error(f"Failed to stop navigation: {e}")
                 raise HTTPException(status_code=500, detail=f"Failed to stop navigation: {str(e)}")
 
     # --- Robot Core ---
@@ -215,12 +255,13 @@ class RobotStateManager:
 
             try:
                 if self._robot_core_process:
-                    os.killpg(os.getpgid(self._robot_core_process.pid), signal.SIGTERM)
-                    self._robot_core_process.wait(timeout=10)
+                    if not self._terminate_process_safely(self._robot_core_process, "Robot Core"):
+                        logger.error("Robot Core process may still be running")
                     self._robot_core_process = None
                 self._robot_core_running = False
                 return {"message": "Robot core stopped.", "is_running": False}
             except Exception as e:
+                logger.error(f"Failed to stop robot core: {e}")
                 raise HTTPException(status_code=500, detail=f"Failed to stop robot core: {str(e)}")
 
     # --- Health Monitor ---
@@ -303,6 +344,7 @@ class RobotStateManager:
     # --- Cleanup ---
     def cleanup(self):
         """Clean up all running processes."""
+        logger.info("Starting cleanup of all processes...")
         self.stop_health_monitor()
         with self._lock:
             for process, name in [
@@ -311,11 +353,7 @@ class RobotStateManager:
                 (self._robot_core_process, "Robot Core")
             ]:
                 if process:
-                    try:
-                        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-                        process.wait(timeout=5)
-                    except Exception:
-                        pass  # Best effort cleanup
+                    self._terminate_process_safely(process, name, timeout=3)
 
             self._slam_process = None
             self._nav_process = None
@@ -323,6 +361,7 @@ class RobotStateManager:
             self._slam_status = SlamStatus.IDLE
             self._nav_status = NavStatus.IDLE
             self._robot_core_running = False
+        logger.info("Cleanup completed")
 
 
 # --- Global State Manager Instance ---

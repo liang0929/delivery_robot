@@ -11,43 +11,42 @@ Web-based control interface for the robot.
 ## Setup
 
 ```bash
-cd /home/jetson/base_dev/src/robot_web_frontend
+cd ~/base_dev/src/robot_web_frontend
 npm install
 ```
 
 ## Running
 
-### 1. Start rosbridge (required for all features)
+### Recommended: Use bringup.launch.py (includes all services)
 
 ```bash
-ros2 launch rosbridge_server rosbridge_websocket_launch.xml
+ros2 launch motor_control bringup.launch.py
 ```
 
-Or use the included launch file:
+This will start:
+- Motor controller, LiDAR, IMU, EKF
+- rosbridge WebSocket server
+- API server
+
+### Start the web frontend (development)
 
 ```bash
-ros2 launch robot_web_frontend web_system.launch.py
-```
-
-### 2. Start the web frontend
-
-```bash
-cd /home/jetson/base_dev/src/robot_web_frontend
+cd ~/base_dev/src/robot_web_frontend
 npm run dev
 ```
 
-Access the web interface at: http://192.168.0.100:3000
+Access the web interface at: http://<robot-ip>:3000
 
-### 3. For SLAM Mapping
+### For SLAM Mapping
 
-Make sure the robot core is running:
+Use the web interface "Start Mapping" button, or manually:
 ```bash
-ros2 launch motor_control full_system.launch.py
+ros2 launch nav2 mapping.launch.py
 ```
 
-### 4. For Navigation
+### For Navigation
 
-Start autonomous navigation:
+Use the web interface "Start Navigation" button, or manually:
 ```bash
 ros2 launch nav2 autonomous_navigation.launch.py
 ```
@@ -55,7 +54,12 @@ ros2 launch nav2 autonomous_navigation.launch.py
 ## Configuration
 
 Edit `src/config/robot.config.ts` to change:
-- Robot IP address
 - API port
 - rosbridge port
 - Velocity limits
+
+Robot IP is automatically detected from the browser's hostname.
+To override, set `VITE_ROBOT_IP` environment variable when building:
+```bash
+VITE_ROBOT_IP=192.168.1.100 npm run build
+```

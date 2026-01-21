@@ -141,7 +141,7 @@ base_dev/
 │   │   ├── config/
 │   │   │   └── hs_motor_config.yaml    # 馬達參數、EKF 設定
 │   │   ├── launch/
-│   │   │   ├── full_system.launch.py   # 完整系統啟動
+│   │   │   ├── bringup.launch.py       # 統一系統啟動（推薦）
 │   │   │   ├── hs_motor_controller.launch.py
 │   │   │   └── robot_state_publisher.launch.py
 │   │   └── motor_control/
@@ -277,7 +277,7 @@ AA + 地址 + 數據類型 + 故障清除 + 保留 + A控制 + A方向 + A轉速
 
 | 端點 | 方法 | 用途 |
 |------|------|------|
-| `/robot/start` | POST | 啟動 full_system.launch.py |
+| `/robot/start` | POST | 啟動 bringup.launch.py (僅核心節點) |
 | `/robot/stop` | POST | 停止機器人核心 |
 | `/slam/start` | POST | 啟動 SLAM |
 | `/slam/save_map` | POST | 儲存地圖 |
@@ -304,7 +304,7 @@ cd src/robot_web_frontend && npm install && npm run build
 
 ```bash
 # 1. 啟動核心
-ros2 launch motor_control full_system.launch.py
+ros2 launch motor_control bringup.launch.py
 
 # 2. 啟動 LiDAR
 ros2 service call /start_motor std_srvs/srv/Empty

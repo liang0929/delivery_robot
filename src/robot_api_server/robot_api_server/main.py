@@ -247,7 +247,7 @@ class RobotStateManager:
 
             try:
                 self._robot_core_process = subprocess.Popen(
-                    ["ros2", "launch", "motor_control", "full_system.launch.py"],
+                    ["ros2", "launch", "motor_control", "bringup.launch.py", "enable_web:=false"],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     preexec_fn=os.setsid

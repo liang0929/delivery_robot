@@ -12,7 +12,6 @@ setup(
             'launch/keyboard_control.launch.py',
             'launch/modbus_motor_controller.launch.py',
             'launch/hs_motor_controller.launch.py',
-            'launch/full_system.launch.py',
             'launch/robot_state_publisher.launch.py',
             'launch/bringup.launch.py',
         ]),

@@ -17,10 +17,9 @@ import serial
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
-from geometry_msgs.msg import Twist, TransformStamped, Quaternion, Point, Vector3
+from geometry_msgs.msg import Twist, Quaternion, Point, Vector3
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Header, Float32, Int32
-from tf2_ros import TransformBroadcaster
+from std_msgs.msg import Float32, Int32
 
 
 class HSMotorController(Node):
@@ -86,9 +85,6 @@ class HSMotorController(Node):
         self.current_a_pub = self.create_publisher(Float32, 'motor/current_a', qos)
         self.current_b_pub = self.create_publisher(Float32, 'motor/current_b', qos)
         self.fault_pub = self.create_publisher(Int32, 'motor/fault', qos)
-
-        # TF 廣播器
-        self.tf_broadcaster = TransformBroadcaster(self)
 
         # 馬達狀態
         self.target_rpm_a = 0
@@ -434,9 +430,8 @@ class HSMotorController(Node):
         self.odom_y += vx * math.sin(self.odom_theta) * dt
         self.odom_theta += vth * dt
 
-        # 發布里程計和 TF
+        # 發布里程計 (TF 由 EKF 發布，避免重複)
         self.publish_odometry(vx, vth)
-        self.publish_tf()
 
     def cmd_vel_callback(self, msg: Twist):
         """速度命令回調"""
@@ -520,24 +515,6 @@ class HSMotorController(Node):
         odom.twist.covariance = odom.pose.covariance.copy()
 
         self.odom_pub.publish(odom)
-
-    def publish_tf(self):
-        """發布 TF"""
-        t = TransformStamped()
-        t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = 'odom'
-        t.child_frame_id = 'base_footprint'
-
-        t.transform.translation.x = self.odom_x
-        t.transform.translation.y = self.odom_y
-        t.transform.translation.z = 0.0
-        t.transform.rotation = Quaternion(
-            x=0.0, y=0.0,
-            z=math.sin(self.odom_theta / 2.0),
-            w=math.cos(self.odom_theta / 2.0)
-        )
-
-        self.tf_broadcaster.sendTransform(t)
 
     def get_fault_description(self, fault_code: int) -> str:
         """取得故障代碼描述"""

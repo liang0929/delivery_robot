@@ -6,7 +6,7 @@ sleep 10
 
 # Source ROS2 環境
 source /opt/ros/humble/setup.bash
-source /home/jetson/base_dev/install/setup.bash
+source "$HOME/base_dev/install/setup.bash"
 
 # 設定環境變數
 export ROS_DOMAIN_ID=0

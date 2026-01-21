@@ -5,10 +5,10 @@
 sleep 15
 
 # 載入 nvm 環境
-export NVM_DIR="/home/jetson/.nvm"
+export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
-cd /home/jetson/base_dev/src/robot_web_frontend
+cd "$HOME/base_dev/src/robot_web_frontend"
 
 # 使用 production build
 if [ -d "dist" ]; then

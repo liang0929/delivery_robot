@@ -5,18 +5,19 @@ Wants=robot-core.service
 
 [Service]
 Type=simple
+# 注意：請根據實際環境修改 User 和 Group
 User=jetson
 Group=jetson
-WorkingDirectory=/home/jetson/base_dev/src/robot_web_frontend
-ExecStart=/home/jetson/base_dev/scripts/web_frontend.sh
+WorkingDirectory=%h/base_dev/src/robot_web_frontend
+ExecStart=%h/base_dev/scripts/web_frontend.sh
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
 
-# Node.js 環境
-Environment="HOME=/home/jetson"
-Environment="USER=jetson"
+# Node.js 環境 - %h 會被 systemd 解析為用戶的 home 目錄
+Environment="HOME=%h"
+Environment="USER=%u"
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 
 [Install]

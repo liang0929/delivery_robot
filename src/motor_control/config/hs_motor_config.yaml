@@ -15,11 +15,16 @@ hs_motor_controller:
     max_rpm: 3000.0            # 最大馬達 RPM
     control_frequency: 50.0    # 控制頻率 (Hz)
 
+# EKF 感測器融合配置
+# 配置原理：
+# - odom: 提供 x, y 位置和線速度，yaw 角速度（不使用 yaw 位置避免累積漂移）
+# - IMU: 提供絕對姿態（roll, pitch, yaw）、角速度和加速度
+# - EKF 會用 IMU 的絕對 yaw 來修正里程計的累積漂移
 ekf_filter_node:
   ros__parameters:
     frequency: 30.0
     two_d_mode: true
-    publish_tf: true
+    publish_tf: true           # 發布 odom -> base_footprint TF
     publish_acceleration: false
 
     map_frame: map
@@ -27,22 +32,25 @@ ekf_filter_node:
     base_link_frame: base_footprint
     world_frame: odom
 
+    # 輪式里程計配置
+    # 狀態向量: [x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az]
     odom0: /odom_raw
-    odom0_config: [true,  true,  false,
-                   false, false, false,
-                   true,  true,  false,
-                   false, false, true,
-                   false, false, false]
+    odom0_config: [true,  true,  false,    # 使用 x, y 位置
+                   false, false, false,    # 不使用姿態（IMU 提供更準確的姿態）
+                   true,  true,  false,    # 使用 vx, vy 線速度
+                   false, false, true,     # 使用 vyaw 角速度
+                   false, false, false]    # 不使用加速度
     odom0_queue_size: 10
     odom0_differential: false
     odom0_relative: false
 
+    # IMU 配置
     imu0: /imu/data
-    imu0_config: [false, false, false,
-                  true,  true,  true,
-                  false, false, false,
-                  true,  true,  true,
-                  true,  true,  true]
+    imu0_config: [false, false, false,    # 不使用位置
+                  true,  true,  true,     # 使用姿態（提供絕對 yaw 修正漂移）
+                  false, false, false,    # 不使用線速度
+                  true,  true,  true,     # 使用角速度
+                  true,  true,  true]     # 使用加速度
     imu0_queue_size: 10
     imu0_differential: false
     imu0_relative: false

@@ -7,6 +7,16 @@
   <maintainer email="laing0929@gmail.com">jetson</maintainer>
   <license>TODO: License declaration</license>
 
+  <!-- 執行依賴 -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>nav2_bringup</exec_depend>
+  <exec_depend>nav2_map_server</exec_depend>
+  <exec_depend>nav2_amcl</exec_depend>
+  <exec_depend>nav2_lifecycle_manager</exec_depend>
+  <exec_depend>slam_toolbox</exec_depend>
+
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>

@@ -16,6 +16,7 @@ setup(
         'setuptools',
         'fastapi',
         'uvicorn[standard]',
+        'pydantic',
     ],
     zip_safe=True,
     maintainer='jetson',

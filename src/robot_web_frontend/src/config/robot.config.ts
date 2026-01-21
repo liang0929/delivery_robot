@@ -1,7 +1,21 @@
 // Robot configuration
+// ROBOT_IP 優先使用環境變數，否則使用當前頁面的 hostname
+const getDefaultRobotIP = (): string => {
+  // Vite 環境變數 (build 時設定: VITE_ROBOT_IP=x.x.x.x npm run build)
+  if (import.meta.env.VITE_ROBOT_IP) {
+    return import.meta.env.VITE_ROBOT_IP;
+  }
+  // 開發環境或未設定時，使用當前頁面的 hostname
+  if (typeof window !== 'undefined' && window.location.hostname) {
+    return window.location.hostname;
+  }
+  // 最後回退到 localhost
+  return 'localhost';
+};
+
 export const ROBOT_CONFIG = {
   // Network
-  ROBOT_IP: '192.168.99.54',
+  ROBOT_IP: getDefaultRobotIP(),
   API_PORT: 8000,
   ROSBRIDGE_PORT: 9090,
 

@@ -113,8 +113,10 @@ class HSMotorController(Node):
         self.last_cmd_time = time.time()
         self.running = True
 
-        # 串口鎖
+        # 串口鎖和重連控制
         self.serial_lock = threading.Lock()
+        self.consecutive_failures = 0
+        self.max_failures_before_reconnect = 5  # 連續失敗 5 次後嘗試重連
 
         # 控制定時器
         control_period = 1.0 / self.control_frequency
@@ -323,8 +325,9 @@ class HSMotorController(Node):
         return True
 
     def send_and_receive(self, clear_fault: int = 0) -> bool:
-        """發送命令並接收回應"""
+        """發送命令並接收回應，支援自動重連"""
         if not self.serial_conn or not self.serial_conn.is_open:
+            self._handle_serial_failure("Serial port not open")
             return False
 
         with self.serial_lock:
@@ -345,17 +348,32 @@ class HSMotorController(Node):
                 if len(response) > 0:
                     self.get_logger().debug(f'RX: {response.hex()}')
                     if self.parse_response_packet(response):
+                        self.consecutive_failures = 0  # 成功時重置計數
                         return True
                     else:
                         self.get_logger().warn(f'Failed to parse response: {response.hex()}')
-                else:
-                    self.get_logger().debug('No data received')
 
+                self._handle_serial_failure("No valid response")
                 return False
 
             except serial.SerialException as e:
                 self.get_logger().error(f'Serial error: {e}')
+                self._handle_serial_failure(str(e))
                 return False
+
+    def _handle_serial_failure(self, reason: str):
+        """處理串口通訊失敗，必要時嘗試重連"""
+        self.consecutive_failures += 1
+
+        if self.consecutive_failures >= self.max_failures_before_reconnect:
+            self.get_logger().warn(
+                f'Serial communication failed {self.consecutive_failures} times ({reason}), attempting reconnect...'
+            )
+            if self.reconnect_serial():
+                self.consecutive_failures = 0
+                self.get_logger().info('Serial reconnection successful')
+            else:
+                self.get_logger().error('Serial reconnection failed')
 
     def control_loop(self):
         """控制循環 - 發送命令並更新里程計"""

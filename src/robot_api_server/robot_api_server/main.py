@@ -743,10 +743,14 @@ class NavigatorManager:
 
             try:
                 if self.navigator is None:
-                    # 確保 rclpy 已初始化
+                    # 確保 rclpy 已初始化（安全處理重複初始化）
                     if not self._rclpy_initialized:
                         logger.info("Initializing rclpy...")
-                        rclpy.init()
+                        try:
+                            rclpy.init()
+                        except RuntimeError:
+                            # rclpy 已被其他地方初始化，忽略
+                            logger.info("rclpy already initialized")
                         self._rclpy_initialized = True
 
                     logger.info("Creating BasicNavigator...")

@@ -6,6 +6,14 @@
 
 ## 嚴重問題 (Critical)
 
+### 19. ~~nav2_commander rclpy 重複初始化~~ ✅ 已修復
+- **Commit**: `9984a2f`
+- **修復**: 添加 `_ensure_rclpy_initialized()` 函數，只在需要時初始化和關閉
+
+### 20. ~~Modbus 控制器 wheel_separation 預設值不一致~~ ✅ 已修復
+- **Commit**: `30062e1`
+- **修復**: 將預設值從 `0.381` 改為 `0.27`，與配置檔一致
+
 ### 1. ~~路徑注入漏洞~~ ✅ 已修復
 - **Commit**: `4fe836c`
 - **修復**: 添加 `validate_map_path()` 函數，驗證路徑在預期目錄內
@@ -42,6 +50,47 @@
 - **修復**:
   - Nav2 costmap 統一使用 `base_footprint`
   - 移除 Modbus Motor Controller 的重複 TF 發布
+
+### 21. 里程計更新頻率不匹配
+- **位置**: `src/motor_control/motor_control/modbus_motor_controller.py:105`
+- **問題**: Modbus 控制器 `odom_frequency=20Hz`，HS 控制器 `control_frequency=50Hz`
+- **影響**: 切換控制器時里程計更新頻率改變，可能導致 EKF 融合不穩定
+- **建議**: 統一兩個控制器的頻率參數
+- [ ] 待修復
+
+### 22. 時間差為零未檢查
+- **位置**: `src/motor_control/motor_control/hs_motor_controller.py:477`
+- **問題**: 計算 `dt` 後未檢查是否為零
+- **影響**: 若連續兩次呼叫在同一時刻，`dt=0` 會導致位置無更新
+- **建議**: 添加 `if dt <= 0: return` 檢查
+- [ ] 待修復
+
+### 23. Modbus 控制器缺少參數驗證
+- **位置**: `src/motor_control/motor_control/modbus_motor_controller.py`
+- **問題**: 缺少 `_validate_parameters()` 方法（HS 控制器有）
+- **影響**: 無效頻率參數（如 0 或負數）會導致除零錯誤
+- **建議**: 添加參數驗證函數
+- [ ] 待修復
+
+### 24. destroy_node() 異常處理不完整
+- **位置**: `src/motor_control/motor_control/modbus_motor_controller.py:386-387`
+- **問題**: `client.close()` 異常未捕獲，可能導致 `super().destroy_node()` 未執行
+- **建議**: 使用 try-finally 確保節點正確銷毀
+- [ ] 待修復
+
+### 25. Launch 配置讀取無異常處理
+- **位置**: `src/motor_control/launch/bringup.launch.py:31-32`
+- **問題**: 讀取 `tf_config.yaml` 時無異常處理
+- **影響**: 檔案不存在或格式無效會導致 launch 失敗，無清晰錯誤訊息
+- **建議**: 添加 try-except 和預設值
+- [ ] 待修復
+
+### 26. 方向變數非原子更新
+- **位置**: `src/motor_control/motor_control/hs_motor_controller.py:513-525`
+- **問題**: `logical_dir_a/b` 更新與讀取之間可能發生上下文切換
+- **影響**: 里程計計算使用不一致的方向值
+- **建議**: 使用鎖保護或原子操作
+- [ ] 待修復
 
 ---
 
@@ -90,9 +139,17 @@
 - [ ] 待修復
 
 ### 16. 日誌方法過時
-- **位置**: `src/motor_control/motor_control/hs_motor_controller.py:188`
+- **位置**:
+  - `src/motor_control/motor_control/hs_motor_controller.py:387, 402, 441, 443`
+  - `src/motor_control/motor_control/modbus_motor_controller.py:380`
 - **問題**: `self.get_logger().warn()` 應為 `warning()`
 - **建議**: 更新為標準方法名
+- [ ] 待修復
+
+### 27. Launch 設備路徑硬編碼
+- **位置**: `src/motor_control/launch/bringup.launch.py:86, 101`
+- **問題**: LiDAR (`/dev/lidar`) 和 IMU (`/dev/i2c-7`) 設備路徑硬編碼
+- **建議**: 使用參數或環境變數配置
 - [ ] 待修復
 
 ### 17. 健康檢查頻率
@@ -134,16 +191,21 @@
 
 ## 修復優先級建議
 
-1. **立即修復** (安全相關):
-   - 問題 1: 路徑注入漏洞
-   - 問題 2: State Manager 競態
-   - 問題 3: 串口資源洩漏
+1. **立即修復** (嚴重問題):
+   - ~~問題 1: 路徑注入漏洞~~ ✅
+   - ~~問題 2: State Manager 競態~~ ✅
+   - ~~問題 3: 串口資源洩漏~~ ✅
+   - ~~問題 19: nav2_commander rclpy 重複初始化~~ ✅
+   - ~~問題 20: Modbus 控制器 wheel_separation 預設值~~ ✅
 
-2. **短期修復** (穩定性):
-   - 問題 4: Subprocess 管道
-   - 問題 5: rclpy 初始化
-   - 問題 6: 參數一致性
-   - 問題 7: 鎖內發布
+2. **短期修復** (中等問題):
+   - ~~問題 4-8~~ ✅
+   - 問題 21: 里程計更新頻率不匹配
+   - 問題 22: 時間差為零未檢查
+   - 問題 23: Modbus 控制器缺少參數驗證
+   - 問題 24: destroy_node() 異常處理
+   - 問題 25: Launch 配置讀取異常處理
+   - 問題 26: 方向變數非原子更新
 
-3. **中期改進** (代碼質量):
-   - 問題 9-18: 輕微問題
+3. **中期改進** (輕微問題):
+   - 問題 9-18, 27: 代碼質量改進

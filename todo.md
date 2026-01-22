@@ -65,12 +65,9 @@
 - **建議**: 添加 `if dt <= 0: return` 檢查
 - [ ] 待修復
 
-### 23. Modbus 控制器缺少參數驗證
+### 23. ~~Modbus 控制器缺少參數驗證~~ ✅ 已修復
 - **位置**: `src/motor_control/motor_control/modbus_motor_controller.py`
-- **問題**: 缺少 `_validate_parameters()` 方法（HS 控制器有）
-- **影響**: 無效頻率參數（如 0 或負數）會導致除零錯誤
-- **建議**: 添加參數驗證函數
-- [ ] 待修復
+- **修復**: 添加 `_validate_parameters()` 方法，驗證 odom_frequency、wheel_radius、wheel_separation、gear_ratio、min_rpm、max_rpm 等參數
 
 ### 24. destroy_node() 異常處理不完整
 - **位置**: `src/motor_control/motor_control/modbus_motor_controller.py:386-387`
@@ -78,12 +75,9 @@
 - **建議**: 使用 try-finally 確保節點正確銷毀
 - [ ] 待修復
 
-### 25. Launch 配置讀取無異常處理
-- **位置**: `src/motor_control/launch/bringup.launch.py:31-32`
-- **問題**: 讀取 `tf_config.yaml` 時無異常處理
-- **影響**: 檔案不存在或格式無效會導致 launch 失敗，無清晰錯誤訊息
-- **建議**: 添加 try-except 和預設值
-- [ ] 待修復
+### 25. ~~Launch 配置讀取無異常處理~~ ✅ 已修復
+- **位置**: `src/motor_control/launch/bringup.launch.py`
+- **修復**: 添加 try-except 處理 FileNotFoundError 和 YAMLError，提供默認 TF 配置
 
 ### 26. 方向變數非原子更新
 - **位置**: `src/motor_control/motor_control/hs_motor_controller.py:513-525`
@@ -132,11 +126,9 @@
 - **建議**: 增加運行時類型驗證
 - [ ] 待優化
 
-### 15. Launch 硬編碼路徑
-- **位置**: `src/nav2/launch/autonomous_navigation.launch.py:40`
-- **問題**: `~/base_dev/src/map/map.yaml` 硬編碼
-- **建議**: 使用 ROS 包路徑或環境變數
-- [ ] 待修復
+### 15. ~~Launch 硬編碼路徑~~ ✅ 已修復
+- **位置**: `src/nav2/launch/autonomous_navigation.launch.py`
+- **修復**: 添加 `get_default_map_path()` 函數，檢查默認地圖是否存在，若不存在則嘗試查找其他可用地圖並發出警告
 
 ### 16. 日誌方法過時
 - **位置**:
@@ -202,10 +194,11 @@
    - ~~問題 4-8~~ ✅
    - 問題 21: 里程計更新頻率不匹配
    - 問題 22: 時間差為零未檢查
-   - 問題 23: Modbus 控制器缺少參數驗證
+   - ~~問題 23: Modbus 控制器缺少參數驗證~~ ✅
    - 問題 24: destroy_node() 異常處理
-   - 問題 25: Launch 配置讀取異常處理
+   - ~~問題 25: Launch 配置讀取異常處理~~ ✅
    - 問題 26: 方向變數非原子更新
 
 3. **中期改進** (輕微問題):
-   - 問題 9-18, 27: 代碼質量改進
+   - 問題 9-14, 16-18, 27: 代碼質量改進
+   - ~~問題 15: Launch 硬編碼路徑~~ ✅

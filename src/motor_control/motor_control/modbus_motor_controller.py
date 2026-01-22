@@ -288,9 +288,9 @@ class ModbusMotorController(Node):
         self.odom_y += delta_y
         self.odom_theta += delta_theta
 
-        # 發布里程計和 TF
+        # 發布里程計 (TF 由 EKF 發布，避免重複)
         self.publish_odometry(vx, vth)
-        self.publish_tf()
+        # self.publish_tf()  # 已移除：TF 由 EKF (robot_localization) 發布
 
     def publish_odometry(self, vx: float, vth: float):
         """發布里程計訊息"""

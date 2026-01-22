@@ -68,6 +68,9 @@ class ModbusMotorController(Node):
         self.max_rpm = self.get_parameter('max_rpm').value
         self.odom_frequency = self.get_parameter('odom_frequency').value
 
+        # 驗證參數
+        self._validate_parameters()
+
         # Modbus 客戶端
         self.client: Optional[ModbusSerialClient] = None
         self.connect_modbus()
@@ -111,6 +114,49 @@ class ModbusMotorController(Node):
         self.get_logger().info(
             f'Modbus Motor Controller initialized on {self.serial_port}'
         )
+
+    def _validate_parameters(self):
+        """驗證參數有效性"""
+        errors = []
+
+        # 驗證 odom_frequency（避免除零錯誤）
+        if self.odom_frequency <= 0:
+            errors.append(f'odom_frequency 必須大於 0，當前值: {self.odom_frequency}')
+
+        # 驗證物理參數
+        if self.wheel_radius <= 0:
+            errors.append(f'wheel_radius 必須大於 0，當前值: {self.wheel_radius}')
+
+        if self.wheel_separation <= 0:
+            errors.append(f'wheel_separation 必須大於 0，當前值: {self.wheel_separation}')
+
+        if self.gear_ratio <= 0:
+            errors.append(f'gear_ratio 必須大於 0，當前值: {self.gear_ratio}')
+
+        # 驗證 RPM 範圍
+        if self.min_rpm < 0:
+            errors.append(f'min_rpm 不能為負數，當前值: {self.min_rpm}')
+
+        if self.max_rpm <= 0:
+            errors.append(f'max_rpm 必須大於 0，當前值: {self.max_rpm}')
+
+        if self.max_rpm <= self.min_rpm:
+            errors.append(f'max_rpm ({self.max_rpm}) 必須大於 min_rpm ({self.min_rpm})')
+
+        # 驗證速度限制
+        if self.max_linear_vel <= 0:
+            errors.append(f'max_linear_vel 必須大於 0，當前值: {self.max_linear_vel}')
+
+        if self.max_angular_vel <= 0:
+            errors.append(f'max_angular_vel 必須大於 0，當前值: {self.max_angular_vel}')
+
+        # 如果有錯誤，拋出異常
+        if errors:
+            error_msg = '參數驗證失敗:\n' + '\n'.join(f'  - {e}' for e in errors)
+            self.get_logger().fatal(error_msg)
+            raise ValueError(error_msg)
+
+        self.get_logger().info('參數驗證通過')
 
     def connect_modbus(self) -> bool:
         """連接 Modbus 設備"""

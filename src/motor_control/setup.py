@@ -33,6 +33,10 @@ setup(
             'modbus_motor_controller = motor_control.modbus_motor_controller:main',
             'hs_motor_controller = motor_control.hs_motor_controller:main',
             'map_relay = motor_control.map_relay:main',
+            # Mock 節點 (模擬模式)
+            'mock_motor_controller = motor_control.mock_motor_controller:main',
+            'mock_lidar = motor_control.mock_lidar:main',
+            'mock_imu = motor_control.mock_imu:main',
         ],
     },
 )

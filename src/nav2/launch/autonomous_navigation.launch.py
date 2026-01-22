@@ -1,5 +1,5 @@
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, TimerAction
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, TimerAction, LogInfo, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node, LifecycleNode
@@ -11,6 +11,28 @@ from launch_ros.events.lifecycle import ChangeState
 from lifecycle_msgs.msg import Transition
 from ament_index_python.packages import get_package_share_directory
 import os
+
+
+def get_default_map_path():
+    """獲取默認地圖路徑，檢查文件是否存在"""
+    default_path = os.path.join(os.path.expanduser('~'), 'base_dev/src/map/map.yaml')
+
+    if os.path.exists(default_path):
+        return default_path
+
+    # 如果默認路徑不存在，嘗試查找其他地圖
+    map_dir = os.path.join(os.path.expanduser('~'), 'base_dev/src/map')
+    if os.path.isdir(map_dir):
+        for f in os.listdir(map_dir):
+            if f.endswith('.yaml'):
+                alt_path = os.path.join(map_dir, f)
+                print(f'[WARN] 默認地圖 map.yaml 不存在，使用: {alt_path}')
+                return alt_path
+
+    # 返回默認路徑（即使不存在），讓 map_server 報告錯誤
+    print(f'[WARN] 未找到地圖文件，導航可能無法正常啟動')
+    return default_path
+
 
 def generate_launch_description():
     # Get the launch directory
@@ -37,7 +59,7 @@ def generate_launch_description():
 
     declare_map_yaml_cmd = DeclareLaunchArgument(
         'map',
-        default_value=os.path.join(os.path.expanduser('~'), 'base_dev/src/map/map.yaml'),
+        default_value=get_default_map_path(),
         description='Full path to map yaml file to load'
     )
 

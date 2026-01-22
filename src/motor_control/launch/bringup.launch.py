@@ -73,19 +73,20 @@ def create_static_tf_node(name: str, tf_config: dict) -> Node:
     t = tf_config.get('translation', {})
     r = tf_config.get('rotation', {})
 
+    # static_transform_publisher 參數順序: x y z yaw pitch roll frame_id child_frame_id
     return Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         name=name,
         arguments=[
-            str(t.get('x', 0.0)),
-            str(t.get('y', 0.0)),
-            str(t.get('z', 0.0)),
-            str(r.get('roll', 0.0)),
-            str(r.get('pitch', 0.0)),
-            str(r.get('yaw', 0.0)),
-            tf_config.get('parent_frame', 'base_link'),
-            tf_config.get('child_frame', 'child')
+            '--x', str(t.get('x', 0.0)),
+            '--y', str(t.get('y', 0.0)),
+            '--z', str(t.get('z', 0.0)),
+            '--roll', str(r.get('roll', 0.0)),
+            '--pitch', str(r.get('pitch', 0.0)),
+            '--yaw', str(r.get('yaw', 0.0)),
+            '--frame-id', tf_config.get('parent_frame', 'base_link'),
+            '--child-frame-id', tf_config.get('child_frame', 'child')
         ]
     )
 

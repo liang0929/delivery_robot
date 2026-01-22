@@ -14,7 +14,8 @@
    - [手動鍵盤控制](#43-手動鍵盤控制)
    - [SLAM 建圖](#44-slam-建圖)
    - [自主導航](#45-自主導航)
-5. [開發者與除錯](#5-開發者與除錯)
+5. [模擬模式](#5-模擬模式)
+6. [開發者與除錯](#6-開發者與除錯)
 
 ---
 
@@ -91,13 +92,56 @@ npm install
 
 ## 4. 使用說明
 
+### 快速指令 (Make)
+
+本專案提供 Makefile 快速指令，輸入 `make help` 查看所有可用命令：
+
+```bash
+# 服務管理 (使用 systemd)
+make start      # 啟動所有服務
+make stop       # 停止所有服務
+make restart    # 重啟所有服務 (修改程式碼後使用)
+make status     # 查看服務狀態
+make logs       # 查看即時日誌
+
+# 開發模式 (前景執行)
+make dev        # 開發模式 (核心 + 前端)
+make dev-core   # 只啟動核心
+make dev-web    # 只啟動前端
+
+# 模擬模式 (不需要硬體)
+make sim        # 模擬模式 + 前端
+make sim-core   # 只啟動模擬核心
+make sim-room   # 模擬方形房間
+make sim-corridor  # 模擬走廊
+
+# 建置
+make build      # 建置 ROS2 + 前端
+make build-ros  # 只建置 ROS2
+make build-web  # 只建置前端
+
+# 服務安裝
+make install    # 安裝為 systemd 服務 (開機自啟)
+make uninstall  # 移除服務
+```
+
+### 4.1. 一鍵啟動（推薦）
+
+**使用 Make 指令（最簡單）：**
+
+```bash
+make dev        # 開發模式
+# 或
+make start      # 使用 systemd 服務
+```
+
+**使用 ROS2 Launch（手動）：**
+
 每次開啟新的終端機時，請記得先 source 工作區環境：
 
 ```bash
 source install/setup.bash
 ```
-
-### 4.1. 一鍵啟動（推薦）
 
 使用統一 launch 檔案啟動所有核心節點與 Web 服務：
 
@@ -229,7 +273,61 @@ SLAM Toolbox 參數配置檔位於 `src/nav2/config/slam_toolbox_params.yaml`，
    - 使用 **"2D Pose Estimate"** 設定機器人初始位置
    - 使用 **"Nav2 Goal"** 設定目標點
 
-## 5. 開發者與除錯
+## 5. 模擬模式
+
+在沒有實體硬體的環境下，可使用模擬模式進行開發與測試。
+
+### 5.1. 啟動模擬模式
+
+**使用 Make 指令（推薦）：**
+
+```bash
+make sim          # 模擬模式 + 前端服務
+make sim-core     # 只啟動模擬核心
+make sim-room     # 方形房間場景
+make sim-corridor # 走廊場景
+```
+
+**使用 ROS2 Launch：**
+
+```bash
+ros2 launch motor_control bringup.launch.py simulation_mode:=true
+```
+
+模擬模式會自動啟動以下 Mock 節點取代實體硬體：
+
+| Mock 節點 | 取代硬體 | 功能說明 |
+|-----------|----------|----------|
+| `mock_motor_controller` | 馬達驅動器 | 差速驅動運動學模擬、里程計發布 |
+| `mock_lidar` | LiDAR | 模擬房間環境的 LaserScan 數據 |
+| `mock_imu` | IMU | 模擬 IMU 數據（含角速度整合） |
+
+### 5.2. 模擬環境配置
+
+Mock LiDAR 預設模擬 5m × 5m 的房間環境，可透過參數調整：
+
+```bash
+ros2 launch motor_control bringup.launch.py simulation_mode:=true \
+    mock_lidar_room_width:=8.0 \
+    mock_lidar_room_height:=6.0
+```
+
+| 參數 | 預設值 | 說明 |
+|------|--------|------|
+| `mock_lidar_room_width` | 5.0 | 模擬房間寬度（米） |
+| `mock_lidar_room_height` | 5.0 | 模擬房間高度（米） |
+
+### 5.3. 模擬模式下的功能測試
+
+模擬模式支援完整功能測試：
+
+1. **SLAM 建圖**：使用網頁前端或 RViz2 進行建圖測試
+2. **地圖儲存**：儲存模擬環境建立的地圖
+3. **自主導航**：載入地圖並測試導航功能
+
+> 注意：模擬模式下的 LiDAR 數據為簡化的幾何計算，與實際感測器特性有差異。
+
+## 6. 開發者與除錯
 
 ### 常用監控指令
 

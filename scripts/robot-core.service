@@ -4,19 +4,18 @@ After=network.target
 
 [Service]
 Type=simple
-# 注意：請根據實際環境修改 User 和 Group
-User=jetson
-Group=jetson
-WorkingDirectory=%h/base_dev
-ExecStart=%h/base_dev/scripts/robot_bringup.sh
+User=robot0
+Group=robot0
+WorkingDirectory=/home/robot0/base_dev
+ExecStart=/home/robot0/base_dev/scripts/robot_bringup.sh
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
 
-# 環境變數 - %h 會被 systemd 解析為用戶的 home 目錄
-Environment="HOME=%h"
-Environment="USER=%u"
+# 環境變數
+Environment="HOME=/home/robot0"
+Environment="USER=robot0"
 
 [Install]
 WantedBy=multi-user.target

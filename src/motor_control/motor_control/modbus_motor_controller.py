@@ -239,7 +239,7 @@ class ModbusMotorController(Node):
             try:
                 result = self.client.read_input_registers(
                     self.ADDR_MOTOR_A_SPEED_PV, count=2, device_id=self.slave_id)
-                if result.isError():
+                if result is None or result.isError():
                     return 0.0, 0.0
                 return float(result.registers[0]), float(result.registers[1])
             except ModbusException as e:
@@ -255,7 +255,7 @@ class ModbusMotorController(Node):
             try:
                 result = self.client.read_input_registers(
                     self.ADDR_FAULT_CODE, count=1, device_id=self.slave_id)
-                if result.isError():
+                if result is None or result.isError():
                     return -1
                 return result.registers[0]
             except ModbusException:

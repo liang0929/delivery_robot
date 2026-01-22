@@ -12,8 +12,10 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
-from typing import Optional, Set
+from typing import Optional, Set, List
 from enum import Enum
+from uuid import uuid4
+from datetime import datetime
 from contextlib import asynccontextmanager
 import asyncio
 import json
@@ -72,6 +74,31 @@ class NavStatus(str, Enum):
     RUNNING = "running"
 
 
+# --- Waypoint Models ---
+class WaypointBase(BaseModel):
+    name: str
+    x: float
+    y: float
+    yaw_deg: float
+
+
+class WaypointCreate(WaypointBase):
+    pass
+
+
+class WaypointUpdate(BaseModel):
+    name: Optional[str] = None
+    x: Optional[float] = None
+    y: Optional[float] = None
+    yaw_deg: Optional[float] = None
+
+
+class Waypoint(WaypointBase):
+    id: str
+    created_at: str
+    updated_at: str
+
+
 # --- Configuration ---
 # 從環境變數讀取配置，提供合理預設值
 DEFAULT_MAP_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'map')
@@ -80,6 +107,41 @@ MAP_SAVE_PATH = os.environ.get('ROBOT_MAP_PATH', os.path.abspath(DEFAULT_MAP_PAT
 # 確保地圖目錄存在
 os.makedirs(MAP_SAVE_PATH, exist_ok=True)
 logger.info(f"Map save path: {MAP_SAVE_PATH}")
+
+
+# --- Waypoint File Operations ---
+def get_waypoints_file_path(map_name: str) -> str:
+    """取得 waypoints 檔案路徑"""
+    safe_name = "".join(c for c in map_name if c.isalnum() or c in ('-', '_'))
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="Invalid map name.")
+    return os.path.join(MAP_SAVE_PATH, f"{safe_name}.waypoints.json")
+
+
+def load_waypoints(map_name: str) -> List[Waypoint]:
+    """載入地圖的 waypoints"""
+    file_path = get_waypoints_file_path(map_name)
+    if not os.path.exists(file_path):
+        return []
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return [Waypoint(**wp) for wp in data]
+    except Exception as e:
+        logger.error(f"Failed to load waypoints: {e}")
+        return []
+
+
+def save_waypoints(map_name: str, waypoints: List[Waypoint]) -> None:
+    """儲存地圖的 waypoints"""
+    file_path = get_waypoints_file_path(map_name)
+    try:
+        data = [wp.model_dump() for wp in waypoints]
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to save waypoints: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save waypoints: {str(e)}")
 
 
 # --- Thread-safe State Manager ---
@@ -856,6 +918,120 @@ async def get_slam_status():
         "status": state.slam_status,
         "is_mapping": state.slam_status == SlamStatus.MAPPING,
     }
+
+
+# --- Waypoint Endpoints ---
+@app.get("/maps/{map_name}/waypoints", response_model=List[Waypoint])
+async def get_waypoints(map_name: str):
+    """Get all waypoints for a specific map."""
+    # 驗證地圖存在
+    map_yaml = os.path.join(MAP_SAVE_PATH, f"{map_name}.yaml")
+    if not os.path.exists(map_yaml):
+        raise HTTPException(status_code=404, detail=f"Map '{map_name}' not found.")
+    return load_waypoints(map_name)
+
+
+@app.post("/maps/{map_name}/waypoints", response_model=Waypoint)
+async def create_waypoint(map_name: str, waypoint: WaypointCreate):
+    """Create a new waypoint for a specific map."""
+    # 驗證地圖存在
+    map_yaml = os.path.join(MAP_SAVE_PATH, f"{map_name}.yaml")
+    if not os.path.exists(map_yaml):
+        raise HTTPException(status_code=404, detail=f"Map '{map_name}' not found.")
+
+    waypoints = load_waypoints(map_name)
+
+    # 建立新的 waypoint
+    now = datetime.now().isoformat()
+    new_waypoint = Waypoint(
+        id=str(uuid4()),
+        name=waypoint.name,
+        x=waypoint.x,
+        y=waypoint.y,
+        yaw_deg=waypoint.yaw_deg,
+        created_at=now,
+        updated_at=now,
+    )
+
+    waypoints.append(new_waypoint)
+    save_waypoints(map_name, waypoints)
+
+    logger.info(f"Created waypoint '{new_waypoint.name}' for map '{map_name}'")
+    return new_waypoint
+
+
+@app.put("/maps/{map_name}/waypoints/{waypoint_id}", response_model=Waypoint)
+async def update_waypoint(map_name: str, waypoint_id: str, update: WaypointUpdate):
+    """Update an existing waypoint."""
+    waypoints = load_waypoints(map_name)
+
+    # 找到要更新的 waypoint
+    for i, wp in enumerate(waypoints):
+        if wp.id == waypoint_id:
+            # 更新欄位
+            updated_data = wp.model_dump()
+            update_dict = update.model_dump(exclude_unset=True)
+            updated_data.update(update_dict)
+            updated_data['updated_at'] = datetime.now().isoformat()
+
+            waypoints[i] = Waypoint(**updated_data)
+            save_waypoints(map_name, waypoints)
+
+            logger.info(f"Updated waypoint '{waypoints[i].name}' for map '{map_name}'")
+            return waypoints[i]
+
+    raise HTTPException(status_code=404, detail=f"Waypoint '{waypoint_id}' not found.")
+
+
+@app.delete("/maps/{map_name}/waypoints/{waypoint_id}")
+async def delete_waypoint(map_name: str, waypoint_id: str):
+    """Delete a waypoint."""
+    waypoints = load_waypoints(map_name)
+
+    # 找到並刪除 waypoint
+    for i, wp in enumerate(waypoints):
+        if wp.id == waypoint_id:
+            deleted_name = wp.name
+            waypoints.pop(i)
+            save_waypoints(map_name, waypoints)
+
+            logger.info(f"Deleted waypoint '{deleted_name}' from map '{map_name}'")
+            return {"message": f"Waypoint '{deleted_name}' deleted."}
+
+    raise HTTPException(status_code=404, detail=f"Waypoint '{waypoint_id}' not found.")
+
+
+@app.post("/maps/{map_name}/waypoints/{waypoint_id}/navigate")
+async def navigate_to_waypoint(map_name: str, waypoint_id: str):
+    """Navigate to a specific waypoint."""
+    # 檢查導航是否已啟動
+    if state.nav_status != NavStatus.RUNNING:
+        raise HTTPException(status_code=400, detail="Navigation is not running. Please start navigation first.")
+
+    waypoints = load_waypoints(map_name)
+
+    # 找到 waypoint
+    target_wp = None
+    for wp in waypoints:
+        if wp.id == waypoint_id:
+            target_wp = wp
+            break
+
+    if target_wp is None:
+        raise HTTPException(status_code=404, detail=f"Waypoint '{waypoint_id}' not found.")
+
+    # 確保 Nav2 已準備好
+    is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
+    if not is_ready:
+        raise HTTPException(status_code=503, detail="Nav2 is not ready. Please wait and try again.")
+
+    try:
+        logger.info(f"Navigating to waypoint '{target_wp.name}': x={target_wp.x}, y={target_wp.y}, yaw={target_wp.yaw_deg}")
+        await asyncio.to_thread(nav_manager.send_goal, target_wp.x, target_wp.y, target_wp.yaw_deg)
+        return {"message": f"Navigation to '{target_wp.name}' started."}
+    except RuntimeError as e:
+        logger.error(f"Failed to navigate to waypoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # --- Navigator Manager ---

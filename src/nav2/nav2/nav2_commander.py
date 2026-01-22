@@ -1,10 +1,29 @@
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 from geometry_msgs.msg import PoseStamped
 import math
+
+
+def _ensure_rclpy_initialized() -> bool:
+    """確保 rclpy 已初始化，返回是否由本函數初始化"""
+    try:
+        if rclpy.ok():
+            return False  # 已經初始化，不是我們初始化的
+    except Exception:
+        pass
+
+    try:
+        rclpy.init()
+        return True  # 由我們初始化
+    except RuntimeError:
+        # 已被其他地方初始化
+        return False
+
+
 # 用來直接給定目標點座標
 def send_goal(x, y, yaw_deg):
-    rclpy.init()
+    we_initialized = _ensure_rclpy_initialized()
     navigator = BasicNavigator()
 
     # 等待 Nav2 啟動
@@ -40,7 +59,9 @@ def send_goal(x, y, yaw_deg):
     elif result == TaskResult.FAILED:
         print("任務失敗")
 
-    rclpy.shutdown()
+    # 只有當我們初始化 rclpy 時才關閉
+    if we_initialized:
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":

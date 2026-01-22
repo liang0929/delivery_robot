@@ -160,6 +160,31 @@ class HSMotorController(Node):
 
         self.get_logger().info("All parameters validated successfully")
 
+    def _close_serial_safely(self) -> None:
+        """安全關閉串口連接，確保資源完全釋放"""
+        if self.serial_conn is None:
+            return
+
+        try:
+            # 先檢查連接狀態
+            if self.serial_conn.is_open:
+                # 清空緩衝區
+                try:
+                    self.serial_conn.reset_input_buffer()
+                    self.serial_conn.reset_output_buffer()
+                except Exception:
+                    pass
+                # 關閉連接
+                self.serial_conn.close()
+                self.get_logger().info('Serial port closed successfully')
+        except Exception as e:
+            self.get_logger().warning(f'Error closing serial port: {e}')
+        finally:
+            # 確保引用被清除
+            self.serial_conn = None
+            # 短暫等待讓系統釋放端口
+            time.sleep(0.1)
+
     def connect_serial(self, max_retries: int = 3, retry_delay: float = 1.0) -> bool:
         """連接串口，支援重試機制
 
@@ -170,6 +195,9 @@ class HSMotorController(Node):
         Returns:
             bool: 連接是否成功
         """
+        # 先確保關閉任何現有連接
+        self._close_serial_safely()
+
         for attempt in range(max_retries):
             try:
                 self.serial_conn = serial.Serial(
@@ -185,7 +213,7 @@ class HSMotorController(Node):
             except serial.SerialException as e:
                 if attempt < max_retries - 1:
                     wait_time = retry_delay * (2 ** attempt)  # 指數退避
-                    self.get_logger().warn(
+                    self.get_logger().warning(
                         f'Connection attempt {attempt + 1}/{max_retries} failed: {e}. '
                         f'Retrying in {wait_time:.1f}s...'
                     )
@@ -199,12 +227,7 @@ class HSMotorController(Node):
     def reconnect_serial(self) -> bool:
         """嘗試重新連接串口"""
         self.get_logger().info('Attempting to reconnect serial port...')
-        if self.serial_conn is not None:
-            try:
-                self.serial_conn.close()
-            except Exception:
-                pass
-            self.serial_conn = None
+        # 使用安全關閉方法，然後重新連接
         return self.connect_serial()
 
     def crc16(self, data: bytes) -> int:
@@ -585,8 +608,13 @@ class HSMotorController(Node):
 
         # 發送停止命令
         if self.serial_conn and self.serial_conn.is_open:
-            self.send_and_receive()
-            self.serial_conn.close()
+            try:
+                self.send_and_receive()
+            except Exception as e:
+                self.get_logger().warning(f'Error sending stop command: {e}')
+
+        # 使用安全關閉方法
+        self._close_serial_safely()
 
         super().destroy_node()
 

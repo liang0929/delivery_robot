@@ -7,6 +7,7 @@ import subprocess
 import os
 import signal
 import logging
+import time
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -86,6 +87,41 @@ class RobotStateManager:
         with self._lock:
             self._slam_status = value
 
+    def _wait_for_process_cleanup(self, patterns: list, timeout: float = 5.0) -> bool:
+        """等待指定模式的進程完全終止
+
+        Args:
+            patterns: 要檢查的進程模式列表
+            timeout: 最大等待時間（秒）
+
+        Returns:
+            True 如果所有進程都已終止，False 如果超時
+        """
+        start_time = time.time()
+        check_interval = 0.2  # 每 200ms 檢查一次
+
+        while time.time() - start_time < timeout:
+            all_terminated = True
+            for pattern in patterns:
+                try:
+                    # pgrep 返回 0 表示找到進程，1 表示沒找到
+                    result = subprocess.run(
+                        ["pgrep", "-f", pattern],
+                        capture_output=True
+                    )
+                    if result.returncode == 0:
+                        all_terminated = False
+                        break
+                except Exception:
+                    pass
+
+            if all_terminated:
+                return True
+
+            time.sleep(check_interval)
+
+        return False
+
     def _cleanup_nav_processes(self):
         """清理所有導航相關殘留進程"""
         patterns = ["nav2_", "autonomous_navigation.launch", "basic_navigator"]
@@ -95,6 +131,10 @@ class RobotStateManager:
             except Exception as e:
                 logger.warning(f"Failed to kill processes matching '{pattern}': {e}")
 
+        # 等待進程真正終止，避免競態條件
+        if not self._wait_for_process_cleanup(patterns, timeout=3.0):
+            logger.warning("Some navigation processes may still be running after cleanup")
+
     def _cleanup_slam_processes(self):
         """清理所有建圖相關殘留進程"""
         patterns = ["slam_toolbox", "mapping.launch", "map_relay"]
@@ -103,6 +143,10 @@ class RobotStateManager:
                 subprocess.run(["pkill", "-f", pattern], capture_output=True)
             except Exception as e:
                 logger.warning(f"Failed to kill processes matching '{pattern}': {e}")
+
+        # 等待進程真正終止，避免競態條件
+        if not self._wait_for_process_cleanup(patterns, timeout=3.0):
+            logger.warning("Some SLAM processes may still be running after cleanup")
 
     def _terminate_process_safely(self, process: subprocess.Popen, name: str, timeout: int = 5) -> bool:
         """安全終止進程，先 SIGTERM 後 SIGKILL"""

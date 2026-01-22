@@ -109,6 +109,7 @@ class MockImu(Node):
 
 def main(args=None):
     rclpy.init(args=args)
+    imu = None
 
     try:
         imu = MockImu()
@@ -116,7 +117,10 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        rclpy.shutdown()
+        if imu:
+            imu.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

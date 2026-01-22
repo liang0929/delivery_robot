@@ -160,6 +160,7 @@ class MockMotorController(Node):
 
 def main(args=None):
     rclpy.init(args=args)
+    controller = None
 
     try:
         controller = MockMotorController()
@@ -167,7 +168,10 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        rclpy.shutdown()
+        if controller:
+            controller.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

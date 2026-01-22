@@ -423,8 +423,8 @@ async def status_broadcast_loop():
         if ws_manager.connection_count == 0:
             continue
 
-        # 取得當前狀態
-        current_status = get_full_status()
+        # 取得當前狀態（使用 asyncio.to_thread 避免阻塞事件循環）
+        current_status = await asyncio.to_thread(get_full_status)
 
         # 只在狀態變化時廣播
         if current_status != last_status:
@@ -528,23 +528,25 @@ async def websocket_status(websocket: WebSocket):
 @app.post("/robot/start")
 async def start_robot_core():
     """Start robot core system (motor controller, LiDAR, IMU, EKF)."""
-    return state.start_robot_core()
+    return await asyncio.to_thread(state.start_robot_core)
 
 @app.post("/robot/stop")
 async def stop_robot_core():
     """Stop robot core system."""
-    return state.stop_robot_core()
+    return await asyncio.to_thread(state.stop_robot_core)
 
 @app.post("/robot/start_lidar")
 async def start_lidar_motor():
     """Start LiDAR motor by calling /start_motor service."""
-    try:
-        result = subprocess.run(
+    def _start_lidar():
+        return subprocess.run(
             ["ros2", "service", "call", "/start_motor", "std_srvs/srv/Empty"],
             capture_output=True,
             text=True,
             timeout=10
         )
+    try:
+        result = await asyncio.to_thread(_start_lidar)
         if result.returncode != 0:
             raise HTTPException(status_code=500, detail=f"Failed to start LiDAR: {result.stderr}")
         return {"message": "LiDAR motor started."}
@@ -595,13 +597,14 @@ async def navigate_to_goal(goal: Goal):
     if state.nav_status != NavStatus.RUNNING:
         raise HTTPException(status_code=400, detail="Navigation is not running. Please start navigation first.")
 
-    # 確保 Nav2 已準備好
-    if not nav_manager.ensure_nav2_ready():
+    # 確保 Nav2 已準備好（使用 asyncio.to_thread 避免阻塞事件循環）
+    is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
+    if not is_ready:
         raise HTTPException(status_code=503, detail="Nav2 is not ready. Please wait and try again.")
 
     try:
         logger.info(f"Received goal: x={goal.x}, y={goal.y}, yaw={goal.yaw_deg}")
-        nav_manager.send_goal(goal.x, goal.y, goal.yaw_deg)
+        await asyncio.to_thread(nav_manager.send_goal, goal.x, goal.y, goal.yaw_deg)
         return {"message": "Goal received, navigation started."}
     except RuntimeError as e:
         logger.error(f"Failed to send goal: {e}")
@@ -611,7 +614,7 @@ async def navigate_to_goal(goal: Goal):
 async def cancel_navigation():
     """Cancel current navigation goal."""
     try:
-        nav_manager.cancel_task()
+        await asyncio.to_thread(nav_manager.cancel_task)
         return {"message": "Navigation cancelled."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -620,8 +623,9 @@ async def cancel_navigation():
 async def get_navigation_status():
     """Get current navigation status."""
     try:
-        is_complete = nav_manager.is_task_complete()
-        feedback = nav_manager.get_feedback()
+        # 使用 asyncio.to_thread 避免阻塞事件循環
+        is_complete = await asyncio.to_thread(nav_manager.is_task_complete)
+        feedback = await asyncio.to_thread(nav_manager.get_feedback)
         distance_remaining = feedback.distance_remaining if feedback else None
 
         return {
@@ -658,24 +662,24 @@ async def list_maps():
 async def start_navigation(request: NavigationStartRequest = None):
     """Start autonomous navigation by launching autonomous_navigation.launch.py."""
     map_name = request.map_name if request else None
-    return state.start_navigation(map_name)
+    return await asyncio.to_thread(state.start_navigation, map_name)
 
 @app.post("/navigation/stop")
 async def stop_navigation():
     """Stop autonomous navigation."""
-    return state.stop_navigation()
+    return await asyncio.to_thread(state.stop_navigation)
 
 
 # --- SLAM Endpoints ---
 @app.post("/slam/start")
 async def start_mapping():
     """Start SLAM mapping by launching mapping.launch.py."""
-    return state.start_slam()
+    return await asyncio.to_thread(state.start_slam)
 
 @app.post("/slam/stop")
 async def stop_mapping():
     """Stop SLAM mapping."""
-    return state.stop_slam()
+    return await asyncio.to_thread(state.stop_slam)
 
 @app.post("/slam/save_map")
 async def save_map(request: MapSaveRequest):
@@ -687,15 +691,17 @@ async def save_map(request: MapSaveRequest):
     map_name = "".join(c for c in map_name if c.isalnum() or c in ('-', '_'))
     map_path = os.path.join(MAP_SAVE_PATH, map_name)
 
-    try:
-        state.slam_status = SlamStatus.SAVING
-
-        result = subprocess.run(
+    def _save_map():
+        return subprocess.run(
             ["ros2", "run", "nav2_map_server", "map_saver_cli", "-f", map_path, "-t", "/map_saver"],
             capture_output=True,
             text=True,
             timeout=30
         )
+
+    try:
+        state.slam_status = SlamStatus.SAVING
+        result = await asyncio.to_thread(_save_map)
 
         if result.returncode != 0:
             state.slam_status = SlamStatus.MAPPING

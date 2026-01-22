@@ -186,6 +186,20 @@ class RobotStateManager:
             logger.error(f"Error terminating {name}: {e}")
             return False
 
+    def _verify_process_started(self, process: subprocess.Popen, name: str, wait_time: float = 0.5) -> bool:
+        """驗證進程是否成功啟動並存活"""
+        try:
+            # 等待短暫時間後檢查進程是否仍在運行
+            time.sleep(wait_time)
+            exit_code = process.poll()
+            if exit_code is not None:
+                logger.error(f"{name} process exited immediately with code {exit_code}")
+                return False
+            return True
+        except Exception as e:
+            logger.error(f"Error verifying {name} process: {e}")
+            return False
+
     def start_slam(self) -> dict:
         with self._lock:
             if self._slam_status == SlamStatus.MAPPING:
@@ -195,15 +209,25 @@ class RobotStateManager:
             self._cleanup_nav_processes()
 
             try:
+                # 使用 DEVNULL 避免管道緩衝區滿導致死鎖
                 self._slam_process = subprocess.Popen(
                     ["ros2", "launch", "nav2", "mapping.launch.py"],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                     preexec_fn=os.setsid
                 )
+
+                # 驗證進程確實啟動成功
+                if not self._verify_process_started(self._slam_process, "SLAM"):
+                    self._slam_process = None
+                    raise HTTPException(status_code=500, detail="SLAM process failed to start.")
+
                 self._slam_status = SlamStatus.MAPPING
                 return {"message": "Mapping started.", "status": self._slam_status}
+            except HTTPException:
+                raise
             except Exception as e:
+                self._slam_process = None
                 raise HTTPException(status_code=500, detail=f"Failed to start mapping: {str(e)}")
 
     def stop_slam(self) -> dict:
@@ -248,17 +272,25 @@ class RobotStateManager:
                 else:
                     map_yaml = os.path.join(MAP_SAVE_PATH, "map.yaml")
 
+                # 使用 DEVNULL 避免管道緩衝區滿導致死鎖
                 self._nav_process = subprocess.Popen(
                     ["ros2", "launch", "nav2", "autonomous_navigation.launch.py", f"map:={map_yaml}"],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                     preexec_fn=os.setsid
                 )
+
+                # 驗證進程確實啟動成功
+                if not self._verify_process_started(self._nav_process, "Navigation"):
+                    self._nav_process = None
+                    raise HTTPException(status_code=500, detail="Navigation process failed to start.")
+
                 self._nav_status = NavStatus.RUNNING
                 return {"message": f"Navigation started with map: {map_yaml}", "status": self._nav_status}
             except HTTPException:
                 raise
             except Exception as e:
+                self._nav_process = None
                 raise HTTPException(status_code=500, detail=f"Failed to start navigation: {str(e)}")
 
     def stop_navigation(self) -> dict:
@@ -290,15 +322,25 @@ class RobotStateManager:
                 raise HTTPException(status_code=400, detail="Robot core is already running.")
 
             try:
+                # 使用 DEVNULL 避免管道緩衝區滿導致死鎖
                 self._robot_core_process = subprocess.Popen(
                     ["ros2", "launch", "motor_control", "bringup.launch.py", "enable_web:=false"],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                     preexec_fn=os.setsid
                 )
+
+                # 驗證進程確實啟動成功
+                if not self._verify_process_started(self._robot_core_process, "Robot Core"):
+                    self._robot_core_process = None
+                    raise HTTPException(status_code=500, detail="Robot core process failed to start.")
+
                 self._robot_core_running = True
                 return {"message": "Robot core started.", "is_running": True}
+            except HTTPException:
+                raise
             except Exception as e:
+                self._robot_core_process = None
                 raise HTTPException(status_code=500, detail=f"Failed to start robot core: {str(e)}")
 
     def stop_robot_core(self) -> dict:

@@ -39,18 +39,18 @@ class HSMotorController(Node):
     def __init__(self):
         super().__init__('hs_motor_controller')
 
-        # 宣告參數
+        # 宣告參數（預設值與 hs_motor_config.yaml 保持一致）
         self.declare_parameter('serial_port', '/dev/motor')
         self.declare_parameter('baudrate', 115200)
-        self.declare_parameter('device_id', 1)
-        self.declare_parameter('wheel_separation', 0.381)
-        self.declare_parameter('wheel_radius', 0.065)
-        self.declare_parameter('gear_ratio', 1.0)  # 減速比
-        self.declare_parameter('max_linear_vel', 0.05)
-        self.declare_parameter('max_angular_vel', 0.4)
-        self.declare_parameter('min_rpm', 100.0)
-        self.declare_parameter('max_rpm', 3000.0)
-        self.declare_parameter('control_frequency', 20.0)
+        self.declare_parameter('device_id', 127)  # 廣播地址
+        self.declare_parameter('wheel_separation', 0.27)  # 輪距 (m)
+        self.declare_parameter('wheel_radius', 0.065)  # 輪半徑 (m)
+        self.declare_parameter('gear_ratio', 20.0)  # 減速比 (馬達轉20圈=輪子轉1圈)
+        self.declare_parameter('max_linear_vel', 0.05)  # 最大線速度 (m/s)
+        self.declare_parameter('max_angular_vel', 0.4)  # 最大角速度 (rad/s)
+        self.declare_parameter('min_rpm', 60.0)  # 最小馬達 RPM
+        self.declare_parameter('max_rpm', 3000.0)  # 最大馬達 RPM
+        self.declare_parameter('control_frequency', 50.0)  # 控制頻率 (Hz)
         self.declare_parameter('invert_motor_a', True)  # A馬達反轉
         self.declare_parameter('invert_motor_b', False)
 

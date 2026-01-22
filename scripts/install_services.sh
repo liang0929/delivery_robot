@@ -3,11 +3,18 @@
 
 set -e
 
+# 自動偵測用戶和路徑
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(dirname "$SCRIPT_DIR")"
+CURRENT_USER="$(whoami)"
+
 echo "=== 安裝機器人自動啟動服務 ==="
+echo "用戶: $CURRENT_USER"
+echo "專案目錄: $BASE_DIR"
 
 # 建置前端 production 版本
 echo "1. 建置前端 production 版本..."
-cd /home/jetson/base_dev/src/robot_web_frontend
+cd "$BASE_DIR/src/robot_web_frontend"
 npm run build
 
 # 安裝 serve (用於提供靜態檔案)
@@ -16,8 +23,8 @@ npm install -g serve
 
 # 複製 systemd 服務檔
 echo "3. 安裝 systemd 服務..."
-sudo cp /home/jetson/base_dev/scripts/robot-core.service /etc/systemd/system/
-sudo cp /home/jetson/base_dev/scripts/robot-web.service /etc/systemd/system/
+sudo cp "$BASE_DIR/scripts/robot-core.service" /etc/systemd/system/
+sudo cp "$BASE_DIR/scripts/robot-web.service" /etc/systemd/system/
 
 # 重新載入 systemd
 sudo systemctl daemon-reload

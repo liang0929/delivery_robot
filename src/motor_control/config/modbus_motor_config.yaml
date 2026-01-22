@@ -11,7 +11,7 @@ modbus_motor_controller:
     gear_ratio: 20.0           # 減速比 (馬達轉20圈=輪子轉1圈)
     max_linear_vel: 0.05       # 最大線速度 (m/s)
     max_angular_vel: 0.4       # 最大角速度 (rad/s)
-    min_rpm: 60.0              # 最小馬達 RPM
+    min_rpm: 100.0             # 最小馬達 RPM (根據 AGV-BLD-2S 手冊)
     max_rpm: 3000.0            # 最大馬達 RPM
     control_frequency: 50.0    # 控制頻率 (Hz)
 

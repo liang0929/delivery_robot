@@ -588,16 +588,9 @@ async def lifespan(app: FastAPI):
 # --- FastAPI App ---
 app = FastAPI(title="Robot Control API", lifespan=lifespan)
 
-# CORS 設定：從環境變數讀取允許的來源，預設只允許本機和常見內網 IP
-ALLOWED_ORIGINS = os.environ.get("CORS_ORIGINS", "").split(",") if os.environ.get("CORS_ORIGINS") else [
-    "http://localhost:3000",
-    "http://localhost:8080",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:8080",
-    # Jetson 本機
-    "http://192.168.0.1:3000",
-    "http://192.168.1.1:3000",
-]
+# CORS 設定：從環境變數讀取允許的來源
+# 預設允許所有來源 (開發環境)，生產環境應設定 CORS_ORIGINS 環境變數
+ALLOWED_ORIGINS = os.environ.get("CORS_ORIGINS", "").split(",") if os.environ.get("CORS_ORIGINS") else ["*"]
 # 過濾空字串
 ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS if origin.strip()]
 
@@ -607,7 +600,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -827,7 +820,7 @@ async def save_map(request: MapSaveRequest):
 
     def _save_map():
         return subprocess.run(
-            ["ros2", "run", "nav2_map_server", "map_saver_cli", "-f", map_path, "-t", "/map_saver"],
+            ["ros2", "run", "nav2_map_server", "map_saver_cli", "-f", map_path, "--ros-args", "-p", "map_topic:=/map"],
             capture_output=True,
             text=True,
             timeout=30

@@ -3,13 +3,16 @@ Mock LiDAR 節點 - 用於模擬測試
 
 模擬 2D LiDAR 掃描數據，可設定簡單的虛擬環境。
 支援多種場景：空曠、方形房間、走廊等。
+
+修復：訂閱 odom 獲取機器人實際位置，根據位置計算到牆壁的距離。
 """
 
 import math
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from sensor_msgs.msg import LaserScan
+from nav_msgs.msg import Odometry
 from std_msgs.msg import Header
 
 
@@ -28,6 +31,8 @@ class MockLidar(Node):
         self.declare_parameter('range_min', 0.15)
         self.declare_parameter('range_max', 12.0)
         self.declare_parameter('scene', 'room')  # 場景: empty, room, corridor
+        self.declare_parameter('room_width', 5.0)   # 房間寬度
+        self.declare_parameter('room_height', 5.0)  # 房間高度
 
         # 獲取參數
         self.frame_id = self.get_parameter('frame_id').value
@@ -38,15 +43,27 @@ class MockLidar(Node):
         self.range_min = self.get_parameter('range_min').value
         self.range_max = self.get_parameter('range_max').value
         self.scene = self.get_parameter('scene').value
+        self.room_width = self.get_parameter('room_width').value
+        self.room_height = self.get_parameter('room_height').value
+
+        # 機器人位置 (從 odom 獲取)
+        self.robot_x = 0.0
+        self.robot_y = 0.0
+        self.robot_theta = 0.0
 
         # 計算射線數量
         self.num_readings = int(
             (self.angle_max - self.angle_min) / self.angle_increment)
 
-        # ROS2 發布者
+        # ROS2 發布者 (使用 RELIABLE 確保與 slam_toolbox/rviz 兼容)
         qos = QoSProfile(depth=10)
-        qos.reliability = ReliabilityPolicy.BEST_EFFORT
+        qos.reliability = ReliabilityPolicy.RELIABLE
+        qos.durability = DurabilityPolicy.VOLATILE
         self.scan_pub = self.create_publisher(LaserScan, 'scan', qos)
+
+        # 訂閱 odom 獲取機器人位置
+        self.odom_sub = self.create_subscription(
+            Odometry, 'odom_raw', self.odom_callback, 10)
 
         # 定時器
         scan_period = 1.0 / self.scan_frequency
@@ -56,30 +73,44 @@ class MockLidar(Node):
             f'Mock LiDAR initialized (simulation mode)'
         )
         self.get_logger().info(
-            f'  scene: {self.scene}, readings: {self.num_readings}'
+            f'  scene: {self.scene}, room: {self.room_width}x{self.room_height}m'
         )
 
+    def odom_callback(self, msg: Odometry):
+        """從里程計獲取機器人位置"""
+        self.robot_x = msg.pose.pose.position.x
+        self.robot_y = msg.pose.pose.position.y
+        # 從四元數提取 yaw
+        q = msg.pose.pose.orientation
+        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+        self.robot_theta = math.atan2(siny_cosp, cosy_cosp)
+
     def get_simulated_ranges(self) -> list:
-        """根據場景生成模擬距離數據"""
+        """根據場景和機器人實際位置生成模擬距離數據"""
+        import random
         ranges = []
 
         for i in range(self.num_readings):
-            angle = self.angle_min + i * self.angle_increment
+            # 雷射角度 (相對於機器人朝向)
+            local_angle = self.angle_min + i * self.angle_increment
+            # 世界座標系中的角度
+            world_angle = local_angle + self.robot_theta
 
             if self.scene == 'empty':
                 # 空曠場景 - 全部最大距離
                 distance = self.range_max
             elif self.scene == 'room':
-                # 方形房間 (5m x 5m)
-                distance = self._room_distance(angle, 5.0, 5.0)
+                # 方形房間
+                distance = self._room_distance(
+                    world_angle, self.room_width, self.room_height)
             elif self.scene == 'corridor':
                 # 走廊 (寬 2m，長 10m)
-                distance = self._corridor_distance(angle, 2.0, 10.0)
+                distance = self._corridor_distance(world_angle, 2.0, 10.0)
             else:
                 distance = self.range_max
 
             # 添加一點噪聲 (模擬真實 LiDAR)
-            import random
             noise = random.gauss(0, 0.01)
             distance = max(self.range_min, min(distance + noise, self.range_max))
 
@@ -88,8 +119,11 @@ class MockLidar(Node):
         return ranges
 
     def _room_distance(self, angle: float, width: float, height: float) -> float:
-        """計算到方形房間牆壁的距離"""
-        # 機器人在房間中央
+        """計算從機器人實際位置到方形房間牆壁的距離
+
+        房間以 (0,0) 為中心，牆壁位於 ±width/2 和 ±height/2
+        機器人位於 (self.robot_x, self.robot_y)
+        """
         half_w = width / 2.0
         half_h = height / 2.0
 
@@ -98,46 +132,53 @@ class MockLidar(Node):
 
         # 避免除以零
         if abs(cos_a) < 1e-6:
-            cos_a = 1e-6
+            cos_a = 1e-6 if cos_a >= 0 else -1e-6
         if abs(sin_a) < 1e-6:
-            sin_a = 1e-6
+            sin_a = 1e-6 if sin_a >= 0 else -1e-6
 
-        # 計算到四面牆的距離
+        # 計算到四面牆的距離 (從機器人實際位置出發)
         distances = []
 
         # 右牆 (x = half_w)
         if cos_a > 0:
-            d = half_w / cos_a
-            y = d * sin_a
-            if abs(y) <= half_h:
-                distances.append(d)
+            d = (half_w - self.robot_x) / cos_a
+            if d > 0:
+                y = self.robot_y + d * sin_a
+                if abs(y) <= half_h:
+                    distances.append(d)
 
         # 左牆 (x = -half_w)
         if cos_a < 0:
-            d = -half_w / cos_a
-            y = d * sin_a
-            if abs(y) <= half_h:
-                distances.append(d)
+            d = (-half_w - self.robot_x) / cos_a
+            if d > 0:
+                y = self.robot_y + d * sin_a
+                if abs(y) <= half_h:
+                    distances.append(d)
 
         # 前牆 (y = half_h)
         if sin_a > 0:
-            d = half_h / sin_a
-            x = d * cos_a
-            if abs(x) <= half_w:
-                distances.append(d)
+            d = (half_h - self.robot_y) / sin_a
+            if d > 0:
+                x = self.robot_x + d * cos_a
+                if abs(x) <= half_w:
+                    distances.append(d)
 
         # 後牆 (y = -half_h)
         if sin_a < 0:
-            d = -half_h / sin_a
-            x = d * cos_a
-            if abs(x) <= half_w:
-                distances.append(d)
+            d = (-half_h - self.robot_y) / sin_a
+            if d > 0:
+                x = self.robot_x + d * cos_a
+                if abs(x) <= half_w:
+                    distances.append(d)
 
         return min(distances) if distances else self.range_max
 
     def _corridor_distance(self, angle: float, width: float, length: float) -> float:
-        """計算到走廊牆壁的距離"""
-        # 走廊沿 x 軸方向
+        """計算從機器人實際位置到走廊牆壁的距離
+
+        走廊沿 x 軸方向，以 (0,0) 為中心
+        側牆位於 y = ±width/2，前後牆位於 x = ±length/2
+        """
         half_w = width / 2.0
         half_l = length / 2.0
 
@@ -145,35 +186,43 @@ class MockLidar(Node):
         sin_a = math.sin(angle)
 
         if abs(cos_a) < 1e-6:
-            cos_a = 1e-6
+            cos_a = 1e-6 if cos_a >= 0 else -1e-6
         if abs(sin_a) < 1e-6:
-            sin_a = 1e-6
+            sin_a = 1e-6 if sin_a >= 0 else -1e-6
 
         distances = []
 
-        # 側牆 (y = ±half_w)
+        # 側牆 (y = half_w)
         if sin_a > 0:
-            d = half_w / sin_a
-            x = d * cos_a
-            if abs(x) <= half_l:
-                distances.append(d)
-        if sin_a < 0:
-            d = -half_w / sin_a
-            x = d * cos_a
-            if abs(x) <= half_l:
-                distances.append(d)
+            d = (half_w - self.robot_y) / sin_a
+            if d > 0:
+                x = self.robot_x + d * cos_a
+                if abs(x) <= half_l:
+                    distances.append(d)
 
-        # 前後牆 (x = ±half_l)
+        # 側牆 (y = -half_w)
+        if sin_a < 0:
+            d = (-half_w - self.robot_y) / sin_a
+            if d > 0:
+                x = self.robot_x + d * cos_a
+                if abs(x) <= half_l:
+                    distances.append(d)
+
+        # 前牆 (x = half_l)
         if cos_a > 0:
-            d = half_l / cos_a
-            y = d * sin_a
-            if abs(y) <= half_w:
-                distances.append(d)
+            d = (half_l - self.robot_x) / cos_a
+            if d > 0:
+                y = self.robot_y + d * sin_a
+                if abs(y) <= half_w:
+                    distances.append(d)
+
+        # 後牆 (x = -half_l)
         if cos_a < 0:
-            d = -half_l / cos_a
-            y = d * sin_a
-            if abs(y) <= half_w:
-                distances.append(d)
+            d = (-half_l - self.robot_x) / cos_a
+            if d > 0:
+                y = self.robot_y + d * sin_a
+                if abs(y) <= half_w:
+                    distances.append(d)
 
         return min(distances) if distances else self.range_max
 
@@ -204,6 +253,7 @@ class MockLidar(Node):
 
 def main(args=None):
     rclpy.init(args=args)
+    lidar = None
 
     try:
         lidar = MockLidar()
@@ -211,7 +261,10 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        rclpy.shutdown()
+        if lidar:
+            lidar.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

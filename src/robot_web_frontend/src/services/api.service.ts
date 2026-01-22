@@ -23,6 +23,30 @@ export interface MapsListResponse {
   default: string;
 }
 
+export interface Waypoint {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  yaw_deg: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WaypointCreate {
+  name: string;
+  x: number;
+  y: number;
+  yaw_deg: number;
+}
+
+export interface WaypointUpdate {
+  name?: string;
+  x?: number;
+  y?: number;
+  yaw_deg?: number;
+}
+
 export const apiService = {
   // Maps
   async getMaps(): Promise<MapsListResponse> {
@@ -59,5 +83,29 @@ export const apiService = {
   async saveMap(mapName: string): Promise<{ map_path: string; files: string[] }> {
     const response = await api.post('/slam/save_map', { map_name: mapName });
     return response.data;
+  },
+
+  // Waypoints
+  async getWaypoints(mapName: string): Promise<Waypoint[]> {
+    const response = await api.get(`/maps/${mapName}/waypoints`);
+    return response.data;
+  },
+
+  async createWaypoint(mapName: string, waypoint: WaypointCreate): Promise<Waypoint> {
+    const response = await api.post(`/maps/${mapName}/waypoints`, waypoint);
+    return response.data;
+  },
+
+  async updateWaypoint(mapName: string, waypointId: string, update: WaypointUpdate): Promise<Waypoint> {
+    const response = await api.put(`/maps/${mapName}/waypoints/${waypointId}`, update);
+    return response.data;
+  },
+
+  async deleteWaypoint(mapName: string, waypointId: string): Promise<void> {
+    await api.delete(`/maps/${mapName}/waypoints/${waypointId}`);
+  },
+
+  async navigateToWaypoint(mapName: string, waypointId: string): Promise<void> {
+    await api.post(`/maps/${mapName}/waypoints/${waypointId}/navigate`);
   },
 };

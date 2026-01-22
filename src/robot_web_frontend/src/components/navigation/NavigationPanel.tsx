@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { apiService, MapInfo } from '../../services/api.service';
+import { apiService, MapInfo, Waypoint } from '../../services/api.service';
 import { useNavigationStatus } from '../../hooks/useStatusWs';
 import { MapView } from '../map/MapView';
+import { WaypointPanel, InteractionMode } from '../waypoint';
 import styles from './NavigationPanel.module.css';
 
 export function NavigationPanel() {
@@ -11,6 +12,12 @@ export function NavigationPanel() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [maps, setMaps] = useState<MapInfo[]>([]);
   const [selectedMap, setSelectedMap] = useState<string>('');
+
+  // Waypoint states
+  const [interactionMode, setInteractionMode] = useState<InteractionMode>('navigate');
+  const [pendingWaypoint, setPendingWaypoint] = useState<{ x: number; y: number; yaw: number } | null>(null);
+  const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
+  const [selectedWaypointId, setSelectedWaypointId] = useState<string | null>(null);
 
   // 從 WebSocket 取得狀態，提供預設值
   const status = {
@@ -68,9 +75,13 @@ export function NavigationPanel() {
   };
 
   const handleGoalSelect = useCallback((x: number, y: number, yaw: number) => {
-    setGoal({ x, y, yaw });
+    if (interactionMode === 'add_waypoint') {
+      setPendingWaypoint({ x, y, yaw });
+    } else {
+      setGoal({ x, y, yaw });
+    }
     setMessage(null);
-  }, []);
+  }, [interactionMode]);
 
   const handleNavigate = async () => {
     if (!goal) {
@@ -171,31 +182,53 @@ export function NavigationPanel() {
       </div>
 
       <div className={styles.mapContainer}>
-        <MapView onClickGoal={handleGoalSelect} showGoalSelector={status.nav_running === true} />
+        <MapView
+          onClickGoal={handleGoalSelect}
+          showGoalSelector={status.nav_running === true}
+          waypoints={waypoints}
+          selectedWaypointId={selectedWaypointId}
+          mode={interactionMode}
+        />
       </div>
 
-      {goal && (
-        <div className={styles.goalInfo}>
-          <span>Goal: ({goal.x.toFixed(2)}, {goal.y.toFixed(2)})</span>
-        </div>
+      <WaypointPanel
+        mapName={selectedMap}
+        navRunning={status.nav_running}
+        mode={interactionMode}
+        onModeChange={setInteractionMode}
+        pendingWaypoint={pendingWaypoint}
+        onWaypointAdded={() => setPendingWaypoint(null)}
+        onWaypointsChange={setWaypoints}
+        selectedWaypointId={selectedWaypointId}
+        onSelectWaypoint={setSelectedWaypointId}
+      />
+
+      {interactionMode === 'navigate' && (
+        <>
+          {goal && (
+            <div className={styles.goalInfo}>
+              <span>Goal: ({goal.x.toFixed(2)}, {goal.y.toFixed(2)})</span>
+            </div>
+          )}
+
+          <div className={styles.controls}>
+            <button
+              className={`${styles.button} ${styles.navigate}`}
+              onClick={handleNavigate}
+              disabled={loading || !goal || !status.nav_running}
+            >
+              Navigate to Goal
+            </button>
+            <button
+              className={`${styles.button} ${styles.cancel}`}
+              onClick={handleCancel}
+              disabled={loading || status.is_complete || !status.nav_running}
+            >
+              Cancel
+            </button>
+          </div>
+        </>
       )}
-
-      <div className={styles.controls}>
-        <button
-          className={`${styles.button} ${styles.navigate}`}
-          onClick={handleNavigate}
-          disabled={loading || !goal || !status.nav_running}
-        >
-          Navigate to Goal
-        </button>
-        <button
-          className={`${styles.button} ${styles.cancel}`}
-          onClick={handleCancel}
-          disabled={loading || status.is_complete || !status.nav_running}
-        >
-          Cancel
-        </button>
-      </div>
 
       {message && (
         <div className={`${styles.message} ${styles[message.type]}`}>

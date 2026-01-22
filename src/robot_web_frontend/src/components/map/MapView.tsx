@@ -1,10 +1,16 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { rosbridgeService, OccupancyGridData } from '../../services/rosbridge.service';
+import { Waypoint } from '../../services/api.service';
 import styles from './MapView.module.css';
+
+export type MapInteractionMode = 'navigate' | 'add_waypoint';
 
 interface MapViewProps {
   onClickGoal?: (x: number, y: number, yaw: number) => void;
   showGoalSelector?: boolean;
+  waypoints?: Waypoint[];
+  selectedWaypointId?: string | null;
+  mode?: MapInteractionMode;
 }
 
 interface RobotPose {
@@ -13,7 +19,13 @@ interface RobotPose {
   yaw: number;
 }
 
-export function MapView({ onClickGoal, showGoalSelector = false }: MapViewProps) {
+export function MapView({
+  onClickGoal,
+  showGoalSelector = false,
+  waypoints = [],
+  selectedWaypointId = null,
+  mode = 'navigate',
+}: MapViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [mapData, setMapData] = useState<OccupancyGridData | null>(null);
   const [robotPose, setRobotPose] = useState<RobotPose>({ x: 0, y: 0, yaw: 0 });
@@ -187,7 +199,41 @@ export function MapView({ onClickGoal, showGoalSelector = false }: MapViewProps)
       ctx.lineWidth = 2;
       ctx.stroke();
     }
-  }, [mapData, robotPose, scale, offset, goalMarker, mapToCanvas]);
+
+    // Draw waypoints
+    waypoints.forEach((wp, index) => {
+      const wpCanvas = mapToCanvas(wp.x, wp.y);
+      const isSelected = wp.id === selectedWaypointId;
+
+      // Waypoint marker (circle with number)
+      ctx.beginPath();
+      ctx.arc(wpCanvas.x, wpCanvas.y, isSelected ? 14 : 12, 0, Math.PI * 2);
+      ctx.fillStyle = isSelected ? 'rgba(102, 170, 255, 0.9)' : 'rgba(255, 170, 102, 0.8)';
+      ctx.fill();
+      ctx.strokeStyle = isSelected ? '#66aaff' : '#ffaa66';
+      ctx.lineWidth = isSelected ? 3 : 2;
+      ctx.stroke();
+
+      // Waypoint number
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText((index + 1).toString(), wpCanvas.x, wpCanvas.y);
+
+      // Direction indicator
+      const yawRad = wp.yaw_deg * Math.PI / 180;
+      const arrowLength = 18;
+      const arrowX = wpCanvas.x + Math.cos(-yawRad + Math.PI / 2) * arrowLength;
+      const arrowY = wpCanvas.y + Math.sin(-yawRad + Math.PI / 2) * arrowLength;
+      ctx.beginPath();
+      ctx.moveTo(wpCanvas.x, wpCanvas.y);
+      ctx.lineTo(arrowX, arrowY);
+      ctx.strokeStyle = isSelected ? '#66aaff' : '#ffaa66';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+  }, [mapData, robotPose, scale, offset, goalMarker, mapToCanvas, waypoints, selectedWaypointId]);
 
   // Draw effect
   useEffect(() => {
@@ -219,7 +265,7 @@ export function MapView({ onClickGoal, showGoalSelector = false }: MapViewProps)
     setIsDragging(false);
   }, []);
 
-  // Goal selection handler
+  // Goal/Waypoint selection handler
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (!showGoalSelector || !onClickGoal || !mapData) return;
 
@@ -231,12 +277,16 @@ export function MapView({ onClickGoal, showGoalSelector = false }: MapViewProps)
     const canvasY = e.clientY - rect.top;
 
     const mapPos = canvasToMap(canvasX, canvasY);
-    setGoalMarker(mapPos);
+
+    // Only show goal marker in navigate mode
+    if (mode === 'navigate') {
+      setGoalMarker(mapPos);
+    }
 
     // Calculate yaw towards robot's current direction (or 0)
     const yaw = 0;
     onClickGoal(mapPos.x, mapPos.y, yaw);
-  }, [showGoalSelector, onClickGoal, mapData, canvasToMap]);
+  }, [showGoalSelector, onClickGoal, mapData, canvasToMap, mode]);
 
   return (
     <div className={styles.container}>

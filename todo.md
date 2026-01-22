@@ -37,11 +37,11 @@
 ### 7. ~~發布消息時持有鎖~~ ✅ 經檢查無此問題
 - **說明**: `publish_odometry()` 已在鎖外調用，代碼正確
 
-### 8. TF 配置可能不匹配
-- **位置**: `bringup.launch.py` vs `autonomous_navigation.launch.py`
-- **問題**: 兩個 launch 文件可能發布衝突的 TF
-- **建議**: 確認各節點使用的 frame_id 一致
-- [ ] 待檢查
+### 8. ~~TF 配置不匹配~~ ✅ 已修復
+- **Commit**: `af84cc6`
+- **修復**:
+  - Nav2 costmap 統一使用 `base_footprint`
+  - 移除 Modbus Motor Controller 的重複 TF 發布
 
 ---
 

@@ -23,6 +23,31 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+
+# --- rclpy 全局初始化管理 ---
+_rclpy_init_lock = threading.Lock()
+_rclpy_initialized = False
+
+
+def ensure_rclpy_initialized() -> bool:
+    """線程安全地確保 rclpy 只初始化一次"""
+    global _rclpy_initialized
+    with _rclpy_init_lock:
+        if _rclpy_initialized:
+            return True
+        try:
+            rclpy.init()
+            _rclpy_initialized = True
+            logging.getLogger(__name__).info("rclpy initialized successfully")
+            return True
+        except RuntimeError:
+            # rclpy 已被初始化（可能在其他進程/線程中）
+            _rclpy_initialized = True
+            logging.getLogger(__name__).info("rclpy already initialized elsewhere")
+            return True
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Failed to initialize rclpy: {e}")
+            return False
 logger = logging.getLogger(__name__)
 
 # --- Pydantic Models ---
@@ -847,7 +872,6 @@ class NavigatorManager:
     def __init__(self):
         self.navigator: Optional[BasicNavigator] = None
         self._nav2_ready = False
-        self._rclpy_initialized = False
         self._lock = threading.Lock()
 
     def ensure_nav2_ready(self) -> bool:
@@ -858,15 +882,10 @@ class NavigatorManager:
 
             try:
                 if self.navigator is None:
-                    # 確保 rclpy 已初始化（安全處理重複初始化）
-                    if not self._rclpy_initialized:
-                        logger.info("Initializing rclpy...")
-                        try:
-                            rclpy.init()
-                        except RuntimeError:
-                            # rclpy 已被其他地方初始化，忽略
-                            logger.info("rclpy already initialized")
-                        self._rclpy_initialized = True
+                    # 使用全局線程安全的 rclpy 初始化
+                    if not ensure_rclpy_initialized():
+                        logger.error("Failed to initialize rclpy")
+                        return False
 
                     logger.info("Creating BasicNavigator...")
                     self.navigator = BasicNavigator()

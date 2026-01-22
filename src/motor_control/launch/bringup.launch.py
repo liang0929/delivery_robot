@@ -14,7 +14,7 @@
   - 導航模式（Start Navigation）
 """
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -168,6 +168,29 @@ def generate_launch_description():
         condition=IfCondition(enable_web)
     )
 
+    # ========== 啟動順序說明 ==========
+    # 1. 靜態 TF (立即啟動) - 不依賴其他節點
+    # 2. 感測器節點 (立即啟動) - motor, lidar, imu
+    # 3. EKF (延遲 2 秒) - 需要等待 /odom_raw 和 /imu/data 準備好
+    # 4. Web 服務 (延遲 3 秒) - 需要等待核心節點準備好
+
+    # EKF 延遲啟動（等待 odom_raw 和 imu/data 準備好）
+    delayed_ekf = TimerAction(
+        period=2.0,
+        actions=[ekf_node]
+    )
+
+    # Web 服務延遲啟動（等待核心節點準備好）
+    # 注意：rosbridge_node 和 api_server 已經有 condition=IfCondition(enable_web)
+    delayed_web_services = TimerAction(
+        period=3.0,
+        actions=[
+            rosbridge_node,
+            # rosapi_node,  # 暫時停用
+            api_server,
+        ]
+    )
+
     # ========== 組合 ==========
     return LaunchDescription([
         # 參數宣告
@@ -176,19 +199,19 @@ def generate_launch_description():
         DeclareLaunchArgument('use_sim_time', default_value='false',
                              description='使用模擬時間'),
 
-        # 核心節點
-        motor_node,
-        lidar_node,
-        imu_node,
-        ekf_node,
-
-        # 靜態 TF
+        # 靜態 TF (立即啟動)
         base_footprint_to_base_link,
         base_link_to_laser,
         base_link_to_imu,
 
-        # Web 服務
-        rosbridge_node,
-        # rosapi_node,  # 暫時停用
-        api_server,
+        # 感測器節點 (立即啟動)
+        motor_node,
+        lidar_node,
+        imu_node,
+
+        # EKF (延遲 2 秒)
+        delayed_ekf,
+
+        # Web 服務 (延遲 3 秒)
+        delayed_web_services,
     ])

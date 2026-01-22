@@ -1,5 +1,5 @@
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node, LifecycleNode
@@ -124,6 +124,23 @@ def generate_launch_description():
         }.items()
     )
 
+    # ========== 啟動順序說明 ==========
+    # 1. map_server, amcl (立即啟動)
+    # 2. lifecycle_manager_localization (延遲 2 秒) - 等待 map_server 和 amcl 準備好
+    # 3. nav2_launch (延遲 3 秒) - 等待定位準備好
+
+    # Lifecycle Manager 延遲啟動
+    delayed_lifecycle_manager = TimerAction(
+        period=2.0,
+        actions=[lifecycle_manager_localization]
+    )
+
+    # Nav2 延遲啟動
+    delayed_nav2 = TimerAction(
+        period=3.0,
+        actions=[nav2_launch]
+    )
+
     return LaunchDescription([
         declare_namespace_cmd,
         declare_use_sim_time_cmd,
@@ -135,9 +152,15 @@ def generate_launch_description():
         # motor_control_launch,
         # imu_node,
         # base_link_to_imu,
+
+        # 定位節點 (立即啟動)
         map_server_node,
         map_relay_node,
         amcl_node,
-        lifecycle_manager_localization,
-        nav2_launch
+
+        # Lifecycle Manager (延遲 2 秒)
+        delayed_lifecycle_manager,
+
+        # Nav2 (延遲 3 秒)
+        delayed_nav2,
     ])

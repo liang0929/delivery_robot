@@ -46,10 +46,11 @@ class ModbusMotorController(Node):
         self.declare_parameter('serial_port', '/dev/ttyUSB0')
         self.declare_parameter('baudrate', 115200)
         self.declare_parameter('slave_id', 1)
-        self.declare_parameter('wheel_separation', 0.381)
+        self.declare_parameter('wheel_separation', 0.27)
         self.declare_parameter('wheel_radius', 0.065)
         self.declare_parameter('max_linear_vel', 0.05)
         self.declare_parameter('max_angular_vel', 0.4)
+        self.declare_parameter('gear_ratio', 20.0)
         self.declare_parameter('min_rpm', 100.0)
         self.declare_parameter('max_rpm', 3000.0)
         self.declare_parameter('odom_frequency', 20.0)
@@ -62,6 +63,7 @@ class ModbusMotorController(Node):
         self.wheel_radius = self.get_parameter('wheel_radius').value
         self.max_linear_vel = self.get_parameter('max_linear_vel').value
         self.max_angular_vel = self.get_parameter('max_angular_vel').value
+        self.gear_ratio = self.get_parameter('gear_ratio').value
         self.min_rpm = self.get_parameter('min_rpm').value
         self.max_rpm = self.get_parameter('max_rpm').value
         self.odom_frequency = self.get_parameter('odom_frequency').value
@@ -193,21 +195,25 @@ class ModbusMotorController(Node):
         if not self.client or not self.client.connected:
             return
 
-        # 轉換為 RPM
-        left_rpm = abs(left_vel) / (2 * math.pi * self.wheel_radius) * 60.0
-        right_rpm = abs(right_vel) / (2 * math.pi * self.wheel_radius) * 60.0
+        # 轉換為輪子 RPM
+        left_wheel_rpm = abs(left_vel) / (2 * math.pi * self.wheel_radius) * 60.0
+        right_wheel_rpm = abs(right_vel) / (2 * math.pi * self.wheel_radius) * 60.0
+
+        # 輪子 RPM 轉換為馬達 RPM (乘以減速比)
+        left_motor_rpm = left_wheel_rpm * self.gear_ratio
+        right_motor_rpm = right_wheel_rpm * self.gear_ratio
 
         # 方向
         self.last_dir_a = 0 if left_vel >= 0 else 1
         self.last_dir_b = 0 if right_vel >= 0 else 1
 
-        # 處理死區
+        # 處理死區 (使用馬達 RPM 比較)
         target_rpm_a = 0
         target_rpm_b = 0
-        if left_rpm >= self.min_rpm:
-            target_rpm_a = int(min(left_rpm, self.max_rpm))
-        if right_rpm >= self.min_rpm:
-            target_rpm_b = int(min(right_rpm, self.max_rpm))
+        if left_motor_rpm >= self.min_rpm:
+            target_rpm_a = int(min(left_motor_rpm, self.max_rpm))
+        if right_motor_rpm >= self.min_rpm:
+            target_rpm_b = int(min(right_motor_rpm, self.max_rpm))
 
         with self.modbus_lock:
             try:
@@ -257,12 +263,16 @@ class ModbusMotorController(Node):
 
     def update_odometry(self):
         """更新里程計"""
-        # 讀取馬達轉速
-        rpm_a, rpm_b = self.read_motor_speeds()
+        # 讀取馬達轉速 (馬達 RPM)
+        motor_rpm_a, motor_rpm_b = self.read_motor_speeds()
+
+        # 馬達 RPM 轉換為輪子 RPM (除以減速比)
+        wheel_rpm_a = motor_rpm_a / self.gear_ratio
+        wheel_rpm_b = motor_rpm_b / self.gear_ratio
 
         # 轉換為線速度 (m/s)
-        vel_a = (rpm_a / 60.0) * (2 * math.pi * self.wheel_radius)
-        vel_b = (rpm_b / 60.0) * (2 * math.pi * self.wheel_radius)
+        vel_a = (wheel_rpm_a / 60.0) * (2 * math.pi * self.wheel_radius)
+        vel_b = (wheel_rpm_b / 60.0) * (2 * math.pi * self.wheel_radius)
 
         # 加上方向
         if self.last_dir_a == 1:

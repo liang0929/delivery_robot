@@ -118,6 +118,9 @@ class HSMotorController(Node):
         self.consecutive_failures = 0
         self.max_failures_before_reconnect = 5  # 連續失敗 5 次後嘗試重連
 
+        # 狀態鎖 - 保護馬達狀態和里程計狀態的並發訪問
+        self.state_lock = threading.Lock()
+
         # 控制定時器
         control_period = 1.0 / self.control_frequency
         self.control_timer = self.create_timer(control_period, self.control_loop)
@@ -221,6 +224,13 @@ class HSMotorController(Node):
         建立 HS 協議命令封包 (16 bytes)
         格式: AA + 地址 + 返回類型 + 故障清除 + 保留 + A控制 + B控制 + A方向 + B方向 + A轉速(2B) + B轉速(2B) + 55 + CRC16
         """
+        # 使用鎖保護讀取共享狀態，獲取快照
+        with self.state_lock:
+            dir_a = self.dir_a
+            dir_b = self.dir_b
+            target_rpm_a = self.target_rpm_a
+            target_rpm_b = self.target_rpm_b
+
         packet = bytearray()
 
         # Byte 1: 起始碼 (AA)
@@ -245,18 +255,18 @@ class HSMotorController(Node):
         packet.append(self.MOTOR_ENABLE if self.motor_enabled else self.MOTOR_DISABLE)
 
         # Byte 8: A電機運行方向 (00: 正轉, 01: 反轉)
-        packet.append(self.dir_a & 0x01)
+        packet.append(dir_a & 0x01)
 
         # Byte 9: B電機運行方向 (00: 正轉, 01: 反轉)
-        packet.append(self.dir_b & 0x01)
+        packet.append(dir_b & 0x01)
 
         # Byte 10-11: A電機轉速值 (高位在前, 低位在後) 100-3000 RPM
-        packet.append((self.target_rpm_a >> 8) & 0xFF)  # 高位
-        packet.append(self.target_rpm_a & 0xFF)         # 低位
+        packet.append((target_rpm_a >> 8) & 0xFF)  # 高位
+        packet.append(target_rpm_a & 0xFF)         # 低位
 
         # Byte 12-13: B電機轉速值 (高位在前, 低位在後) 100-3000 RPM
-        packet.append((self.target_rpm_b >> 8) & 0xFF)  # 高位
-        packet.append(self.target_rpm_b & 0xFF)         # 低位
+        packet.append((target_rpm_b >> 8) & 0xFF)  # 高位
+        packet.append(target_rpm_b & 0xFF)         # 低位
 
         # Byte 14: 結束碼 (55)
         packet.append(self.END_BYTE_MASTER)
@@ -424,29 +434,30 @@ class HSMotorController(Node):
         vel_a = (wheel_rpm_a / 60.0) * (2 * math.pi * self.wheel_radius)
         vel_b = (wheel_rpm_b / 60.0) * (2 * math.pi * self.wheel_radius)
 
-        # 使用邏輯方向 (反轉前的方向) 來決定速度符號
-        if motor_rpm_a > 0 and self.logical_dir_a == 1:
-            vel_a = -vel_a
-        if motor_rpm_b > 0 and self.logical_dir_b == 1:
-            vel_b = -vel_b
+        # 使用鎖保護讀取邏輯方向和更新里程計
+        with self.state_lock:
+            # 使用邏輯方向 (反轉前的方向) 來決定速度符號
+            if motor_rpm_a > 0 and self.logical_dir_a == 1:
+                vel_a = -vel_a
+            if motor_rpm_b > 0 and self.logical_dir_b == 1:
+                vel_b = -vel_b
 
-        # 計算機器人速度
-        vx = (vel_a + vel_b) / 2.0
-        vth = (vel_b - vel_a) / self.wheel_separation
+            # 計算機器人速度
+            vx = (vel_a + vel_b) / 2.0
+            vth = (vel_b - vel_a) / self.wheel_separation
 
-        # 只反轉角速度 (旋轉方向)
-        # vx = -vx  # 前後方向正確，不需反轉
-        vth = -vth  # 旋轉方向需要反轉
+            # 只反轉角速度 (旋轉方向)
+            vth = -vth  # 旋轉方向需要反轉
 
-        # 計算時間差
-        current_time = self.get_clock().now()
-        dt = (current_time - self.last_time).nanoseconds / 1e9
-        self.last_time = current_time
+            # 計算時間差
+            current_time = self.get_clock().now()
+            dt = (current_time - self.last_time).nanoseconds / 1e9
+            self.last_time = current_time
 
-        # 積分更新位置
-        self.odom_x += vx * math.cos(self.odom_theta) * dt
-        self.odom_y += vx * math.sin(self.odom_theta) * dt
-        self.odom_theta += vth * dt
+            # 積分更新位置
+            self.odom_x += vx * math.cos(self.odom_theta) * dt
+            self.odom_y += vx * math.sin(self.odom_theta) * dt
+            self.odom_theta += vth * dt
 
         # 發布里程計 (TF 由 EKF 發布，避免重複)
         self.publish_odometry(vx, vth)
@@ -476,13 +487,13 @@ class HSMotorController(Node):
         left_motor_rpm = left_wheel_rpm * self.gear_ratio
         right_motor_rpm = right_wheel_rpm * self.gear_ratio
 
-        # 邏輯方向 (用於里程計，反轉前)
-        self.logical_dir_a = 0 if left_vel >= 0 else 1
-        self.logical_dir_b = 0 if right_vel >= 0 else 1
+        # 計算邏輯方向 (用於里程計，反轉前)
+        logical_dir_a = 0 if left_vel >= 0 else 1
+        logical_dir_b = 0 if right_vel >= 0 else 1
 
         # 物理方向 (發送給驅動器，考慮馬達反轉設定)
-        dir_a = self.logical_dir_a
-        dir_b = self.logical_dir_b
+        dir_a = logical_dir_a
+        dir_b = logical_dir_b
 
         # 應用反轉
         if self.invert_motor_a:
@@ -490,19 +501,25 @@ class HSMotorController(Node):
         if self.invert_motor_b:
             dir_b = 1 - dir_b
 
-        self.dir_a = dir_a
-        self.dir_b = dir_b
-
-        # 處理死區 (使用馬達 RPM)
+        # 計算目標 RPM (處理死區)
         if left_motor_rpm >= self.min_rpm:
-            self.target_rpm_a = int(min(left_motor_rpm, self.max_rpm))
+            target_rpm_a = int(min(left_motor_rpm, self.max_rpm))
         else:
-            self.target_rpm_a = 0
+            target_rpm_a = 0
 
         if right_motor_rpm >= self.min_rpm:
-            self.target_rpm_b = int(min(right_motor_rpm, self.max_rpm))
+            target_rpm_b = int(min(right_motor_rpm, self.max_rpm))
         else:
-            self.target_rpm_b = 0
+            target_rpm_b = 0
+
+        # 使用鎖保護共享狀態的寫入
+        with self.state_lock:
+            self.logical_dir_a = logical_dir_a
+            self.logical_dir_b = logical_dir_b
+            self.dir_a = dir_a
+            self.dir_b = dir_b
+            self.target_rpm_a = target_rpm_a
+            self.target_rpm_b = target_rpm_b
 
     def publish_odometry(self, vx: float, vth: float):
         """發布里程計"""
@@ -554,15 +571,17 @@ class HSMotorController(Node):
     def safety_check(self):
         """安全檢查"""
         if time.time() - self.last_cmd_time > 1.0:
-            self.target_rpm_a = 0
-            self.target_rpm_b = 0
+            with self.state_lock:
+                self.target_rpm_a = 0
+                self.target_rpm_b = 0
 
     def destroy_node(self):
         """節點銷毀"""
         self.running = False
         self.motor_enabled = False
-        self.target_rpm_a = 0
-        self.target_rpm_b = 0
+        with self.state_lock:
+            self.target_rpm_a = 0
+            self.target_rpm_b = 0
 
         # 發送停止命令
         if self.serial_conn and self.serial_conn.is_open:

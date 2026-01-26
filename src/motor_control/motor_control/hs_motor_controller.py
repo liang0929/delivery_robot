@@ -476,6 +476,10 @@ class HSMotorController(Node):
             dt = (current_time - self.last_time).nanoseconds / 1e9
             self.last_time = current_time
 
+            # 時間差為零或負值時跳過更新（避免除零或時間回跳）
+            if dt <= 0:
+                return
+
             # 積分更新位置
             self.odom_x += vx * math.cos(self.odom_theta) * dt
             self.odom_y += vx * math.sin(self.odom_theta) * dt

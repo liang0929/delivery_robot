@@ -9,9 +9,8 @@ HS 協議封包格式：
 
 import math
 import time
-import struct
 import threading
-from typing import Optional, Tuple
+from typing import Optional
 
 import serial
 import rclpy

@@ -53,6 +53,7 @@ class HSMotorController(Node):
         self.declare_parameter('control_frequency', 50.0)  # 控制頻率 (Hz)
         self.declare_parameter('invert_motor_a', True)  # A馬達反轉
         self.declare_parameter('invert_motor_b', False)
+        self.declare_parameter('invert_angular_velocity', True)  # 角速度反轉
 
         # 獲取參數
         self.serial_port = self.get_parameter('serial_port').value
@@ -68,6 +69,7 @@ class HSMotorController(Node):
         self.control_frequency = self.get_parameter('control_frequency').value
         self.invert_motor_a = self.get_parameter('invert_motor_a').value
         self.invert_motor_b = self.get_parameter('invert_motor_b').value
+        self.invert_angular_velocity = self.get_parameter('invert_angular_velocity').value
 
         # 驗證參數
         self._validate_parameters()
@@ -472,8 +474,9 @@ class HSMotorController(Node):
             vx = (vel_a + vel_b) / 2.0
             vth = (vel_b - vel_a) / self.wheel_separation
 
-            # 只反轉角速度 (旋轉方向)
-            vth = -vth  # 旋轉方向需要反轉
+            # 根據配置反轉角速度 (旋轉方向)
+            if self.invert_angular_velocity:
+                vth = -vth
 
             # 計算時間差
             current_time = self.get_clock().now()

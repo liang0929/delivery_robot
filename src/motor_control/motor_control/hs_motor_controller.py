@@ -14,6 +14,7 @@ from typing import Optional
 
 import serial
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from geometry_msgs.msg import Twist, Quaternion, Point, Vector3
@@ -618,17 +619,12 @@ class HSMotorController(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-
     try:
-        controller = HSMotorController()
-        rclpy.spin(controller)
-    except KeyboardInterrupt:
+        with rclpy.init(args=args):
+            controller = HSMotorController()
+            rclpy.spin(controller)
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
-    finally:
-        if 'controller' in locals():
-            controller.destroy_node()
-        rclpy.shutdown()
 
 
 if __name__ == '__main__':

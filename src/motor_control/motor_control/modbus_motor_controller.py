@@ -99,8 +99,8 @@ class ModbusMotorController(Node):
         self.last_dir_a = 0
         self.last_dir_b = 0
 
-        # 安全控制
-        self.last_cmd_time = time.time()
+        # 安全控制（使用 ROS2 時鐘以支援模擬環境）
+        self.last_cmd_time = self.get_clock().now()
         self.running = True
 
         # Modbus 鎖 (避免同時讀寫)
@@ -223,7 +223,7 @@ class ModbusMotorController(Node):
 
     def cmd_vel_callback(self, msg: Twist):
         """速度命令回調"""
-        self.last_cmd_time = time.time()
+        self.last_cmd_time = self.get_clock().now()
 
         # 驗證輸入值（防止 NaN 或無窮大）
         if math.isnan(msg.linear.x) or math.isinf(msg.linear.x):
@@ -434,7 +434,8 @@ class ModbusMotorController(Node):
 
     def safety_check(self):
         """安全檢查 - 超時停止馬達"""
-        if time.time() - self.last_cmd_time > 1.0:
+        time_since_cmd = (self.get_clock().now() - self.last_cmd_time).nanoseconds / 1e9
+        if time_since_cmd > 1.0:
             self.set_motor_speeds(0.0, 0.0)
 
         # 檢查故障代碼

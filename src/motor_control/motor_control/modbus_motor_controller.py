@@ -221,6 +221,14 @@ class ModbusMotorController(Node):
         """速度命令回調"""
         self.last_cmd_time = time.time()
 
+        # 驗證輸入值（防止 NaN 或無窮大）
+        if math.isnan(msg.linear.x) or math.isinf(msg.linear.x):
+            self.get_logger().warning('Invalid linear.x value (NaN/Inf), ignoring command')
+            return
+        if math.isnan(msg.angular.z) or math.isinf(msg.angular.z):
+            self.get_logger().warning('Invalid angular.z value (NaN/Inf), ignoring command')
+            return
+
         # 限制速度
         linear_x = max(min(msg.linear.x, self.max_linear_vel), -self.max_linear_vel)
         angular_z = max(min(msg.angular.z, self.max_angular_vel), -self.max_angular_vel)

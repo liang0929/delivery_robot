@@ -1,6 +1,6 @@
 # 專案待修復問題清單
 
-> 最後更新: 2026-01-26 (修復問題 28-30, 32-33, 35, 41)
+> 最後更新: 2026-01-26 (修復問題 28-30, 32-35, 37, 40-41)
 
 ---
 
@@ -37,11 +37,9 @@
 - **Commit**: `01047cf`
 - **修復**: 統一 QoS 配置，添加 RELIABLE 和 VOLATILE
 
-### 34. 里程計角速度反轉硬編碼
-- **位置**: `src/motor_control/motor_control/hs_motor_controller.py:476`
-- **問題**: `vth = -vth` 硬編碼反轉，無法配置
-- **建議**: 新增 `invert_angular_velocity` 參數
-- [ ] 待修復
+### 34. ~~里程計角速度反轉硬編碼~~ ✅ 已修復
+- **Commit**: `8413fbb`
+- **修復**: 新增 `invert_angular_velocity` 參數（預設 True）
 
 ### 35. ~~Nav2 inflation_radius 太小~~ ✅ 已修復
 - **Commit**: `8af736b`
@@ -57,14 +55,9 @@
 
 ## 🟢 新發現 - 低優先級 (Low Priority)
 
-### 37. 重複的協方差矩陣定義
-- **位置**:
-  - `hs_motor_controller.py:580-588`
-  - `modbus_motor_controller.py:397-412`
-  - `mock_motor_controller.py:142-157`
-- **問題**: 相同的協方差矩陣在多處重複定義
-- **建議**: 提取為共用模組或配置常數
-- [ ] 待優化
+### 37. ~~重複的協方差矩陣定義~~ ✅ 已修復
+- **Commit**: `5e6fa22`
+- **修復**: 新增 odom_constants.py 共用模組，三個控制器共用常數
 
 ### 38. Costmap 同時使用 obstacle_layer 和 voxel_layer
 - **位置**: `src/nav2/config/nav2_params.yaml:170, 225`
@@ -78,11 +71,9 @@
 - **建議**: 添加完整類型註解，例如 `def update_odometry(self) -> None:`
 - [ ] 待優化
 
-### 40. 魔術數字未定義為常數
-- **位置**: `src/motor_control/motor_control/hs_motor_controller.py:452`
-- **問題**: `rpm_deadzone = 10.0` 應定義為類常數
-- **建議**: 提取為 `RPM_DEADZONE = 10.0` 類常數或配置參數
-- [ ] 待優化
+### 40. ~~魔術數字未定義為常數~~ ✅ 已修復
+- **Commit**: `738ef68`
+- **修復**: 提取為 `RPM_DEADZONE = 10.0` 類常數
 
 ### 41. ~~use_sim_time 參數未傳遞~~ ✅ 已修復
 - **Commit**: `b47d866`

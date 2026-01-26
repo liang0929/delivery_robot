@@ -169,8 +169,8 @@ local_costmap:
       plugins: ["obstacle_layer", "voxel_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 2.5   
-        inflation_radius: 0.05
+        cost_scaling_factor: 2.5
+        inflation_radius: 0.35  # 50cm 機器人需要足夠的安全距離
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
@@ -262,5 +262,5 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 2.5
-        inflation_radius: 0.1
+        inflation_radius: 0.35  # 50cm 機器人需要足夠的安全距離
       always_send_full_costmap: True

@@ -7,6 +7,7 @@ Mock 馬達控制器 - 用於模擬測試
 
 import math
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from geometry_msgs.msg import Twist, Quaternion, Point, Vector3
@@ -159,19 +160,12 @@ class MockMotorController(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    controller = None
-
     try:
-        controller = MockMotorController()
-        rclpy.spin(controller)
-    except KeyboardInterrupt:
+        with rclpy.init(args=args):
+            controller = MockMotorController()
+            rclpy.spin(controller)
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
-    finally:
-        if controller:
-            controller.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
 
 
 if __name__ == '__main__':

@@ -12,6 +12,7 @@ import threading
 from typing import Optional
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from geometry_msgs.msg import Twist, TransformStamped, Quaternion, Point, Vector3
@@ -435,17 +436,12 @@ class ModbusMotorController(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-
     try:
-        controller = ModbusMotorController()
-        rclpy.spin(controller)
-    except KeyboardInterrupt:
+        with rclpy.init(args=args):
+            controller = ModbusMotorController()
+            rclpy.spin(controller)
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
-    finally:
-        if 'controller' in locals():
-            controller.destroy_node()
-        rclpy.shutdown()
 
 
 if __name__ == '__main__':

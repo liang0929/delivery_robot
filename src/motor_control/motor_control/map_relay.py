@@ -8,6 +8,7 @@ rosbridge 訂閱使用 VOLATILE + BEST_EFFORT
 """
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
 from nav_msgs.msg import OccupancyGrid
@@ -70,15 +71,12 @@ class MapRelayNode(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = MapRelayNode()
     try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
+        with rclpy.init(args=args):
+            node = MapRelayNode()
+            rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
 
 
 if __name__ == '__main__':

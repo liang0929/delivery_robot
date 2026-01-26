@@ -9,6 +9,7 @@ Mock LiDAR 節點 - 用於模擬測試
 
 import math
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from sensor_msgs.msg import LaserScan
@@ -252,19 +253,12 @@ class MockLidar(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    lidar = None
-
     try:
-        lidar = MockLidar()
-        rclpy.spin(lidar)
-    except KeyboardInterrupt:
+        with rclpy.init(args=args):
+            lidar = MockLidar()
+            rclpy.spin(lidar)
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
-    finally:
-        if lidar:
-            lidar.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
 
 
 if __name__ == '__main__':

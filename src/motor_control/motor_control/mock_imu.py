@@ -7,6 +7,7 @@ Mock IMU 節點 - 用於模擬測試
 
 import math
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from sensor_msgs.msg import Imu
@@ -108,19 +109,12 @@ class MockImu(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    imu = None
-
     try:
-        imu = MockImu()
-        rclpy.spin(imu)
-    except KeyboardInterrupt:
+        with rclpy.init(args=args):
+            imu = MockImu()
+            rclpy.spin(imu)
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
-    finally:
-        if imu:
-            imu.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
 
 
 if __name__ == '__main__':

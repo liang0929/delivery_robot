@@ -1101,45 +1101,52 @@ class NavigatorManager:
                 self.navigator = None
 
     def send_goal(self, x: float, y: float, yaw_deg: float):
-        """發送導航目標（非阻塞）"""
-        if self.navigator is None:
-            raise RuntimeError("Navigator not initialized")
+        """發送導航目標（非阻塞，線程安全）"""
+        with self._lock:
+            if self.navigator is None:
+                raise RuntimeError("Navigator not initialized")
 
-        goal_pose = PoseStamped()
-        goal_pose.header.frame_id = 'map'
-        goal_pose.header.stamp = self.navigator.get_clock().now().to_msg()
-        goal_pose.pose.position.x = x
-        goal_pose.pose.position.y = y
+            goal_pose = PoseStamped()
+            goal_pose.header.frame_id = 'map'
+            goal_pose.header.stamp = self.navigator.get_clock().now().to_msg()
+            goal_pose.pose.position.x = x
+            goal_pose.pose.position.y = y
 
-        yaw_rad = math.radians(yaw_deg)
-        goal_pose.pose.orientation.z = math.sin(yaw_rad / 2.0)
-        goal_pose.pose.orientation.w = math.cos(yaw_rad / 2.0)
+            yaw_rad = math.radians(yaw_deg)
+            goal_pose.pose.orientation.z = math.sin(yaw_rad / 2.0)
+            goal_pose.pose.orientation.w = math.cos(yaw_rad / 2.0)
 
-        logger.info(f"Sending goal: x={x}, y={y}, yaw={yaw_deg}")
-        self.navigator.goToPose(goal_pose)
-        logger.info("Goal sent (non-blocking)")
+            logger.info(f"Sending goal: x={x}, y={y}, yaw={yaw_deg}")
+            self.navigator.goToPose(goal_pose)
+            logger.info("Goal sent (non-blocking)")
 
     def is_task_complete(self) -> bool:
-        if self.navigator is None or not self._nav2_ready:
-            return True
-        try:
-            return self.navigator.isTaskComplete()
-        except RuntimeError as e:
-            logger.debug(f"Task complete check failed: {e}")
-            return True
+        """檢查任務是否完成（線程安全）"""
+        with self._lock:
+            if self.navigator is None or not self._nav2_ready:
+                return True
+            try:
+                return self.navigator.isTaskComplete()
+            except RuntimeError as e:
+                logger.debug(f"Task complete check failed: {e}")
+                return True
 
     def get_feedback(self):
-        if self.navigator is None or not self._nav2_ready:
-            return None
-        try:
-            return self.navigator.getFeedback()
-        except RuntimeError as e:
-            logger.debug(f"Get feedback failed: {e}")
-            return None
+        """獲取導航反饋（線程安全）"""
+        with self._lock:
+            if self.navigator is None or not self._nav2_ready:
+                return None
+            try:
+                return self.navigator.getFeedback()
+            except RuntimeError as e:
+                logger.debug(f"Get feedback failed: {e}")
+                return None
 
     def cancel_task(self):
-        if self.navigator is not None:
-            self.navigator.cancelTask()
+        """取消當前任務（線程安全）"""
+        with self._lock:
+            if self.navigator is not None:
+                self.navigator.cancelTask()
 
 
 # Global navigator manager

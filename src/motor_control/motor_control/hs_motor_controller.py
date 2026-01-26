@@ -333,8 +333,7 @@ class HSMotorController(Node):
             return False
 
         # 解析數據 (高位在前 Big-endian)
-        # Byte 2: 地址
-        addr = packet[1]
+        # Byte 2: 地址 (packet[1]) - 已驗證，不需額外處理
 
         # Byte 3-4: A電機電流 (解析度 0.1A)
         self.current_a = int.from_bytes(packet[2:4], byteorder='big') * 0.1

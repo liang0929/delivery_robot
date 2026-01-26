@@ -1,6 +1,92 @@
 # 專案待修復問題清單
 
-> 最後更新: 2026-01-26
+> 最後更新: 2026-01-26 (修復問題 28-30, 32-33, 35, 41)
+
+---
+
+## 🔴 新發現 - 高優先級 (High Priority)
+
+### 28. ~~Modbus 控制器缺少 state_lock~~ ✅ 已修復
+- **Commit**: `fcae0d2`
+- **修復**: 添加 `state_lock` 保護里程計狀態和方向變數
+
+### 29. ~~Modbus 控制器保留未使用的 TF Broadcaster~~ ✅ 已修復
+- **Commit**: `fcae0d2`
+- **修復**: 移除未使用的 TF Broadcaster 和 publish_tf() 方法
+
+### 30. ~~Nav2 recoveries_server 使用已棄用 API~~ ✅ 已修復
+- **Commit**: `666f9cf`
+- **修復**: 更新為 behavior_server 和 nav2_behaviors/*
+
+### 31. API Server rclpy 與 FastAPI 多線程問題
+- **位置**: `src/robot_api_server/robot_api_server/main.py:1059-1146`
+- **問題**: `NavigatorManager` 在多個 API 請求間共享，FastAPI 是多線程的
+- **風險**: rclpy 操作可能在非預期線程執行
+- **建議**: 使用 `MultiThreadedExecutor` 或確保 rclpy 操作在專用線程
+- [ ] 待評估
+
+---
+
+## 🟡 新發現 - 中優先級 (Medium Priority)
+
+### 32. ~~mock_motor_controller 缺少 NaN/Inf 驗證~~ ✅ 已修復
+- **Commit**: `01047cf`
+- **修復**: 在 cmd_vel_callback 添加 NaN/Inf 輸入驗證
+
+### 33. ~~QoS 配置不一致~~ ✅ 已修復
+- **Commit**: `01047cf`
+- **修復**: 統一 QoS 配置，添加 RELIABLE 和 VOLATILE
+
+### 34. 里程計角速度反轉硬編碼
+- **位置**: `src/motor_control/motor_control/hs_motor_controller.py:476`
+- **問題**: `vth = -vth` 硬編碼反轉，無法配置
+- **建議**: 新增 `invert_angular_velocity` 參數
+- [ ] 待修復
+
+### 35. ~~Nav2 inflation_radius 太小~~ ✅ 已修復
+- **Commit**: `8af736b`
+- **修復**: 將 local_costmap 和 global_costmap 的 inflation_radius 從 0.05/0.1 調整為 0.35
+
+### 36. EKF 從 odom 取得 vyaw 可能不準確
+- **位置**: `src/motor_control/config/hs_motor_config.yaml:38-42`
+- **問題**: `odom0_config` 使用 vyaw（角速度），但輪式里程計的角速度不如 IMU 準確
+- **建議**: 考慮只從 IMU 獲取角速度，將 odom0 的 vyaw 設為 false
+- [ ] 待評估
+
+---
+
+## 🟢 新發現 - 低優先級 (Low Priority)
+
+### 37. 重複的協方差矩陣定義
+- **位置**:
+  - `hs_motor_controller.py:580-588`
+  - `modbus_motor_controller.py:397-412`
+  - `mock_motor_controller.py:142-157`
+- **問題**: 相同的協方差矩陣在多處重複定義
+- **建議**: 提取為共用模組或配置常數
+- [ ] 待優化
+
+### 38. Costmap 同時使用 obstacle_layer 和 voxel_layer
+- **位置**: `src/nav2/config/nav2_params.yaml:170, 225`
+- **問題**: 兩個 layer 都訂閱 `/scan`，可能造成重複處理
+- **建議**: 對於 2D LiDAR，通常只需要 `obstacle_layer`
+- [ ] 待評估
+
+### 39. 缺少完整的 Type Hints
+- **位置**: 多個 Python 檔案
+- **問題**: 部分函數缺少返回類型提示
+- **建議**: 添加完整類型註解，例如 `def update_odometry(self) -> None:`
+- [ ] 待優化
+
+### 40. 魔術數字未定義為常數
+- **位置**: `src/motor_control/motor_control/hs_motor_controller.py:452`
+- **問題**: `rpm_deadzone = 10.0` 應定義為類常數
+- **建議**: 提取為 `RPM_DEADZONE = 10.0` 類常數或配置參數
+- [ ] 待優化
+
+### 41. ~~use_sim_time 參數未傳遞~~ ✅ 已修復
+- **Commit**: `b47d866`
+- **修復**: 將 use_sim_time 傳遞給 hs_motor_controller、mock_motor_controller 和 ekf_node
 
 ---
 

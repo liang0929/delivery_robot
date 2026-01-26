@@ -15,10 +15,9 @@ import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
-from geometry_msgs.msg import Twist, TransformStamped, Quaternion, Point, Vector3
+from geometry_msgs.msg import Twist, Quaternion, Point, Vector3
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Header
-from tf2_ros import TransformBroadcaster
 
 from pymodbus.client import ModbusSerialClient
 from pymodbus.exceptions import ModbusException
@@ -86,9 +85,6 @@ class ModbusMotorController(Node):
             Twist, 'cmd_vel', self.cmd_vel_callback, qos)
         self.odom_pub = self.create_publisher(Odometry, 'odom_raw', qos)
 
-        # TF 廣播器
-        self.tf_broadcaster = TransformBroadcaster(self)
-
         # 里程計狀態
         self.odom_x = 0.0
         self.odom_y = 0.0
@@ -105,6 +101,9 @@ class ModbusMotorController(Node):
 
         # Modbus 鎖 (避免同時讀寫)
         self.modbus_lock = threading.Lock()
+
+        # 狀態鎖 (保護里程計狀態和方向變數)
+        self.state_lock = threading.Lock()
 
         # 啟用馬達
         self.enable_motors()
@@ -262,9 +261,12 @@ class ModbusMotorController(Node):
         left_motor_rpm = left_wheel_rpm * self.gear_ratio
         right_motor_rpm = right_wheel_rpm * self.gear_ratio
 
-        # 方向
-        self.last_dir_a = 0 if left_vel >= 0 else 1
-        self.last_dir_b = 0 if right_vel >= 0 else 1
+        # 方向 (使用 state_lock 保護)
+        with self.state_lock:
+            self.last_dir_a = 0 if left_vel >= 0 else 1
+            self.last_dir_b = 0 if right_vel >= 0 else 1
+            dir_a = self.last_dir_a
+            dir_b = self.last_dir_b
 
         # 處理死區 (使用馬達 RPM 比較)
         target_rpm_a = 0
@@ -276,11 +278,11 @@ class ModbusMotorController(Node):
 
         with self.modbus_lock:
             try:
-                # 寫入方向
+                # 寫入方向 (使用本地變數避免競態)
                 self.client.write_register(
-                    self.ADDR_MOTOR_A_DIR, self.last_dir_a, device_id=self.slave_id)
+                    self.ADDR_MOTOR_A_DIR, dir_a, device_id=self.slave_id)
                 self.client.write_register(
-                    self.ADDR_MOTOR_B_DIR, self.last_dir_b, device_id=self.slave_id)
+                    self.ADDR_MOTOR_B_DIR, dir_b, device_id=self.slave_id)
                 # 寫入速度
                 self.client.write_register(
                     self.ADDR_MOTOR_A_SPEED_SP, target_rpm_a, device_id=self.slave_id)
@@ -333,10 +335,14 @@ class ModbusMotorController(Node):
         vel_a = (wheel_rpm_a / 60.0) * (2 * math.pi * self.wheel_radius)
         vel_b = (wheel_rpm_b / 60.0) * (2 * math.pi * self.wheel_radius)
 
-        # 加上方向
-        if self.last_dir_a == 1:
+        # 加上方向 (使用 state_lock 保護讀取)
+        with self.state_lock:
+            dir_a = self.last_dir_a
+            dir_b = self.last_dir_b
+
+        if dir_a == 1:
             vel_a = -vel_a
-        if self.last_dir_b == 1:
+        if dir_b == 1:
             vel_b = -vel_b
 
         # 計算機器人速度
@@ -352,20 +358,24 @@ class ModbusMotorController(Node):
         if dt <= 0:
             return
 
-        # 積分更新位置
+        # 積分更新位置 (使用 state_lock 保護寫入)
         delta_x = vx * math.cos(self.odom_theta) * dt
         delta_y = vx * math.sin(self.odom_theta) * dt
         delta_theta = vth * dt
 
-        self.odom_x += delta_x
-        self.odom_y += delta_y
-        self.odom_theta += delta_theta
+        with self.state_lock:
+            self.odom_x += delta_x
+            self.odom_y += delta_y
+            self.odom_theta += delta_theta
+            odom_x = self.odom_x
+            odom_y = self.odom_y
+            odom_theta = self.odom_theta
 
         # 發布里程計 (TF 由 EKF 發布，避免重複)
-        self.publish_odometry(vx, vth)
-        # self.publish_tf()  # 已移除：TF 由 EKF (robot_localization) 發布
+        self.publish_odometry(odom_x, odom_y, odom_theta, vx, vth)
 
-    def publish_odometry(self, vx: float, vth: float):
+    def publish_odometry(self, odom_x: float, odom_y: float, odom_theta: float,
+                         vx: float, vth: float):
         """發布里程計訊息"""
         odom = Odometry()
 
@@ -377,16 +387,16 @@ class ModbusMotorController(Node):
 
         # 位置
         odom.pose.pose.position = Point(
-            x=self.odom_x,
-            y=self.odom_y,
+            x=odom_x,
+            y=odom_y,
             z=0.0
         )
 
         # 方向 (四元數)
         odom.pose.pose.orientation = Quaternion(
             x=0.0, y=0.0,
-            z=math.sin(self.odom_theta / 2.0),
-            w=math.cos(self.odom_theta / 2.0)
+            z=math.sin(odom_theta / 2.0),
+            w=math.cos(odom_theta / 2.0)
         )
 
         # 速度
@@ -412,25 +422,6 @@ class ModbusMotorController(Node):
         ]
 
         self.odom_pub.publish(odom)
-
-    def publish_tf(self):
-        """發布 TF 變換"""
-        t = TransformStamped()
-        t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = 'odom'
-        t.child_frame_id = 'base_footprint'
-
-        t.transform.translation.x = self.odom_x
-        t.transform.translation.y = self.odom_y
-        t.transform.translation.z = 0.0
-
-        t.transform.rotation = Quaternion(
-            x=0.0, y=0.0,
-            z=math.sin(self.odom_theta / 2.0),
-            w=math.cos(self.odom_theta / 2.0)
-        )
-
-        self.tf_broadcaster.sendTransform(t)
 
     def safety_check(self):
         """安全檢查 - 超時停止馬達"""

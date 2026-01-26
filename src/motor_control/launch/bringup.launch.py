@@ -112,7 +112,7 @@ def generate_launch_description():
         executable='hs_motor_controller',
         name='hs_motor_controller',
         output='screen',
-        parameters=[motor_config],
+        parameters=[motor_config, {'use_sim_time': use_sim_time}],
         condition=UnlessCondition(simulation)
     )
 
@@ -160,6 +160,7 @@ def generate_launch_description():
             'max_linear_vel': 0.5,
             'max_angular_vel': 1.0,
             'odom_frequency': 50.0,
+            'use_sim_time': use_sim_time,
         }],
         condition=IfCondition(simulation)
     )
@@ -199,7 +200,7 @@ def generate_launch_description():
         executable='ekf_node',
         name='ekf_filter_node',
         output='screen',
-        parameters=[motor_config]
+        parameters=[motor_config, {'use_sim_time': use_sim_time}]
     )
 
     # ========== 靜態 TF (從配置文件載入) ==========

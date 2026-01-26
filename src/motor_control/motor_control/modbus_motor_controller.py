@@ -428,7 +428,7 @@ class ModbusMotorController(Node):
         # 檢查故障代碼
         fault = self.read_fault_code()
         if fault > 0:
-            self.get_logger().warn(f'Motor fault detected: {fault}')
+            self.get_logger().warning(f'Motor fault detected: {fault}')
 
     def destroy_node(self):
         """節點銷毀"""

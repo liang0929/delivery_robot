@@ -383,7 +383,7 @@ class HSMotorController(Node):
                         self.consecutive_failures = 0  # 成功時重置計數
                         return True
                     else:
-                        self.get_logger().warn(f'Failed to parse response: {response.hex()}')
+                        self.get_logger().warning(f'Failed to parse response: {response.hex()}')
 
                 self._handle_serial_failure("No valid response")
                 return False
@@ -398,7 +398,7 @@ class HSMotorController(Node):
         self.consecutive_failures += 1
 
         if self.consecutive_failures >= self.max_failures_before_reconnect:
-            self.get_logger().warn(
+            self.get_logger().warning(
                 f'Serial communication failed {self.consecutive_failures} times ({reason}), attempting reconnect...'
             )
             if self.reconnect_serial():
@@ -437,9 +437,9 @@ class HSMotorController(Node):
 
             # 檢查故障
             if self.fault_code > 0:
-                self.get_logger().warn(f'Motor fault code {self.fault_code}: {self.get_fault_description(self.fault_code)}')
+                self.get_logger().warning(f'Motor fault code {self.fault_code}: {self.get_fault_description(self.fault_code)}')
         else:
-            self.get_logger().warn('No response from motor driver')
+            self.get_logger().warning('No response from motor driver')
 
     def update_odometry(self):
         """更新里程計"""

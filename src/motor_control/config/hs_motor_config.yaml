@@ -38,7 +38,7 @@ ekf_filter_node:
     odom0_config: [true,  true,  false,    # 使用 x, y 位置
                    false, false, false,    # 不使用姿態（IMU 提供更準確的姿態）
                    true,  true,  false,    # 使用 vx, vy 線速度
-                   false, false, true,     # 使用 vyaw 角速度
+                   false, false, false,    # 不使用角速度（IMU 提供更準確的 vyaw）
                    false, false, false]    # 不使用加速度
     odom0_queue_size: 10
     odom0_differential: false

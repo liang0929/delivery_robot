@@ -111,8 +111,9 @@ def generate_launch_description():
             'initial_pose.y': 0.0,
             'initial_pose.z': 0.0,
             'initial_pose.yaw': 0.0,
-            'max_particles': 2000,
-            'min_particles': 500,
+            'max_particles': 1000,    # 優化: 減少粒子數加速啟動
+            'min_particles': 200,
+            'max_beams': 30,          # 優化: 減少光束數
         }]
     )
 

@@ -17,9 +17,9 @@ amcl:
     laser_max_range: 12.0
     laser_min_range: 0.15
     laser_model_type: "likelihood_field"
-    max_beams: 60
-    max_particles: 2000
-    min_particles: 500
+    max_beams: 30              # 降低: 60 → 30 (減少計算量)
+    max_particles: 1000        # 降低: 2000 → 1000 (啟動更快)
+    min_particles: 200         # 降低: 500 → 200
     odom_frame_id: "odom"
     pf_err: 0.05
     pf_z: 0.99
@@ -76,7 +76,7 @@ bt_navigator:
 controller_server:
   ros__parameters:
     use_sim_time: False
-    controller_frequency: 20.0
+    controller_frequency: 10.0   # 降低: 20 → 10 Hz (機器人速度慢不需要高頻)
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.5
     min_theta_velocity_threshold: 0.001
@@ -122,7 +122,7 @@ controller_server:
 planner_server:
   ros__parameters:
     use_sim_time: False
-    expected_planner_frequency: 20.0
+    expected_planner_frequency: 5.0  # 降低: 20 → 5 Hz (路徑規劃不需要頻繁)
     planner_plugins: ["GridBased"]
     GridBased:
       plugin: "nav2_navfn_planner/NavfnPlanner"
@@ -135,7 +135,7 @@ behavior_server:
     use_sim_time: False
     costmap_topic: local_costmap/costmap
     footprint_topic: local_costmap/published_footprint
-    cycle_frequency: 10.0
+    cycle_frequency: 5.0         # 降低: 10 → 5 Hz
     behavior_plugins: ["spin", "backup", "wait"]
     spin:
       plugin: "nav2_behaviors/Spin"
@@ -154,15 +154,15 @@ behavior_server:
 local_costmap:
   local_costmap:
     ros__parameters:
-      update_frequency: 5.0
-      publish_frequency: 2.0
+      update_frequency: 3.0      # 降低: 5 → 3 Hz
+      publish_frequency: 1.0     # 降低: 2 → 1 Hz
       global_frame: odom
       robot_base_frame: base_footprint
       use_sim_time: False
       rolling_window: true
       width: 3
       height: 3
-      resolution: 0.025
+      resolution: 0.05           # 降低: 0.025 → 0.05m (減少 4 倍 cells)
       # 50cm x 50cm 方形機器人，用 footprint 代替 robot_radius
       # robot_radius: 0.35
       footprint: "[[-0.25, -0.25], [-0.25, 0.25], [0.25, 0.25], [0.25, -0.25]]"
@@ -193,14 +193,14 @@ local_costmap:
 global_costmap:
   global_costmap:
     ros__parameters:
-      update_frequency: 1.0
-      publish_frequency: 1.0
+      update_frequency: 0.5      # 降低: 1 → 0.5 Hz
+      publish_frequency: 0.5     # 降低: 1 → 0.5 Hz
       global_frame: map
       robot_base_frame: base_footprint
       use_sim_time: False
       # 50cm x 50cm 方形機器人
       footprint: "[[-0.25, -0.25], [-0.25, 0.25], [0.25, 0.25], [0.25, -0.25]]"
-      resolution: 0.025
+      resolution: 0.05           # 降低: 0.025 → 0.05m
       track_unknown_space: true
       # 2D LiDAR 只需要 obstacle_layer，不需要 voxel_layer
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]

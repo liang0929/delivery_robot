@@ -22,6 +22,8 @@ from std_msgs.msg import Header
 from pymodbus.client import ModbusSerialClient
 from pymodbus.exceptions import ModbusException
 
+from motor_control.odom_constants import POSE_COVARIANCE, TWIST_COVARIANCE
+
 
 
 class ModbusMotorController(Node):
@@ -403,23 +405,9 @@ class ModbusMotorController(Node):
         odom.twist.twist.linear = Vector3(x=vx, y=0.0, z=0.0)
         odom.twist.twist.angular = Vector3(x=0.0, y=0.0, z=vth)
 
-        # 協方差矩陣
-        odom.pose.covariance = [
-            0.01, 0.0,  0.0,  0.0,  0.0,  0.0,
-            0.0,  0.01, 0.0,  0.0,  0.0,  0.0,
-            0.0,  0.0,  1e6,  0.0,  0.0,  0.0,
-            0.0,  0.0,  0.0,  1e6,  0.0,  0.0,
-            0.0,  0.0,  0.0,  0.0,  1e6,  0.0,
-            0.0,  0.0,  0.0,  0.0,  0.0,  0.03
-        ]
-        odom.twist.covariance = [
-            0.01, 0.0,  0.0,  0.0,  0.0,  0.0,
-            0.0,  0.01, 0.0,  0.0,  0.0,  0.0,
-            0.0,  0.0,  1e6,  0.0,  0.0,  0.0,
-            0.0,  0.0,  0.0,  1e6,  0.0,  0.0,
-            0.0,  0.0,  0.0,  0.0,  1e6,  0.0,
-            0.0,  0.0,  0.0,  0.0,  0.0,  0.03
-        ]
+        # 協方差矩陣 (使用共用常數)
+        odom.pose.covariance = POSE_COVARIANCE.copy()
+        odom.twist.covariance = TWIST_COVARIANCE.copy()
 
         self.odom_pub.publish(odom)
 

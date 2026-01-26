@@ -21,6 +21,8 @@ from geometry_msgs.msg import Twist, Quaternion, Point, Vector3
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Float32, Int32
 
+from motor_control.odom_constants import POSE_COVARIANCE, TWIST_COVARIANCE
+
 
 class HSMotorController(Node):
     """HS 協議馬達控制節點"""
@@ -581,16 +583,9 @@ class HSMotorController(Node):
         odom.twist.twist.linear = Vector3(x=vx, y=0.0, z=0.0)
         odom.twist.twist.angular = Vector3(x=0.0, y=0.0, z=vth)
 
-        # 協方差
-        odom.pose.covariance = [
-            0.01, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.01, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 1e6, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 1e6, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 1e6, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.03
-        ]
-        odom.twist.covariance = odom.pose.covariance.copy()
+        # 協方差 (使用共用常數)
+        odom.pose.covariance = POSE_COVARIANCE.copy()
+        odom.twist.covariance = TWIST_COVARIANCE.copy()
 
         self.odom_pub.publish(odom)
 

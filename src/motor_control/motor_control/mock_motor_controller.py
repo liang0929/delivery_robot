@@ -14,6 +14,8 @@ from geometry_msgs.msg import Twist, Quaternion, Point, Vector3
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Header
 
+from motor_control.odom_constants import POSE_COVARIANCE_SIM, TWIST_COVARIANCE_SIM
+
 
 class MockMotorController(Node):
     """Mock 馬達控制器 - 模擬差動驅動"""
@@ -151,22 +153,8 @@ class MockMotorController(Node):
         odom.twist.twist.angular = Vector3(x=0.0, y=0.0, z=vth)
 
         # 協方差矩陣 (模擬模式使用較小的協方差)
-        odom.pose.covariance = [
-            0.001, 0.0,   0.0,  0.0,  0.0,  0.0,
-            0.0,   0.001, 0.0,  0.0,  0.0,  0.0,
-            0.0,   0.0,   1e6,  0.0,  0.0,  0.0,
-            0.0,   0.0,   0.0,  1e6,  0.0,  0.0,
-            0.0,   0.0,   0.0,  0.0,  1e6,  0.0,
-            0.0,   0.0,   0.0,  0.0,  0.0,  0.001
-        ]
-        odom.twist.covariance = [
-            0.001, 0.0,   0.0,  0.0,  0.0,  0.0,
-            0.0,   0.001, 0.0,  0.0,  0.0,  0.0,
-            0.0,   0.0,   1e6,  0.0,  0.0,  0.0,
-            0.0,   0.0,   0.0,  1e6,  0.0,  0.0,
-            0.0,   0.0,   0.0,  0.0,  1e6,  0.0,
-            0.0,   0.0,   0.0,  0.0,  0.0,  0.001
-        ]
+        odom.pose.covariance = POSE_COVARIANCE_SIM.copy()
+        odom.twist.covariance = TWIST_COVARIANCE_SIM.copy()
 
         self.odom_pub.publish(odom)
 

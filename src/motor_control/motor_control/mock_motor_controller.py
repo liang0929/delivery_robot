@@ -71,7 +71,7 @@ class MockMotorController(Node):
             f'wheel_radius: {self.wheel_radius}m'
         )
 
-    def cmd_vel_callback(self, msg: Twist):
+    def cmd_vel_callback(self, msg: Twist) -> None:
         """速度命令回調"""
         # 驗證輸入值（防止 NaN 或無窮大）
         if math.isnan(msg.linear.x) or math.isinf(msg.linear.x):
@@ -92,7 +92,7 @@ class MockMotorController(Node):
             f'angular={self.current_angular_z:.3f}'
         )
 
-    def update_odometry(self):
+    def update_odometry(self) -> None:
         """更新里程計 - 模擬理想運動學"""
         # 計算時間差
         current_time = self.get_clock().now()
@@ -124,7 +124,7 @@ class MockMotorController(Node):
         # 發布里程計
         self.publish_odometry(vx, vth)
 
-    def publish_odometry(self, vx: float, vth: float):
+    def publish_odometry(self, vx: float, vth: float) -> None:
         """發布里程計訊息"""
         odom = Odometry()
 

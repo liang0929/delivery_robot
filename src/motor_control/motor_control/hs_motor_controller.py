@@ -143,7 +143,7 @@ class HSMotorController(Node):
             f'HS Motor Controller initialized on {self.serial_port}'
         )
 
-    def _validate_parameters(self):
+    def _validate_parameters(self) -> None:
         """驗證參數有效性"""
         errors = []
 
@@ -404,7 +404,7 @@ class HSMotorController(Node):
                 self._handle_serial_failure(str(e))
                 return False
 
-    def _handle_serial_failure(self, reason: str):
+    def _handle_serial_failure(self, reason: str) -> None:
         """處理串口通訊失敗，必要時嘗試重連"""
         self.consecutive_failures += 1
 
@@ -418,7 +418,7 @@ class HSMotorController(Node):
             else:
                 self.get_logger().error('Serial reconnection failed')
 
-    def control_loop(self):
+    def control_loop(self) -> None:
         """控制循環 - 發送命令並更新里程計"""
         # 發送命令並接收回應
         success = self.send_and_receive()
@@ -452,7 +452,7 @@ class HSMotorController(Node):
         else:
             self.get_logger().warning('No response from motor driver')
 
-    def update_odometry(self):
+    def update_odometry(self) -> None:
         """更新里程計"""
         # 獲取實際轉速並轉換為 m/s
         # 忽略低於死區的 RPM (避免靜止時漂移)
@@ -499,7 +499,7 @@ class HSMotorController(Node):
         # 發布里程計 (TF 由 EKF 發布，避免重複)
         self.publish_odometry(vx, vth)
 
-    def cmd_vel_callback(self, msg: Twist):
+    def cmd_vel_callback(self, msg: Twist) -> None:
         """速度命令回調"""
         self.last_cmd_time = self.get_clock().now()
 
@@ -522,7 +522,7 @@ class HSMotorController(Node):
         # 設定馬達
         self.set_motor_speeds(left_vel, right_vel)
 
-    def set_motor_speeds(self, left_vel: float, right_vel: float):
+    def set_motor_speeds(self, left_vel: float, right_vel: float) -> None:
         """設定馬達速度 (m/s)"""
         # 轉換為輪子 RPM
         left_wheel_rpm = abs(left_vel) / (2 * math.pi * self.wheel_radius) * 60.0
@@ -566,7 +566,7 @@ class HSMotorController(Node):
             self.target_rpm_a = target_rpm_a
             self.target_rpm_b = target_rpm_b
 
-    def publish_odometry(self, vx: float, vth: float):
+    def publish_odometry(self, vx: float, vth: float) -> None:
         """發布里程計"""
         odom = Odometry()
         odom.header.stamp = self.get_clock().now().to_msg()
@@ -606,7 +606,7 @@ class HSMotorController(Node):
         }
         return fault_descriptions.get(fault_code, f"未知故障({fault_code})")
 
-    def safety_check(self):
+    def safety_check(self) -> None:
         """安全檢查"""
         time_since_cmd = (self.get_clock().now() - self.last_cmd_time).nanoseconds / 1e9
         if time_since_cmd > 1.0:
@@ -614,7 +614,7 @@ class HSMotorController(Node):
                 self.target_rpm_a = 0
                 self.target_rpm_b = 0
 
-    def destroy_node(self):
+    def destroy_node(self) -> None:
         """節點銷毀"""
         self.running = False
         self.motor_enabled = False

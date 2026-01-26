@@ -121,7 +121,7 @@ class ModbusMotorController(Node):
             f'Modbus Motor Controller initialized on {self.serial_port}'
         )
 
-    def _validate_parameters(self):
+    def _validate_parameters(self) -> None:
         """驗證參數有效性"""
         errors = []
 
@@ -185,7 +185,7 @@ class ModbusMotorController(Node):
             self.get_logger().error(f'Modbus connection error: {e}')
             return False
 
-    def enable_motors(self):
+    def enable_motors(self) -> None:
         """啟用馬達"""
         if not self.client or not self.client.connected:
             return
@@ -201,7 +201,7 @@ class ModbusMotorController(Node):
             except ModbusException as e:
                 self.get_logger().error(f'Failed to enable motors: {e}')
 
-    def disable_motors(self):
+    def disable_motors(self) -> None:
         """停用馬達"""
         if not self.client or not self.client.connected:
             return
@@ -222,7 +222,7 @@ class ModbusMotorController(Node):
             except ModbusException as e:
                 self.get_logger().error(f'Failed to disable motors: {e}')
 
-    def cmd_vel_callback(self, msg: Twist):
+    def cmd_vel_callback(self, msg: Twist) -> None:
         """速度命令回調"""
         self.last_cmd_time = self.get_clock().now()
 
@@ -250,7 +250,7 @@ class ModbusMotorController(Node):
             f'-> left={left_vel:.3f}, right={right_vel:.3f}'
         )
 
-    def set_motor_speeds(self, left_vel: float, right_vel: float):
+    def set_motor_speeds(self, left_vel: float, right_vel: float) -> None:
         """設定馬達速度 (m/s)"""
         if not self.client or not self.client.connected:
             return
@@ -324,7 +324,7 @@ class ModbusMotorController(Node):
             except ModbusException:
                 return -1
 
-    def update_odometry(self):
+    def update_odometry(self) -> None:
         """更新里程計"""
         # 讀取馬達轉速 (馬達 RPM)
         motor_rpm_a, motor_rpm_b = self.read_motor_speeds()
@@ -377,7 +377,7 @@ class ModbusMotorController(Node):
         self.publish_odometry(odom_x, odom_y, odom_theta, vx, vth)
 
     def publish_odometry(self, odom_x: float, odom_y: float, odom_theta: float,
-                         vx: float, vth: float):
+                         vx: float, vth: float) -> None:
         """發布里程計訊息"""
         odom = Odometry()
 
@@ -411,7 +411,7 @@ class ModbusMotorController(Node):
 
         self.odom_pub.publish(odom)
 
-    def safety_check(self):
+    def safety_check(self) -> None:
         """安全檢查 - 超時停止馬達"""
         time_since_cmd = (self.get_clock().now() - self.last_cmd_time).nanoseconds / 1e9
         if time_since_cmd > 1.0:
@@ -422,7 +422,7 @@ class ModbusMotorController(Node):
         if fault > 0:
             self.get_logger().warning(f'Motor fault detected: {fault}')
 
-    def destroy_node(self):
+    def destroy_node(self) -> None:
         """節點銷毀"""
         self.running = False
         try:

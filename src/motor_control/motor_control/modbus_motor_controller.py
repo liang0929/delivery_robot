@@ -54,7 +54,7 @@ class ModbusMotorController(Node):
         self.declare_parameter('gear_ratio', 20.0)
         self.declare_parameter('min_rpm', 100.0)
         self.declare_parameter('max_rpm', 3000.0)
-        self.declare_parameter('odom_frequency', 20.0)
+        self.declare_parameter('odom_frequency', 50.0)
 
         # 獲取參數
         self.serial_port = self.get_parameter('serial_port').value
@@ -335,6 +335,10 @@ class ModbusMotorController(Node):
         current_time = self.get_clock().now()
         dt = (current_time - self.last_time).nanoseconds / 1e9
         self.last_time = current_time
+
+        # 時間差為零或負值時跳過更新（避免除零或時間回跳）
+        if dt <= 0:
+            return
 
         # 積分更新位置
         delta_x = vx * math.cos(self.odom_theta) * dt

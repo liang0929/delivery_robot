@@ -9,7 +9,7 @@ import math
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
-from rclpy.qos import QoSProfile
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from geometry_msgs.msg import Twist, Quaternion, Point, Vector3
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Header
@@ -36,7 +36,11 @@ class MockMotorController(Node):
         self.odom_frequency = self.get_parameter('odom_frequency').value
 
         # ROS2 發布者和訂閱者
-        qos = QoSProfile(depth=10)
+        qos = QoSProfile(
+            depth=10,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.VOLATILE
+        )
         self.cmd_vel_sub = self.create_subscription(
             Twist, 'cmd_vel', self.cmd_vel_callback, qos)
         self.odom_pub = self.create_publisher(Odometry, 'odom_raw', qos)
@@ -67,6 +71,14 @@ class MockMotorController(Node):
 
     def cmd_vel_callback(self, msg: Twist):
         """速度命令回調"""
+        # 驗證輸入值（防止 NaN 或無窮大）
+        if math.isnan(msg.linear.x) or math.isinf(msg.linear.x):
+            self.get_logger().warning('Invalid linear.x value (NaN/Inf), ignoring command')
+            return
+        if math.isnan(msg.angular.z) or math.isinf(msg.angular.z):
+            self.get_logger().warning('Invalid angular.z value (NaN/Inf), ignoring command')
+            return
+
         # 限制速度
         self.current_linear_x = max(
             min(msg.linear.x, self.max_linear_vel), -self.max_linear_vel)

@@ -545,6 +545,16 @@ class RobotStateManager:
             self._robot_core_running = False
         logger.info("Cleanup completed")
 
+    def get_status_snapshot(self) -> dict:
+        """線程安全地獲取完整狀態快照"""
+        with self._lock:
+            return {
+                "robot_core_running": self._robot_core_running,
+                "slam_status": self._slam_status,
+                "nav_status": self._nav_status,
+                "crash_info": self._crash_info.copy(),
+            }
+
 
 # --- Global State Manager Instance ---
 state = RobotStateManager()
@@ -609,26 +619,29 @@ async def status_broadcast_loop():
 
 
 def get_full_status() -> dict:
-    """取得完整系統狀態"""
+    """取得完整系統狀態（線程安全）"""
+    # 使用原子快照避免狀態不一致
+    snapshot = state.get_status_snapshot()
+
     is_complete = nav_manager.is_task_complete()
     feedback = nav_manager.get_feedback()
     distance_remaining = feedback.distance_remaining if feedback else None
 
     return {
         "robot_core": {
-            "running": state.robot_core_running,
+            "running": snapshot["robot_core_running"],
         },
         "slam": {
-            "status": state.slam_status.value,
-            "is_mapping": state.slam_status == SlamStatus.MAPPING,
+            "status": snapshot["slam_status"].value,
+            "is_mapping": snapshot["slam_status"] == SlamStatus.MAPPING,
         },
         "navigation": {
-            "status": state.nav_status.value,
-            "nav_running": state.nav_status == NavStatus.RUNNING,
+            "status": snapshot["nav_status"].value,
+            "nav_running": snapshot["nav_status"] == NavStatus.RUNNING,
             "is_complete": is_complete,
             "distance_remaining": distance_remaining,
         },
-        "crash_info": state.crash_info,
+        "crash_info": snapshot["crash_info"],
     }
 
 

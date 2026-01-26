@@ -109,12 +109,32 @@ os.makedirs(MAP_SAVE_PATH, exist_ok=True)
 logger.info(f"Map save path: {MAP_SAVE_PATH}")
 
 
+# --- Path Validation ---
+def validate_map_name(map_name: str) -> str:
+    """驗證並返回安全的地圖名稱，防止路徑注入攻擊"""
+    # 清理檔名：只允許字母數字和 -_
+    safe_name = "".join(c for c in map_name if c.isalnum() or c in ('-', '_'))
+
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="Invalid map name after sanitization.")
+
+    # 限制檔名長度
+    if len(safe_name) > 64:
+        raise HTTPException(status_code=400, detail="Map name too long (max 64 characters).")
+
+    # 構建完整路徑並規範化，驗證沒有目錄遍歷
+    full_path = os.path.normpath(os.path.join(MAP_SAVE_PATH, safe_name))
+    base_path_normalized = os.path.normpath(MAP_SAVE_PATH)
+    if not full_path.startswith(base_path_normalized + os.sep) and full_path != base_path_normalized:
+        raise HTTPException(status_code=400, detail="Invalid map path.")
+
+    return safe_name
+
+
 # --- Waypoint File Operations ---
 def get_waypoints_file_path(map_name: str) -> str:
-    """取得 waypoints 檔案路徑"""
-    safe_name = "".join(c for c in map_name if c.isalnum() or c in ('-', '_'))
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid map name.")
+    """取得 waypoints 檔案路徑（使用統一的路徑驗證）"""
+    safe_name = validate_map_name(map_name)
     return os.path.join(MAP_SAVE_PATH, f"{safe_name}.waypoints.json")
 
 
@@ -866,26 +886,9 @@ async def stop_mapping():
     return await asyncio.to_thread(state.stop_slam)
 
 def validate_map_path(map_name: str, base_path: str) -> str:
-    """驗證並返回安全的地圖路徑，防止路徑注入攻擊"""
-    # 清理檔名：只允許字母數字和 -_
-    safe_name = "".join(c for c in map_name if c.isalnum() or c in ('-', '_'))
-
-    if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid map name after sanitization.")
-
-    # 限制檔名長度
-    if len(safe_name) > 64:
-        raise HTTPException(status_code=400, detail="Map name too long (max 64 characters).")
-
-    # 構建完整路徑並規範化
-    full_path = os.path.normpath(os.path.join(base_path, safe_name))
-
-    # 確保路徑在預期目錄內（防止目錄遍歷）
-    base_path_normalized = os.path.normpath(base_path)
-    if not full_path.startswith(base_path_normalized + os.sep) and full_path != base_path_normalized:
-        raise HTTPException(status_code=400, detail="Invalid map path.")
-
-    return full_path
+    """驗證並返回安全的地圖路徑（重用 validate_map_name）"""
+    safe_name = validate_map_name(map_name)
+    return os.path.join(base_path, safe_name)
 
 
 @app.post("/slam/save_map")

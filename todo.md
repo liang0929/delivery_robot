@@ -78,23 +78,16 @@
 
 ## 輕微問題 (Minor)
 
-### 9. 時間處理混用
-- **位置**: `src/motor_control/motor_control/hs_motor_controller.py:110, 454`
-- **問題**: 混用 `time.time()` 和 `self.get_clock().now()`，模擬環境會不一致
-- **建議**: 統一使用 `self.get_clock()`
-- [ ] 待修復
+### 9. ~~時間處理混用~~ ✅ 已修復
+- **Commit**: `edce9d7`
+- **修復**: 將安全超時檢查從 `time.time()` 改為 `self.get_clock().now()`
 
-### 10. 狀態廣播效率
-- **位置**: `src/robot_api_server/robot_api_server/main.py:462-479`
-- **問題**: 即使無 WebSocket 客戶端仍每秒執行 `get_full_status()`
-- **建議**: 無連接時暫停廣播任務
-- [ ] 待優化
+### 10. ~~狀態廣播效率~~ ✅ 經檢查無此問題
+- **說明**: `status_broadcast_loop()` 已在 626 行檢查 `connection_count == 0` 並跳過
 
-### 11. QoS 配置不完整
-- **位置**: `src/motor_control/motor_control/hs_motor_controller.py:80`
-- **問題**: `QoSProfile(depth=10)` 未設置 reliability, durability
-- **建議**: 顯式設置完整 QoS 參數
-- [ ] 待修復
+### 11. ~~QoS 配置不完整~~ ✅ 已修復
+- **Commit**: `615ad27`
+- **修復**: 顯式設置 `reliability=RELIABLE` 和 `durability=VOLATILE`
 
 ### 12. 異常處理過於寬泛
 - **位置**: `src/robot_api_server/robot_api_server/main.py` 多處
@@ -102,11 +95,9 @@
 - **建議**: 捕獲具體異常類型
 - [ ] 待優化
 
-### 13. cmd_vel NaN 輸入未驗證
-- **位置**: `src/motor_control/motor_control/hs_motor_controller.py:465-478`
-- **問題**: `cmd_vel_callback()` 未驗證 NaN 值
-- **建議**: 檢查 `math.isnan()` 和 `math.isinf()`
-- [ ] 待修復
+### 13. ~~cmd_vel NaN 輸入未驗證~~ ✅ 已修復
+- **Commit**: `36afdd4`
+- **修復**: 在 `cmd_vel_callback()` 中添加 `math.isnan()` 和 `math.isinf()` 檢查
 
 ### 14. 前端 API 返回未驗證
 - **位置**: `src/robot_web_frontend/src/services/api.service.ts`
@@ -118,19 +109,13 @@
 - **位置**: `src/nav2/launch/autonomous_navigation.launch.py`
 - **修復**: 添加 `get_default_map_path()` 函數，檢查默認地圖是否存在，若不存在則嘗試查找其他可用地圖並發出警告
 
-### 16. 日誌方法過時
-- **位置**:
-  - `src/motor_control/motor_control/hs_motor_controller.py:387, 402, 441, 443`
-  - `src/motor_control/motor_control/modbus_motor_controller.py:380`
-- **問題**: `self.get_logger().warn()` 應為 `warning()`
-- **建議**: 更新為標準方法名
-- [ ] 待修復
+### 16. ~~日誌方法過時~~ ✅ 已修復
+- **Commit**: `e16b4ff`
+- **修復**: 將所有 `warn()` 更新為 `warning()`
 
-### 27. Launch 設備路徑硬編碼
-- **位置**: `src/motor_control/launch/bringup.launch.py:86, 101`
-- **問題**: LiDAR (`/dev/lidar`) 和 IMU (`/dev/i2c-7`) 設備路徑硬編碼
-- **建議**: 使用參數或環境變數配置
-- [ ] 待修復
+### 27. ~~Launch 設備路徑硬編碼~~ ✅ 已修復
+- **Commit**: `8ae36c6`
+- **修復**: 新增 `lidar_port` 和 `imu_device` launch 參數
 
 ### 17. 健康檢查頻率
 - **位置**: `src/robot_api_server/robot_api_server/main.py:64`
@@ -138,11 +123,8 @@
 - **建議**: 考慮增加間隔或使用事件驅動
 - [ ] 待評估
 
-### 18. 廣播任務優化
-- **位置**: `src/robot_api_server/robot_api_server/main.py:462-479`
-- **問題**: 無連接時仍每秒檢查
-- **建議**: 實現連接驅動的廣播機制
-- [ ] 待優化
+### 18. ~~廣播任務優化~~ ✅ 經檢查無此問題
+- **說明**: 與問題 10 相同，已在 `status_broadcast_loop()` 中實現連接檢查
 
 ---
 
@@ -188,5 +170,14 @@
    - ~~問題 26: 方向變數非原子更新~~ ✅
 
 3. **中期改進** (輕微問題):
-   - 問題 9-14, 16-18, 27: 代碼質量改進
+   - ~~問題 9: 時間處理混用~~ ✅
+   - ~~問題 10: 狀態廣播效率~~ ✅
+   - ~~問題 11: QoS 配置不完整~~ ✅
+   - 問題 12: 異常處理過於寬泛
+   - ~~問題 13: cmd_vel NaN 輸入未驗證~~ ✅
+   - 問題 14: 前端 API 返回未驗證
    - ~~問題 15: Launch 硬編碼路徑~~ ✅
+   - ~~問題 16: 日誌方法過時~~ ✅
+   - 問題 17: 健康檢查頻率（待評估）
+   - ~~問題 18: 廣播任務優化~~ ✅
+   - ~~問題 27: Launch 設備路徑硬編碼~~ ✅

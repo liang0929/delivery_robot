@@ -36,6 +36,9 @@ class HSMotorController(Node):
     MOTOR_ENABLE = 0x01
     MOTOR_BRAKE = 0x03
 
+    # 里程計參數
+    RPM_DEADZONE = 10.0  # 低於此值的 RPM 視為靜止，避免漂移
+
     def __init__(self):
         super().__init__('hs_motor_controller')
 
@@ -451,9 +454,8 @@ class HSMotorController(Node):
         """更新里程計"""
         # 獲取實際轉速並轉換為 m/s
         # 忽略低於死區的 RPM (避免靜止時漂移)
-        rpm_deadzone = 10.0
-        motor_rpm_a = self.actual_rpm_a if self.actual_rpm_a > rpm_deadzone else 0.0
-        motor_rpm_b = self.actual_rpm_b if self.actual_rpm_b > rpm_deadzone else 0.0
+        motor_rpm_a = self.actual_rpm_a if self.actual_rpm_a > self.RPM_DEADZONE else 0.0
+        motor_rpm_b = self.actual_rpm_b if self.actual_rpm_b > self.RPM_DEADZONE else 0.0
 
         # 馬達 RPM 轉換為輪子 RPM (除以減速比)
         wheel_rpm_a = motor_rpm_a / self.gear_ratio

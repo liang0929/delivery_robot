@@ -14,7 +14,7 @@ from typing import Optional
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
-from rclpy.qos import QoSProfile
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from geometry_msgs.msg import Twist, TransformStamped, Quaternion, Point, Vector3
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Header
@@ -77,7 +77,11 @@ class ModbusMotorController(Node):
         self.connect_modbus()
 
         # ROS2 發布者和訂閱者
-        qos = QoSProfile(depth=10)
+        qos = QoSProfile(
+            depth=10,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.VOLATILE
+        )
         self.cmd_vel_sub = self.create_subscription(
             Twist, 'cmd_vel', self.cmd_vel_callback, qos)
         self.odom_pub = self.create_publisher(Odometry, 'odom_raw', qos)

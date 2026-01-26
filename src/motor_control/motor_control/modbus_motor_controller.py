@@ -429,10 +429,17 @@ class ModbusMotorController(Node):
     def destroy_node(self):
         """節點銷毀"""
         self.running = False
-        self.disable_motors()
-        if self.client:
-            self.client.close()
-        super().destroy_node()
+        try:
+            self.disable_motors()
+        except Exception as e:
+            self.get_logger().warning(f'Error disabling motors: {e}')
+        try:
+            if self.client:
+                self.client.close()
+        except Exception as e:
+            self.get_logger().warning(f'Error closing Modbus client: {e}')
+        finally:
+            super().destroy_node()
 
 
 def main(args=None):

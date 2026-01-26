@@ -1,6 +1,6 @@
 # 專案待修復問題清單
 
-> 最後更新: 2026-01-26 (修復問題 28-30, 32-35, 37, 40-41)
+> 最後更新: 2026-01-26 (修復問題 28-41 全部完成)
 
 ---
 
@@ -18,12 +18,9 @@
 - **Commit**: `666f9cf`
 - **修復**: 更新為 behavior_server 和 nav2_behaviors/*
 
-### 31. API Server rclpy 與 FastAPI 多線程問題
-- **位置**: `src/robot_api_server/robot_api_server/main.py:1059-1146`
-- **問題**: `NavigatorManager` 在多個 API 請求間共享，FastAPI 是多線程的
-- **風險**: rclpy 操作可能在非預期線程執行
-- **建議**: 使用 `MultiThreadedExecutor` 或確保 rclpy 操作在專用線程
-- [ ] 待評估
+### 31. ~~API Server rclpy 與 FastAPI 多線程問題~~ ✅ 已修復
+- **Commit**: `15fdf37`
+- **修復**: NavigatorManager 所有公開方法添加 _lock 線程鎖保護
 
 ---
 
@@ -45,11 +42,9 @@
 - **Commit**: `8af736b`
 - **修復**: 將 local_costmap 和 global_costmap 的 inflation_radius 從 0.05/0.1 調整為 0.35
 
-### 36. EKF 從 odom 取得 vyaw 可能不準確
-- **位置**: `src/motor_control/config/hs_motor_config.yaml:38-42`
-- **問題**: `odom0_config` 使用 vyaw（角速度），但輪式里程計的角速度不如 IMU 準確
-- **建議**: 考慮只從 IMU 獲取角速度，將 odom0 的 vyaw 設為 false
-- [ ] 待評估
+### 36. ~~EKF 從 odom 取得 vyaw 可能不準確~~ ✅ 已修復
+- **Commit**: `d086a56`
+- **修復**: 將 odom0_config 的 vyaw 設為 false，角速度完全由 IMU 提供
 
 ---
 
@@ -59,17 +54,13 @@
 - **Commit**: `5e6fa22`
 - **修復**: 新增 odom_constants.py 共用模組，三個控制器共用常數
 
-### 38. Costmap 同時使用 obstacle_layer 和 voxel_layer
-- **位置**: `src/nav2/config/nav2_params.yaml:170, 225`
-- **問題**: 兩個 layer 都訂閱 `/scan`，可能造成重複處理
-- **建議**: 對於 2D LiDAR，通常只需要 `obstacle_layer`
-- [ ] 待評估
+### 38. ~~Costmap 同時使用 obstacle_layer 和 voxel_layer~~ ✅ 已修復
+- **Commit**: `f470e50`
+- **修復**: 移除 voxel_layer，2D LiDAR 只需 obstacle_layer
 
-### 39. 缺少完整的 Type Hints
-- **位置**: 多個 Python 檔案
-- **問題**: 部分函數缺少返回類型提示
-- **建議**: 添加完整類型註解，例如 `def update_odometry(self) -> None:`
-- [ ] 待優化
+### 39. ~~缺少完整的 Type Hints~~ ✅ 已修復
+- **Commit**: `8d405fa`
+- **修復**: 為三個控制器添加完整的返回類型註解
 
 ### 40. ~~魔術數字未定義為常數~~ ✅ 已修復
 - **Commit**: `738ef68`

@@ -97,6 +97,8 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time', default='false')
     simulation = LaunchConfiguration('simulation', default='false')
     sim_scene = LaunchConfiguration('sim_scene', default='room')
+    lidar_port = LaunchConfiguration('lidar_port', default='/dev/lidar')
+    imu_device = LaunchConfiguration('imu_device', default='/dev/i2c-7')
 
     # ========== 套件路徑 ==========
     motor_control_dir = get_package_share_directory('motor_control')
@@ -121,7 +123,7 @@ def generate_launch_description():
         name='sllidar_node',
         output='screen',
         parameters=[{
-            'serial_port': '/dev/lidar',
+            'serial_port': lidar_port,
             'serial_baudrate': 256000,
             'frame_id': 'laser',
             'inverted': False,
@@ -137,7 +139,7 @@ def generate_launch_description():
         name='bno055',
         output='screen',
         parameters=[{
-            'device': '/dev/i2c-7',
+            'device': imu_device,
             'address': 40,
             'frame_id': 'imu_link',
         }],
@@ -275,6 +277,10 @@ def generate_launch_description():
                              description='啟用模擬模式 (不需要實際硬體)'),
         DeclareLaunchArgument('sim_scene', default_value='room',
                              description='模擬場景: empty, room, corridor'),
+        DeclareLaunchArgument('lidar_port', default_value='/dev/lidar',
+                             description='LiDAR 串口設備路徑'),
+        DeclareLaunchArgument('imu_device', default_value='/dev/i2c-7',
+                             description='IMU I2C 設備路徑'),
 
         # 模式提示
         LogInfo(

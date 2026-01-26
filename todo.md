@@ -1,6 +1,6 @@
 # 專案待修復問題清單
 
-> 最後更新: 2026-01-22
+> 最後更新: 2026-01-26
 
 ---
 
@@ -51,40 +51,28 @@
   - Nav2 costmap 統一使用 `base_footprint`
   - 移除 Modbus Motor Controller 的重複 TF 發布
 
-### 21. 里程計更新頻率不匹配
-- **位置**: `src/motor_control/motor_control/modbus_motor_controller.py:105`
-- **問題**: Modbus 控制器 `odom_frequency=20Hz`，HS 控制器 `control_frequency=50Hz`
-- **影響**: 切換控制器時里程計更新頻率改變，可能導致 EKF 融合不穩定
-- **建議**: 統一兩個控制器的頻率參數
-- [ ] 待修復
+### 21. ~~里程計更新頻率不匹配~~ ✅ 已修復
+- **Commit**: `d4690cb`
+- **修復**: 將 Modbus 控制器的 `odom_frequency` 默認值從 20Hz 改為 50Hz，與 HS 控制器一致
 
-### 22. 時間差為零未檢查
-- **位置**: `src/motor_control/motor_control/hs_motor_controller.py:477`
-- **問題**: 計算 `dt` 後未檢查是否為零
-- **影響**: 若連續兩次呼叫在同一時刻，`dt=0` 會導致位置無更新
-- **建議**: 添加 `if dt <= 0: return` 檢查
-- [ ] 待修復
+### 22. ~~時間差為零未檢查~~ ✅ 已修復
+- **Commit**: `9a472c9`
+- **修復**: 在兩個控制器的 `update_odometry` 中添加 `if dt <= 0: return` 檢查
 
 ### 23. ~~Modbus 控制器缺少參數驗證~~ ✅ 已修復
 - **位置**: `src/motor_control/motor_control/modbus_motor_controller.py`
 - **修復**: 添加 `_validate_parameters()` 方法，驗證 odom_frequency、wheel_radius、wheel_separation、gear_ratio、min_rpm、max_rpm 等參數
 
-### 24. destroy_node() 異常處理不完整
-- **位置**: `src/motor_control/motor_control/modbus_motor_controller.py:386-387`
-- **問題**: `client.close()` 異常未捕獲，可能導致 `super().destroy_node()` 未執行
-- **建議**: 使用 try-finally 確保節點正確銷毀
-- [ ] 待修復
+### 24. ~~destroy_node() 異常處理不完整~~ ✅ 已修復
+- **Commit**: `7cd6b0b`
+- **修復**: 使用 try-finally 確保即使 `client.close()` 拋出異常，`super().destroy_node()` 也會被執行
 
 ### 25. ~~Launch 配置讀取無異常處理~~ ✅ 已修復
 - **位置**: `src/motor_control/launch/bringup.launch.py`
 - **修復**: 添加 try-except 處理 FileNotFoundError 和 YAMLError，提供默認 TF 配置
 
-### 26. 方向變數非原子更新
-- **位置**: `src/motor_control/motor_control/hs_motor_controller.py:513-525`
-- **問題**: `logical_dir_a/b` 更新與讀取之間可能發生上下文切換
-- **影響**: 里程計計算使用不一致的方向值
-- **建議**: 使用鎖保護或原子操作
-- [ ] 待修復
+### 26. ~~方向變數非原子更新~~ ✅ 經檢查無此問題
+- **說明**: `state_lock` 已保護 `logical_dir_a/b` 的讀寫操作（寫入在 538-544 行，讀取在 460-465 行）
 
 ---
 
@@ -192,12 +180,12 @@
 
 2. **短期修復** (中等問題):
    - ~~問題 4-8~~ ✅
-   - 問題 21: 里程計更新頻率不匹配
-   - 問題 22: 時間差為零未檢查
+   - ~~問題 21: 里程計更新頻率不匹配~~ ✅
+   - ~~問題 22: 時間差為零未檢查~~ ✅
    - ~~問題 23: Modbus 控制器缺少參數驗證~~ ✅
-   - 問題 24: destroy_node() 異常處理
+   - ~~問題 24: destroy_node() 異常處理~~ ✅
    - ~~問題 25: Launch 配置讀取異常處理~~ ✅
-   - 問題 26: 方向變數非原子更新
+   - ~~問題 26: 方向變數非原子更新~~ ✅
 
 3. **中期改進** (輕微問題):
    - 問題 9-14, 16-18, 27: 代碼質量改進

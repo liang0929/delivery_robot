@@ -656,12 +656,17 @@ ALLOWED_ORIGINS = os.environ.get("CORS_ORIGINS", "").split(",") if os.environ.ge
 # 過濾空字串
 ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS if origin.strip()]
 
-logger.info(f"CORS allowed origins: {ALLOWED_ORIGINS}")
+# 根據 CORS 規範：當 allow_credentials=True 時，allow_origins 不能為 ["*"]
+# 參考：https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS/Errors/CORSNotSupportingCredentials
+ALLOW_ALL_ORIGINS = "*" in ALLOWED_ORIGINS
+ALLOW_CREDENTIALS = not ALLOW_ALL_ORIGINS
+
+logger.info(f"CORS allowed origins: {ALLOWED_ORIGINS}, credentials: {ALLOW_CREDENTIALS}")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=ALLOW_CREDENTIALS,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )

@@ -1,0 +1,176 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  background: #111;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #888;
+  margin: 0;
+}
+
+.clearButton {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #888;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.clearButton:hover {
+  background: #ff4444;
+  border-color: #ff4444;
+  color: #fff;
+}
+
+.empty {
+  padding: 30px;
+  text-align: center;
+  color: #666;
+}
+
+.empty p {
+  margin: 0 0 8px 0;
+}
+
+.hint {
+  font-size: 14px;
+  color: #444;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  border: 1px solid #333;
+  transition: all 0.2s;
+}
+
+.item.current {
+  background: #1a2a1f;
+  border-color: #00ff88;
+}
+
+.item.completed {
+  opacity: 0.5;
+}
+
+.orderNumber {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #333;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.current .orderNumber {
+  background: #00ff88;
+  color: #000;
+}
+
+.tableInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tableNumber {
+  font-size: 16px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.tableName {
+  font-size: 12px;
+  color: #666;
+}
+
+.statusBadge {
+  padding: 4px 10px;
+  background: #333;
+  border-radius: 12px;
+  font-size: 11px;
+  color: #888;
+}
+
+.current .statusBadge {
+  background: #00ff88;
+  color: #000;
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+}
+
+.actionButton {
+  padding: 4px 8px;
+  background: #333;
+  border: none;
+  border-radius: 4px;
+  color: #888;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.actionButton:hover:not(:disabled) {
+  background: #444;
+  color: #fff;
+}
+
+.actionButton:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.actionButton.remove:hover {
+  background: #ff4444;
+  color: #fff;
+}
+
+.startButton {
+  padding: 16px 24px;
+  background: #00ff88;
+  border: none;
+  border-radius: 12px;
+  color: #000;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.startButton:hover {
+  background: #00cc6e;
+  transform: scale(1.02);
+}

@@ -1075,8 +1075,9 @@ async def save_map(request: MapSaveRequest):
     map_path = validate_map_path(map_name, MAP_SAVE_PATH)
 
     def _save_map():
+        cmd = f"source /opt/ros/humble/setup.bash && source /home/robot0/base_dev/install/setup.bash && ros2 run nav2_map_server map_saver_cli -f {map_path} -t /map"
         return subprocess.run(
-            ["ros2", "run", "nav2_map_server", "map_saver_cli", "-f", map_path, "--ros-args", "-p", "map_topic:=/map"],
+            ["bash", "-c", cmd],
             capture_output=True,
             text=True,
             timeout=30

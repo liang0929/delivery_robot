@@ -1,6 +1,6 @@
 # 專案待修復問題清單
 
-> 最後更新: 2026-01-26 (修復問題 28-41 全部完成)
+> 最後更新: 2026-01-27 (新增 Jetson 優化項目 42-52，完成 42)
 
 ---
 
@@ -249,3 +249,135 @@
    - 問題 17: 健康檢查頻率（待評估）
    - ~~問題 18: 廣播任務優化~~ ✅
    - ~~問題 27: Launch 設備路徑硬編碼~~ ✅
+
+---
+
+## 🚀 Jetson Orin NX 效能優化 (Performance Optimization)
+
+> 目標：充分利用 Jetson Orin NX 16GB 的硬體資源，降低 CPU 使用率、減少延遲波動
+
+### 🔴 高優先級 - 立即可做
+
+### 42. ~~CPU 親和性未設置~~ ✅ 已修復
+- **位置**: `src/motor_control/launch/bringup.launch.py`, `src/nav2/launch/autonomous_navigation.launch.py`
+- **修復**: 使用 `taskset` 綁定節點到指定核心
+  - 核心 0-1：馬達控制（實時性最高）
+  - 核心 2-3：LiDAR/IMU 處理
+  - 核心 4-5：EKF/AMCL 定位
+  - 核心 6-7：Web 服務/API
+- **新增參數**: `cpu_affinity:=true/false`（預設啟用）
+- **預期效果**: 上下文切換減少 70%，延遲波動降低
+
+### 43. IMU 發布頻率過高
+- **位置**: `src/ros-imu-bno055/`
+- **問題**: IMU 以 100Hz 發布，但 EKF 只用 30Hz
+- **建議**: 降低至 50Hz
+- **預期效果**: CPU 使用率降低 5-10%
+- [ ] 待實作
+
+### 44. SLAM Toolbox 記憶體和處理優化
+- **位置**: `src/nav2/config/slam_toolbox_params.yaml`
+- **問題**: 緩衝區和處理頻率可進一步優化
+- **建議**:
+  ```yaml
+  throttle_scans: 2              # 每 2 次掃描處理一次
+  stack_size_to_use: 20000000    # 20MB（從 40MB 降低）
+  scan_buffer_size: 5            # 從 10 降低
+  tf_buffer_duration: 15.0       # 從 30.0 降低
+  ```
+- **預期效果**: CPU 20-30% 降低，RAM 25% 降低
+- [ ] 待實作
+
+---
+
+### 🟡 中優先級 - 短期改進
+
+### 45. GPU/CUDA 完全未使用
+- **位置**: 系統級
+- **問題**: Jetson Orin NX 的 GPU 資源完全閒置
+- **建議**:
+  - SLAM 掃描匹配可用 CUDA 加速
+  - 點雲濾波可用 GPU 處理
+  - 未來如加入視覺，使用 TensorRT 推理
+- **預期效果**: 計算密集任務 50-100x 加速
+- [ ] 待評估
+
+### 46. LiDAR 最大範圍可縮減
+- **位置**: `src/nav2/config/nav2_params.yaml`
+- **問題**: LiDAR 處理 12m 範圍，但室內多數情況 8m 足夠
+- **建議**: 將 `laser_max_range` 從 12.0 降至 8.0
+- **預期效果**: 計算量減少 20%
+- [ ] 待實作
+
+### 47. QoS 隊列深度可優化
+- **位置**: 各 Python 節點
+- **問題**: 所有話題統一使用 depth=10，未按頻率調整
+- **建議**:
+  - 高頻話題 (50+ Hz): depth=5
+  - 中頻話題 (10-50 Hz): depth=10
+  - 低頻話題 (<10 Hz): depth=20
+- **預期效果**: 記憶體使用降低 15%
+- [ ] 待實作
+
+### 48. EKF 噪聲協方差可微調
+- **位置**: `src/motor_control/config/hs_motor_config.yaml`
+- **問題**: 當前協方差矩陣可能導致收斂較慢
+- **建議**:
+  - 位置噪聲：0.05 → 0.03（加速收斂）
+  - 方向噪聲：0.06 → 0.02（更信任 IMU）
+- **預期效果**: EKF 收斂速度提升
+- [ ] 待評估
+
+---
+
+### 🟢 低優先級 - 長期優化
+
+### 49. 共享記憶體未配置
+- **位置**: `/etc/sysctl.conf`
+- **問題**: 系統共享記憶體未針對 ROS2 DDS 優化
+- **建議**:
+  ```bash
+  kernel.shmmax=2147483648
+  kernel.shmall=524288
+  net.core.rmem_max=134217728
+  net.core.wmem_max=134217728
+  ```
+- **預期效果**: DDS 通訊效能提升
+- [ ] 待實作
+
+### 50. 實時線程優先級未設置
+- **位置**: `src/motor_control/motor_control/hs_motor_controller.py`
+- **問題**: 馬達控制線程未使用實時調度 (SCHED_FIFO)
+- **建議**: 為關鍵線程設置實時優先級（需 root 權限）
+- **預期效果**: 延遲確定性提升，波動 <5ms
+- [ ] 待評估
+
+### 51. 串口緩衝區可增大
+- **位置**: `src/motor_control/motor_control/hs_motor_controller.py:128`
+- **問題**: 使用預設串口緩衝區大小
+- **建議**: 增大至 4096 bytes
+  ```python
+  self.serial_conn.set_buffer_size(rx_size=4096, tx_size=4096)
+  ```
+- **預期效果**: 丟包率降低
+- [ ] 待實作
+
+### 52. API Server 連接池未實作
+- **位置**: `src/robot_api_server/robot_api_server/main.py`
+- **問題**: 每次請求可能創建新線程
+- **建議**: 使用 `ThreadPoolExecutor` 限制並發數
+- **預期效果**: 吞吐量提升 30-40%
+- [ ] 待實作
+
+---
+
+## 📊 效能優化預期總結
+
+| 優化類別 | CPU 降低 | RAM 降低 | 延遲改善 |
+|---------|---------|---------|---------|
+| CPU 親和性 (42) | 15-20% | - | 30-40% |
+| IMU 頻率 (43) | 5-10% | - | - |
+| SLAM 優化 (44) | 20-30% | 25% | - |
+| LiDAR 範圍 (46) | 10-15% | - | - |
+| QoS 優化 (47) | - | 15% | 5-10% |
+| **總計** | **40-50%** | **35-40%** | **35-50%** |

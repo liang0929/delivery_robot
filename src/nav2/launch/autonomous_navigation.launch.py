@@ -13,6 +13,18 @@ from ament_index_python.packages import get_package_share_directory
 import os
 
 
+# ========== Jetson Orin NX CPU 親和性配置 ==========
+# 導航相關節點使用核心 4-5（定位層）
+CPU_AFFINITY_LOCALIZATION = '4-5'
+
+
+def get_cpu_prefix(enabled: bool) -> list:
+    """獲取 CPU 親和性 prefix"""
+    if enabled:
+        return ['taskset', '-c', CPU_AFFINITY_LOCALIZATION]
+    return []
+
+
 def get_default_map_path():
     """獲取默認地圖路徑，檢查文件是否存在"""
     default_path = os.path.join(os.path.expanduser('~'), 'base_dev/src/map/map.yaml')
@@ -34,47 +46,24 @@ def get_default_map_path():
     return default_path
 
 
-def generate_launch_description():
-    # Get the launch directory
-    nav2_dir = get_package_share_directory('nav2')
+def launch_setup(context, *args, **kwargs):
+    """動態生成啟動配置（支持運行時參數解析）"""
+    # 解析運行時參數
+    cpu_affinity_enabled = LaunchConfiguration('cpu_affinity').perform(context).lower() == 'true'
+    namespace = LaunchConfiguration('namespace').perform(context)
+    use_sim_time_str = LaunchConfiguration('use_sim_time').perform(context)
+    use_sim_time = use_sim_time_str.lower() == 'true'
+    map_yaml_file = LaunchConfiguration('map').perform(context)
+    params_file = LaunchConfiguration('params_file').perform(context)
 
-    # Create launch configuration variables
-    namespace = LaunchConfiguration('namespace')
-    use_sim_time = LaunchConfiguration('use_sim_time')
-    map_yaml_file = LaunchConfiguration('map')
-    params_file = LaunchConfiguration('params_file')
+    cpu_prefix = get_cpu_prefix(cpu_affinity_enabled)
+    nodes = []
 
-    # Declare launch arguments
-    declare_namespace_cmd = DeclareLaunchArgument(
-        'namespace',
-        default_value='',
-        description='Top-level namespace'
-    )
+    if cpu_affinity_enabled:
+        nodes.append(LogInfo(msg='=== 導航節點 CPU 親和性已啟用 (核心 4-5) ==='))
 
-    declare_use_sim_time_cmd = DeclareLaunchArgument(
-        'use_sim_time',
-        default_value='false',
-        description='Use simulation clock if true'
-    )
-
-    declare_map_yaml_cmd = DeclareLaunchArgument(
-        'map',
-        default_value=get_default_map_path(),
-        description='Full path to map yaml file to load'
-    )
-
-    declare_params_file_cmd = DeclareLaunchArgument(
-        'params_file',
-        default_value=os.path.join(nav2_dir, 'config', 'nav2_params.yaml'),
-        description='Full path to the ROS2 parameters file'
-    )
-
-    # 注意：以下節點 (robot_state_publisher, lidar, motor_control, imu)
-    # 已被 bringup.launch.py 啟動，這裡不再重複啟動
-    # 如果需要獨立運行導航（不用 bringup），可以取消註解
-
-    # Map Server - 載入地圖
-    map_server_node = Node(
+    # Map Server - 載入地圖 (核心 4-5)
+    nodes.append(Node(
         package='nav2_map_server',
         executable='map_server',
         name='map_server',
@@ -82,19 +71,21 @@ def generate_launch_description():
         parameters=[{
             'use_sim_time': use_sim_time,
             'yaml_filename': map_yaml_file
-        }]
-    )
+        }],
+        prefix=cpu_prefix
+    ))
 
-    # Map Relay (解決 map_server 與 rosbridge QoS 不相容問題)
-    map_relay_node = Node(
+    # Map Relay (核心 4-5)
+    nodes.append(Node(
         package='motor_control',
         executable='map_relay',
         name='map_relay',
-        output='screen'
-    )
+        output='screen',
+        prefix=cpu_prefix
+    ))
 
-    # AMCL - 定位
-    amcl_node = Node(
+    # AMCL - 定位 (核心 4-5)
+    nodes.append(Node(
         package='nav2_amcl',
         executable='amcl',
         name='amcl',
@@ -111,14 +102,15 @@ def generate_launch_description():
             'initial_pose.y': 0.0,
             'initial_pose.z': 0.0,
             'initial_pose.yaw': 0.0,
-            'max_particles': 1000,    # 優化: 減少粒子數加速啟動
+            'max_particles': 1000,
             'min_particles': 200,
-            'max_beams': 30,          # 優化: 減少光束數
-        }]
-    )
+            'max_beams': 30,
+        }],
+        prefix=cpu_prefix
+    ))
 
-    # Lifecycle Manager for map_server and amcl
-    lifecycle_manager_localization = Node(
+    # Lifecycle Manager for map_server and amcl (延遲 2 秒)
+    lifecycle_manager = Node(
         package='nav2_lifecycle_manager',
         executable='lifecycle_manager',
         name='lifecycle_manager_localization',
@@ -127,10 +119,12 @@ def generate_launch_description():
             'use_sim_time': use_sim_time,
             'autostart': True,
             'node_names': ['map_server', 'amcl']
-        }]
+        }],
+        prefix=cpu_prefix
     )
+    nodes.append(TimerAction(period=2.0, actions=[lifecycle_manager]))
 
-    # Include Nav2 launch
+    # Nav2 launch (延遲 3 秒)
     nav2_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([
@@ -141,49 +135,48 @@ def generate_launch_description():
         ]),
         launch_arguments={
             'namespace': namespace,
-            'use_sim_time': use_sim_time,
+            'use_sim_time': use_sim_time_str,
             'map': map_yaml_file,
             'params_file': params_file
         }.items()
     )
+    nodes.append(TimerAction(period=3.0, actions=[nav2_launch]))
 
-    # ========== 啟動順序說明 ==========
-    # 1. map_server, amcl (立即啟動)
-    # 2. lifecycle_manager_localization (延遲 2 秒) - 等待 map_server 和 amcl 準備好
-    # 3. nav2_launch (延遲 3 秒) - 等待定位準備好
+    return nodes
 
-    # Lifecycle Manager 延遲啟動
-    delayed_lifecycle_manager = TimerAction(
-        period=2.0,
-        actions=[lifecycle_manager_localization]
-    )
 
-    # Nav2 延遲啟動
-    delayed_nav2 = TimerAction(
-        period=3.0,
-        actions=[nav2_launch]
-    )
+def generate_launch_description():
+    """生成啟動描述"""
+    nav2_dir = get_package_share_directory('nav2')
 
     return LaunchDescription([
-        declare_namespace_cmd,
-        declare_use_sim_time_cmd,
-        declare_map_yaml_cmd,
-        declare_params_file_cmd,
-        # 以下節點已被 bringup.launch.py 啟動，不再重複
-        # robot_state_publisher_launch,
-        # lidar_launch,
-        # motor_control_launch,
-        # imu_node,
-        # base_link_to_imu,
+        # ========== Launch 參數宣告 ==========
+        DeclareLaunchArgument(
+            'namespace',
+            default_value='',
+            description='Top-level namespace'
+        ),
+        DeclareLaunchArgument(
+            'use_sim_time',
+            default_value='false',
+            description='Use simulation clock if true'
+        ),
+        DeclareLaunchArgument(
+            'map',
+            default_value=get_default_map_path(),
+            description='Full path to map yaml file to load'
+        ),
+        DeclareLaunchArgument(
+            'params_file',
+            default_value=os.path.join(nav2_dir, 'config', 'nav2_params.yaml'),
+            description='Full path to the ROS2 parameters file'
+        ),
+        DeclareLaunchArgument(
+            'cpu_affinity',
+            default_value='true',
+            description='啟用 CPU 親和性綁定 (Jetson Orin NX 優化)'
+        ),
 
-        # 定位節點 (立即啟動)
-        map_server_node,
-        map_relay_node,
-        amcl_node,
-
-        # Lifecycle Manager (延遲 2 秒)
-        delayed_lifecycle_manager,
-
-        # Nav2 (延遲 3 秒)
-        delayed_nav2,
+        # ========== 動態生成節點 ==========
+        OpaqueFunction(function=launch_setup),
     ])

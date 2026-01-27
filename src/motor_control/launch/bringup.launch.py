@@ -20,13 +20,27 @@
   - 導航模式（Start Navigation）
 """
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction, LogInfo
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction, LogInfo, OpaqueFunction
 from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
 import yaml
+
+
+# ========== Jetson Orin NX CPU 親和性配置 ==========
+# 8 核心分配策略：
+#   核心 0-1: 馬達控制（實時性最高）
+#   核心 2-3: LiDAR/IMU 感測器處理
+#   核心 4-5: EKF/AMCL 定位
+#   核心 6-7: Web 服務/API（優先級最低）
+CPU_AFFINITY = {
+    'motor': '0-1',
+    'sensor': '2-3',
+    'localization': '4-5',
+    'web': '6-7',
+}
 
 
 def load_tf_config():
@@ -91,185 +105,194 @@ def create_static_tf_node(name: str, tf_config: dict) -> Node:
     )
 
 
-def generate_launch_description():
-    # ========== Launch 參數 ==========
-    enable_web = LaunchConfiguration('enable_web', default='true')
-    use_sim_time = LaunchConfiguration('use_sim_time', default='false')
-    simulation = LaunchConfiguration('simulation', default='false')
-    sim_scene = LaunchConfiguration('sim_scene', default='room')
-    lidar_port = LaunchConfiguration('lidar_port', default='/dev/lidar')
-    imu_device = LaunchConfiguration('imu_device', default='/dev/i2c-7')
+def get_cpu_prefix(affinity_type: str, enabled: bool) -> list:
+    """獲取 CPU 親和性 prefix（用於 taskset 命令）"""
+    if enabled and affinity_type in CPU_AFFINITY:
+        return ['taskset', '-c', CPU_AFFINITY[affinity_type]]
+    return []
 
-    # ========== 套件路徑 ==========
+
+def launch_setup(context, *args, **kwargs):
+    """動態生成啟動配置（支持運行時參數解析）"""
+    # 解析運行時參數
+    cpu_affinity_enabled = LaunchConfiguration('cpu_affinity').perform(context).lower() == 'true'
+    enable_web = LaunchConfiguration('enable_web').perform(context).lower() == 'true'
+    use_sim_time_str = LaunchConfiguration('use_sim_time').perform(context)
+    use_sim_time = use_sim_time_str.lower() == 'true'
+    simulation = LaunchConfiguration('simulation').perform(context).lower() == 'true'
+    sim_scene = LaunchConfiguration('sim_scene').perform(context)
+    lidar_port = LaunchConfiguration('lidar_port').perform(context)
+    imu_device = LaunchConfiguration('imu_device').perform(context)
+
+    # 套件路徑
     motor_control_dir = get_package_share_directory('motor_control')
     motor_config = os.path.join(motor_control_dir, 'config', 'hs_motor_config.yaml')
 
+    # TF 配置
+    tf_config = load_tf_config()
+
+    nodes = []
+
+    # ========== 模式提示 ==========
+    if simulation:
+        nodes.append(LogInfo(msg='=== 模擬模式啟動 (Simulation Mode) ==='))
+    else:
+        nodes.append(LogInfo(msg='=== 真實硬體模式啟動 (Hardware Mode) ==='))
+
+    if cpu_affinity_enabled:
+        nodes.append(LogInfo(msg='=== CPU 親和性已啟用 (Jetson Orin NX 優化) ==='))
+
+    # ========== 靜態 TF (立即啟動) ==========
+    nodes.append(create_static_tf_node(
+        'base_footprint_to_base_link',
+        tf_config.get('base_footprint_to_base_link', {})
+    ))
+    nodes.append(create_static_tf_node(
+        'base_link_to_laser',
+        tf_config.get('base_link_to_laser', {})
+    ))
+    nodes.append(create_static_tf_node(
+        'base_link_to_imu',
+        tf_config.get('base_link_to_imu', {})
+    ))
+
     # ========== 真實硬體節點 ==========
+    if not simulation:
+        # HS 協議馬達控制器 (核心 0-1)
+        nodes.append(Node(
+            package='motor_control',
+            executable='hs_motor_controller',
+            name='hs_motor_controller',
+            output='screen',
+            parameters=[motor_config, {'use_sim_time': use_sim_time}],
+            prefix=get_cpu_prefix('motor', cpu_affinity_enabled)
+        ))
 
-    # HS 協議馬達控制器 (真實硬體)
-    motor_node = Node(
-        package='motor_control',
-        executable='hs_motor_controller',
-        name='hs_motor_controller',
-        output='screen',
-        parameters=[motor_config, {'use_sim_time': use_sim_time}],
-        condition=UnlessCondition(simulation)
-    )
+        # LiDAR 節點 (核心 2-3)
+        nodes.append(Node(
+            package='sllidar_ros2',
+            executable='sllidar_node',
+            name='sllidar_node',
+            output='screen',
+            parameters=[{
+                'serial_port': lidar_port,
+                'serial_baudrate': 256000,
+                'frame_id': 'laser',
+                'inverted': False,
+                'angle_compensate': True,
+            }],
+            prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
+        ))
 
-    # LiDAR 節點 (真實硬體)
-    lidar_node = Node(
-        package='sllidar_ros2',
-        executable='sllidar_node',
-        name='sllidar_node',
-        output='screen',
-        parameters=[{
-            'serial_port': lidar_port,
-            'serial_baudrate': 256000,
-            'frame_id': 'laser',
-            'inverted': False,
-            'angle_compensate': True,
-        }],
-        condition=UnlessCondition(simulation)
-    )
-
-    # IMU 節點 (真實硬體)
-    imu_node = Node(
-        package='imu_bno055',
-        executable='bno055_i2c_node',
-        name='bno055',
-        output='screen',
-        parameters=[{
-            'device': imu_device,
-            'address': 40,
-            'frame_id': 'imu_link',
-        }],
-        condition=UnlessCondition(simulation)
-    )
+        # IMU 節點 (核心 2-3)
+        nodes.append(Node(
+            package='imu_bno055',
+            executable='bno055_i2c_node',
+            name='bno055',
+            output='screen',
+            parameters=[{
+                'device': imu_device,
+                'address': 40,
+                'frame_id': 'imu_link',
+            }],
+            prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
+        ))
 
     # ========== 模擬節點 ==========
+    if simulation:
+        # Mock 馬達控制器 (核心 0-1)
+        nodes.append(Node(
+            package='motor_control',
+            executable='mock_motor_controller',
+            name='mock_motor_controller',
+            output='screen',
+            parameters=[{
+                'wheel_separation': 0.27,
+                'wheel_radius': 0.065,
+                'max_linear_vel': 0.5,
+                'max_angular_vel': 1.0,
+                'odom_frequency': 50.0,
+                'use_sim_time': use_sim_time,
+            }],
+            prefix=get_cpu_prefix('motor', cpu_affinity_enabled)
+        ))
 
-    # Mock 馬達控制器 (模擬)
-    mock_motor_node = Node(
-        package='motor_control',
-        executable='mock_motor_controller',
-        name='mock_motor_controller',
-        output='screen',
-        parameters=[{
-            'wheel_separation': 0.27,
-            'wheel_radius': 0.065,
-            'max_linear_vel': 0.5,
-            'max_angular_vel': 1.0,
-            'odom_frequency': 50.0,
-            'use_sim_time': use_sim_time,
-        }],
-        condition=IfCondition(simulation)
-    )
+        # Mock LiDAR (核心 2-3)
+        nodes.append(Node(
+            package='motor_control',
+            executable='mock_lidar',
+            name='mock_lidar',
+            output='screen',
+            parameters=[{
+                'frame_id': 'laser',
+                'scan_frequency': 10.0,
+                'range_min': 0.15,
+                'range_max': 12.0,
+                'scene': sim_scene,
+            }],
+            prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
+        ))
 
-    # Mock LiDAR (模擬)
-    mock_lidar_node = Node(
-        package='motor_control',
-        executable='mock_lidar',
-        name='mock_lidar',
-        output='screen',
-        parameters=[{
-            'frame_id': 'laser',
-            'scan_frequency': 10.0,
-            'range_min': 0.15,
-            'range_max': 12.0,
-            'scene': sim_scene,
-        }],
-        condition=IfCondition(simulation)
-    )
+        # Mock IMU (核心 2-3)
+        nodes.append(Node(
+            package='motor_control',
+            executable='mock_imu',
+            name='mock_imu',
+            output='screen',
+            parameters=[{
+                'frame_id': 'imu_link',
+                'publish_frequency': 100.0,
+            }],
+            prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
+        ))
 
-    # Mock IMU (模擬)
-    mock_imu_node = Node(
-        package='motor_control',
-        executable='mock_imu',
-        name='mock_imu',
-        output='screen',
-        parameters=[{
-            'frame_id': 'imu_link',
-            'publish_frequency': 100.0,
-        }],
-        condition=IfCondition(simulation)
-    )
-
-    # ========== EKF 定位融合 ==========
+    # ========== EKF 定位融合 (延遲 2 秒，核心 4-5) ==========
     ekf_node = Node(
         package='robot_localization',
         executable='ekf_node',
         name='ekf_filter_node',
         output='screen',
-        parameters=[motor_config, {'use_sim_time': use_sim_time}]
+        parameters=[motor_config, {'use_sim_time': use_sim_time}],
+        prefix=get_cpu_prefix('localization', cpu_affinity_enabled)
     )
+    nodes.append(TimerAction(period=2.0, actions=[ekf_node]))
 
-    # ========== 靜態 TF (從配置文件載入) ==========
-    tf_config = load_tf_config()
+    # ========== Web 服務 (延遲 3 秒，核心 6-7) ==========
+    if enable_web:
+        # rosbridge WebSocket
+        rosbridge_node = Node(
+            package='rosbridge_server',
+            executable='rosbridge_websocket',
+            name='rosbridge_websocket',
+            output='screen',
+            parameters=[{
+                'port': 9090,
+                'call_services_in_new_thread': True,
+                'send_action_goals_in_new_thread': True,
+                'default_call_service_timeout': 10.0,
+                'max_message_size': 10000000,
+                'unregister_timeout': 10.0,
+            }],
+            prefix=get_cpu_prefix('web', cpu_affinity_enabled)
+        )
 
-    base_footprint_to_base_link = create_static_tf_node(
-        'base_footprint_to_base_link',
-        tf_config.get('base_footprint_to_base_link', {})
-    )
+        # API Server
+        web_prefix = get_cpu_prefix('web', cpu_affinity_enabled)
+        api_cmd = web_prefix + ['ros2', 'run', 'robot_api_server', 'api_server']
+        api_server = ExecuteProcess(
+            cmd=api_cmd,
+            output='screen'
+        )
 
-    base_link_to_laser = create_static_tf_node(
-        'base_link_to_laser',
-        tf_config.get('base_link_to_laser', {})
-    )
+        nodes.append(TimerAction(period=3.0, actions=[rosbridge_node, api_server]))
 
-    base_link_to_imu = create_static_tf_node(
-        'base_link_to_imu',
-        tf_config.get('base_link_to_imu', {})
-    )
+    return nodes
 
-    # ========== Web 服務 ==========
-    # rosbridge WebSocket
-    rosbridge_node = Node(
-        package='rosbridge_server',
-        executable='rosbridge_websocket',
-        name='rosbridge_websocket',
-        output='screen',
-        parameters=[{
-            'port': 9090,
-            'call_services_in_new_thread': True,
-            'send_action_goals_in_new_thread': True,
-            'default_call_service_timeout': 10.0,
-            'max_message_size': 10000000,
-            'unregister_timeout': 10.0,
-        }],
-        condition=IfCondition(enable_web)
-    )
 
-    # API Server (控制建圖/導航模式)
-    api_server = ExecuteProcess(
-        cmd=['ros2', 'run', 'robot_api_server', 'api_server'],
-        output='screen',
-        condition=IfCondition(enable_web)
-    )
-
-    # ========== 啟動順序說明 ==========
-    # 1. 靜態 TF (立即啟動) - 不依賴其他節點
-    # 2. 感測器節點 (立即啟動) - motor, lidar, imu (真實或模擬)
-    # 3. EKF (延遲 2 秒) - 需要等待 /odom_raw 和 /imu/data 準備好
-    # 4. Web 服務 (延遲 3 秒) - 需要等待核心節點準備好
-
-    # EKF 延遲啟動（等待 odom_raw 和 imu/data 準備好）
-    delayed_ekf = TimerAction(
-        period=2.0,
-        actions=[ekf_node]
-    )
-
-    # Web 服務延遲啟動（等待核心節點準備好）
-    delayed_web_services = TimerAction(
-        period=3.0,
-        actions=[
-            rosbridge_node,
-            api_server,
-        ]
-    )
-
-    # ========== 組合 ==========
+def generate_launch_description():
+    """生成啟動描述（使用 OpaqueFunction 支持動態 CPU 親和性配置）"""
     return LaunchDescription([
-        # 參數宣告
+        # ========== Launch 參數宣告 ==========
         DeclareLaunchArgument('enable_web', default_value='true',
                              description='啟用 Web 服務 (rosbridge + API)'),
         DeclareLaunchArgument('use_sim_time', default_value='false',
@@ -282,35 +305,9 @@ def generate_launch_description():
                              description='LiDAR 串口設備路徑'),
         DeclareLaunchArgument('imu_device', default_value='/dev/i2c-7',
                              description='IMU I2C 設備路徑'),
+        DeclareLaunchArgument('cpu_affinity', default_value='true',
+                             description='啟用 CPU 親和性綁定 (Jetson Orin NX 優化)'),
 
-        # 模式提示
-        LogInfo(
-            condition=IfCondition(simulation),
-            msg='=== 模擬模式啟動 (Simulation Mode) ==='
-        ),
-        LogInfo(
-            condition=UnlessCondition(simulation),
-            msg='=== 真實硬體模式啟動 (Hardware Mode) ==='
-        ),
-
-        # 靜態 TF (立即啟動)
-        base_footprint_to_base_link,
-        base_link_to_laser,
-        base_link_to_imu,
-
-        # 真實硬體節點 (當 simulation:=false)
-        motor_node,
-        lidar_node,
-        imu_node,
-
-        # 模擬節點 (當 simulation:=true)
-        mock_motor_node,
-        mock_lidar_node,
-        mock_imu_node,
-
-        # EKF (延遲 2 秒)
-        delayed_ekf,
-
-        # Web 服務 (延遲 3 秒)
-        delayed_web_services,
+        # ========== 動態生成節點 ==========
+        OpaqueFunction(function=launch_setup),
     ])

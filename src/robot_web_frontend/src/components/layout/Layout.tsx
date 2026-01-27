@@ -12,19 +12,20 @@ export function Layout({ children }: LayoutProps) {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
+    const unsubscribe = rosbridgeService.onConnectionChange(setConnected);
+
     const connect = async () => {
       try {
         await rosbridgeService.connect();
-        setConnected(true);
       } catch (e) {
         console.error('Failed to connect to rosbridge:', e);
-        setConnected(false);
       }
     };
 
     connect();
 
     return () => {
+      unsubscribe();
       rosbridgeService.disconnect();
     };
   }, []);

@@ -1,6 +1,8 @@
 import ROSLIB from 'roslib';
 import { ROBOT_CONFIG } from '../config/robot.config';
 
+type ConnectionCallback = (connected: boolean) => void;
+
 class RosbridgeService {
   private ros: ROSLIB.Ros | null = null;
   private cmdVelPublisher: ROSLIB.Topic | null = null;
@@ -10,6 +12,7 @@ class RosbridgeService {
   private currentASubscriber: ROSLIB.Topic | null = null;
   private currentBSubscriber: ROSLIB.Topic | null = null;
   private connected = false;
+  private connectionCallbacks: Set<ConnectionCallback> = new Set();
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -17,7 +20,7 @@ class RosbridgeService {
 
       this.ros.on('connection', () => {
         console.log('Connected to rosbridge');
-        this.connected = true;
+        this.setConnected(true);
         this.setupTopics();
         resolve();
       });
@@ -29,7 +32,7 @@ class RosbridgeService {
 
       this.ros.on('close', () => {
         console.log('Rosbridge connection closed');
-        this.connected = false;
+        this.setConnected(false);
       });
     });
   }
@@ -38,12 +41,25 @@ class RosbridgeService {
     if (this.ros) {
       this.ros.close();
       this.ros = null;
-      this.connected = false;
+      this.setConnected(false);
     }
   }
 
   isConnected(): boolean {
     return this.connected;
+  }
+
+  onConnectionChange(callback: ConnectionCallback): () => void {
+    this.connectionCallbacks.add(callback);
+    callback(this.connected);
+    return () => this.connectionCallbacks.delete(callback);
+  }
+
+  private setConnected(value: boolean): void {
+    if (this.connected !== value) {
+      this.connected = value;
+      this.connectionCallbacks.forEach((cb) => cb(value));
+    }
   }
 
   private setupTopics(): void {

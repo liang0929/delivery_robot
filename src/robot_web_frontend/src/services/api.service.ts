@@ -76,7 +76,8 @@ export const apiService = {
   },
 
   getMapImageUrl(mapName: string): string {
-    return `${ROBOT_CONFIG.API_BASE_URL}/maps/${mapName}/image`;
+    // 加上時間戳防止快取
+    return `${ROBOT_CONFIG.API_BASE_URL}/maps/${mapName}/image?t=${Date.now()}`;
   },
 
   // Navigation

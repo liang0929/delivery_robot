@@ -10,7 +10,9 @@ import logging
 import time
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
+from PIL import Image
+import io
 import yaml
 from pydantic import BaseModel
 import uvicorn
@@ -972,14 +974,23 @@ async def list_maps():
 
 @app.get("/maps/{map_name}/image")
 async def get_map_image(map_name: str):
-    """Get the map image (PGM file)."""
+    """Get the map image as PNG (converted from PGM)."""
     safe_name = validate_map_name(map_name)
     pgm_path = os.path.join(MAP_SAVE_PATH, f"{safe_name}.pgm")
 
     if not os.path.exists(pgm_path):
         raise HTTPException(status_code=404, detail=f"Map '{map_name}' not found.")
 
-    return FileResponse(pgm_path, media_type="image/x-portable-graymap")
+    try:
+        # 將 PGM 轉換為 PNG
+        with Image.open(pgm_path) as img:
+            png_buffer = io.BytesIO()
+            img.save(png_buffer, format="PNG")
+            png_buffer.seek(0)
+            return Response(content=png_buffer.read(), media_type="image/png")
+    except Exception as e:
+        logger.error(f"Failed to convert map image: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to load map image: {str(e)}")
 
 
 @app.get("/maps/{map_name}/metadata")

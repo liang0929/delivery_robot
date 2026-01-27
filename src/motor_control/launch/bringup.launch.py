@@ -105,8 +105,15 @@ def create_static_tf_node(name: str, tf_config: dict) -> Node:
     )
 
 
-def get_cpu_prefix(affinity_type: str, enabled: bool) -> list:
-    """獲取 CPU 親和性 prefix（用於 taskset 命令）"""
+def get_cpu_prefix(affinity_type: str, enabled: bool) -> str:
+    """獲取 CPU 親和性 prefix（用於 Node 的 prefix 參數）"""
+    if enabled and affinity_type in CPU_AFFINITY:
+        return f'taskset -c {CPU_AFFINITY[affinity_type]}'
+    return ''
+
+
+def get_cpu_prefix_list(affinity_type: str, enabled: bool) -> list:
+    """獲取 CPU 親和性 prefix 列表（用於 ExecuteProcess 的 cmd 參數）"""
     if enabled and affinity_type in CPU_AFFINITY:
         return ['taskset', '-c', CPU_AFFINITY[affinity_type]]
     return []
@@ -278,8 +285,8 @@ def launch_setup(context, *args, **kwargs):
         )
 
         # API Server
-        web_prefix = get_cpu_prefix('web', cpu_affinity_enabled)
-        api_cmd = web_prefix + ['ros2', 'run', 'robot_api_server', 'api_server']
+        web_prefix_list = get_cpu_prefix_list('web', cpu_affinity_enabled)
+        api_cmd = web_prefix_list + ['ros2', 'run', 'robot_api_server', 'api_server']
         api_server = ExecuteProcess(
             cmd=api_cmd,
             output='screen'

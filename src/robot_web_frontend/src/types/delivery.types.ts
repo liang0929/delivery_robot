@@ -40,6 +40,7 @@ export interface DeliveryTask {
 export interface DeliveryStartRequest {
   tableIds: string[];
   startPosition: Position;
+  mapName?: string;
 }
 
 export interface DeliveryStatusResponse {

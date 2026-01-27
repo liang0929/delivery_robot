@@ -11,7 +11,7 @@ export function WaiterDashboard() {
   const [selectedMap, setSelectedMap] = useState<string>('');
   const [maps, setMaps] = useState<string[]>([]);
   const [isLoadingMaps, setIsLoadingMaps] = useState(true);
-  const { status } = useDeliveryStore();
+  const { status, setMapName } = useDeliveryStore();
 
   useEffect(() => {
     const loadMaps = async () => {
@@ -21,11 +21,14 @@ export function WaiterDashboard() {
         setMaps(mapNames);
 
         // 選擇預設地圖或第一個
+        let defaultMap = '';
         if (response.default && mapNames.includes(response.default)) {
-          setSelectedMap(response.default);
+          defaultMap = response.default;
         } else if (mapNames.length > 0) {
-          setSelectedMap(mapNames[0]);
+          defaultMap = mapNames[0];
         }
+        setSelectedMap(defaultMap);
+        setMapName(defaultMap);
       } catch (error) {
         console.error('Failed to load maps:', error);
       } finally {
@@ -34,7 +37,13 @@ export function WaiterDashboard() {
     };
 
     loadMaps();
-  }, []);
+  }, [setMapName]);
+
+  // 當用戶選擇地圖時同步到 store
+  const handleMapChange = (mapName: string) => {
+    setSelectedMap(mapName);
+    setMapName(mapName);
+  };
 
   if (isLoadingMaps) {
     return (
@@ -63,7 +72,7 @@ export function WaiterDashboard() {
           <label>Map:</label>
           <select
             value={selectedMap}
-            onChange={(e) => setSelectedMap(e.target.value)}
+            onChange={(e) => handleMapChange(e.target.value)}
           >
             {maps.map((map) => (
               <option key={map} value={map}>

@@ -12,6 +12,7 @@ interface DeliveryState {
   // 任務隊列
   stops: DeliveryStop[];
   currentStopIndex: number;
+  mapName: string | null;
 
   // 狀態
   status: DeliveryStatus;
@@ -24,6 +25,7 @@ interface DeliveryState {
   isLoading: boolean;
 
   // Actions
+  setMapName: (mapName: string) => void;
   addStop: (table: Table) => void;
   removeStop: (index: number) => void;
   reorderStops: (fromIndex: number, toIndex: number) => void;
@@ -41,6 +43,7 @@ interface DeliveryState {
 const initialState = {
   stops: [] as DeliveryStop[],
   currentStopIndex: 0,
+  mapName: null as string | null,
   status: 'idle' as DeliveryStatus,
   distanceRemaining: null,
   startPosition: null,
@@ -51,6 +54,10 @@ const initialState = {
 
 export const useDeliveryStore = create<DeliveryState>((set, get) => ({
   ...initialState,
+
+  setMapName: (mapName: string) => {
+    set({ mapName });
+  },
 
   addStop: (table: Table) => {
     const { stops, status } = get();
@@ -112,7 +119,7 @@ export const useDeliveryStore = create<DeliveryState>((set, get) => ({
   },
 
   startDelivery: async () => {
-    const { stops, status } = get();
+    const { stops, status, mapName } = get();
 
     if (status !== 'idle' || stops.length === 0) {
       return;
@@ -133,6 +140,7 @@ export const useDeliveryStore = create<DeliveryState>((set, get) => ({
       const task = await apiService.startDelivery({
         tableIds: stops.map((s) => s.tableId),
         startPosition,
+        mapName: mapName || undefined,
       });
 
       set({

@@ -164,6 +164,7 @@ class Position(BaseModel):
 class DeliveryStartRequest(BaseModel):
     tableIds: List[str]
     startPosition: Position
+    mapName: Optional[str] = None
 
 
 class DeliveryTask(BaseModel):
@@ -1474,21 +1475,23 @@ async def start_delivery(request: DeliveryStartRequest):
     if state.nav_status != NavStatus.RUNNING:
         raise HTTPException(status_code=400, detail="Navigation is not running. Please start navigation first.")
 
-    # 取得當前使用的地圖（假設使用預設地圖）
-    maps_info = []
-    for filename in os.listdir(MAP_SAVE_PATH):
-        if filename.endswith('.yaml'):
-            name = filename[:-5]
-            yaml_path = os.path.join(MAP_SAVE_PATH, filename)
-            pgm_path = os.path.join(MAP_SAVE_PATH, f"{name}.pgm")
-            if os.path.exists(pgm_path):
-                maps_info.append(name)
-
-    if not maps_info:
-        raise HTTPException(status_code=400, detail="No maps available.")
-
-    # 使用第一個地圖（實際應用中應該要記住當前使用的地圖）
-    map_name = maps_info[0]
+    # 使用前端指定的地圖，或從當前導航地圖推斷
+    if request.mapName:
+        map_name = request.mapName
+    elif state.current_map:
+        map_name = state.current_map
+    else:
+        # 回退：列出可用地圖並使用第一個
+        maps_info = []
+        for filename in os.listdir(MAP_SAVE_PATH):
+            if filename.endswith('.yaml'):
+                name = filename[:-5]
+                pgm_path = os.path.join(MAP_SAVE_PATH, f"{name}.pgm")
+                if os.path.exists(pgm_path):
+                    maps_info.append(name)
+        if not maps_info:
+            raise HTTPException(status_code=400, detail="No maps available.")
+        map_name = maps_info[0]
 
     task = delivery_manager.start_delivery(map_name, request.tableIds, request.startPosition)
 

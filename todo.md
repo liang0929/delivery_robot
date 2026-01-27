@@ -268,12 +268,10 @@
 - **新增參數**: `cpu_affinity:=true/false`（預設啟用）
 - **預期效果**: 上下文切換減少 70%，延遲波動降低
 
-### 43. IMU 發布頻率過高
-- **位置**: `src/ros-imu-bno055/`
-- **問題**: IMU 以 100Hz 發布，但 EKF 只用 30Hz
-- **建議**: 降低至 50Hz
+### 43. ~~IMU 發布頻率過高~~ ✅ 已修復
+- **位置**: `src/motor_control/launch/bringup.launch.py`
+- **修復**: 將 IMU 發布頻率從 100Hz 降至 50Hz（真實硬體和模擬）
 - **預期效果**: CPU 使用率降低 5-10%
-- [ ] 待實作
 
 ### 44. SLAM Toolbox 記憶體和處理優化
 - **位置**: `src/nav2/config/slam_toolbox_params.yaml`

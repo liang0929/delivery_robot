@@ -184,7 +184,7 @@ def launch_setup(context, *args, **kwargs):
             prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
         ))
 
-        # IMU 節點 (核心 2-3)
+        # IMU 節點 (核心 2-3, 50Hz - EKF 只需 30Hz)
         nodes.append(Node(
             package='imu_bno055',
             executable='bno055_i2c_node',
@@ -194,6 +194,7 @@ def launch_setup(context, *args, **kwargs):
                 'device': imu_device,
                 'address': 40,
                 'frame_id': 'imu_link',
+                'rate': 50.0,
             }],
             prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
         ))
@@ -233,7 +234,7 @@ def launch_setup(context, *args, **kwargs):
             prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
         ))
 
-        # Mock IMU (核心 2-3)
+        # Mock IMU (核心 2-3, 50Hz - EKF 只需 30Hz)
         nodes.append(Node(
             package='motor_control',
             executable='mock_imu',
@@ -241,7 +242,7 @@ def launch_setup(context, *args, **kwargs):
             output='screen',
             parameters=[{
                 'frame_id': 'imu_link',
-                'publish_frequency': 100.0,
+                'publish_frequency': 50.0,
             }],
             prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
         ))

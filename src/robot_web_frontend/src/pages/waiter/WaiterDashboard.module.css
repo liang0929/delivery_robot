@@ -1,0 +1,80 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 20px;
+}
+
+.loading,
+.noMaps {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #888;
+  text-align: center;
+}
+
+.noMaps h2 {
+  color: #fff;
+  margin: 0 0 10px 0;
+}
+
+.noMaps p {
+  margin: 0;
+}
+
+.mapSelector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 15px;
+  background: #111;
+  border-radius: 8px;
+  align-self: flex-start;
+}
+
+.mapSelector label {
+  color: #888;
+  font-size: 14px;
+}
+
+.mapSelector select {
+  padding: 8px 12px;
+  background: #222;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 14px;
+  min-width: 150px;
+}
+
+.content {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  gap: 20px;
+  overflow: hidden;
+}
+
+.leftPanel {
+  overflow: auto;
+  padding-right: 10px;
+}
+
+.rightPanel {
+  overflow: auto;
+}
+
+/* 響應式設計 */
+@media (max-width: 900px) {
+  .content {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .leftPanel {
+    padding-right: 0;
+  }
+}

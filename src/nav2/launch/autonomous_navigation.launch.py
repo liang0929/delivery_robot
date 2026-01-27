@@ -18,11 +18,11 @@ import os
 CPU_AFFINITY_LOCALIZATION = '4-5'
 
 
-def get_cpu_prefix(enabled: bool) -> list:
-    """獲取 CPU 親和性 prefix"""
+def get_cpu_prefix(enabled: bool) -> str:
+    """獲取 CPU 親和性 prefix（返回字符串格式，用於 Node 的 prefix 參數）"""
     if enabled:
-        return ['taskset', '-c', CPU_AFFINITY_LOCALIZATION]
-    return []
+        return f'taskset -c {CPU_AFFINITY_LOCALIZATION}'
+    return ''
 
 
 def get_default_map_path():

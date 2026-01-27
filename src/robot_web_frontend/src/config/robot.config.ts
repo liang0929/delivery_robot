@@ -41,5 +41,5 @@ export const ROBOT_CONFIG = {
   MAX_ANGULAR_VEL: 0.4,  // rad/s
 
   // Update rates
-  CMD_VEL_RATE: 20, // Hz (50ms interval)
+  CMD_VEL_RATE: 50, // Hz (20ms interval) - 提升響應速度
 };

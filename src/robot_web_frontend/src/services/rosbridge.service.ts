@@ -100,9 +100,6 @@ class RosbridgeService {
       name: ROBOT_CONFIG.TOPICS.MAP,
       messageType: 'nav_msgs/msg/OccupancyGrid',
       throttle_rate: 500,  // 每 500ms 最多收一次 (2Hz)
-      // QoS 設定以匹配 slam_toolbox 的 TRANSIENT_LOCAL
-      latch: true,
-      queue_size: 1,
     } as any);
 
     this.mapSubscriber.subscribe((message: unknown) => {

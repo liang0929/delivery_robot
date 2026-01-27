@@ -25,28 +25,6 @@ export function SystemStatus() {
         </div>
       </div>
 
-      {/* Robot Core */}
-      <div className={styles.section}>
-        <h3 className={styles.sectionTitle}>Robot Core</h3>
-        <div className={styles.statusRow}>
-          <span className={styles.label}>Running</span>
-          <span className={`${styles.badge} ${status?.robot_core?.running ? styles.running : styles.stopped}`}>
-            {status?.robot_core?.running ? 'RUNNING' : 'STOPPED'}
-          </span>
-        </div>
-        {status?.crash_info?.robot_core && (
-          <div className={styles.crashInfo}>
-            <span className={styles.crashLabel}>Last Crash</span>
-            <span className={styles.crashDetail}>
-              Exit code: {status.crash_info.robot_core.exit_code}
-            </span>
-            <span className={styles.crashTime}>
-              {formatTime(status.crash_info.robot_core.time)}
-            </span>
-          </div>
-        )}
-      </div>
-
       {/* SLAM */}
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>SLAM Mapping</h3>

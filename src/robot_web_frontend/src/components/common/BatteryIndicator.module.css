@@ -1,0 +1,60 @@
+.container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.container.warning {
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.battery {
+  width: 40px;
+  height: 18px;
+  border: 2px solid #444;
+  border-radius: 4px;
+  padding: 2px;
+  position: relative;
+}
+
+.battery::after {
+  content: '';
+  position: absolute;
+  right: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 8px;
+  background: #444;
+  border-radius: 0 2px 2px 0;
+}
+
+.level {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s, background 0.3s;
+}
+
+.level.high {
+  background: #00ff88;
+}
+
+.level.low {
+  background: #ffaa00;
+}
+
+.level.critical {
+  background: #ff4444;
+}
+
+.text {
+  font-size: 12px;
+  font-weight: bold;
+  color: #888;
+  min-width: 45px;
+}

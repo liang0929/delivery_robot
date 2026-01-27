@@ -71,12 +71,14 @@ class MapRelayNode(Node):
 
 
 def main(args=None):
+    rclpy.init(args=args)
     try:
-        with rclpy.init(args=args):
-            node = MapRelayNode()
-            rclpy.spin(node)
+        node = MapRelayNode()
+        rclpy.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    finally:
+        rclpy.try_shutdown()
 
 
 if __name__ == '__main__':

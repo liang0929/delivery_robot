@@ -160,12 +160,14 @@ class MockMotorController(Node):
 
 
 def main(args=None):
+    rclpy.init(args=args)
     try:
-        with rclpy.init(args=args):
-            controller = MockMotorController()
-            rclpy.spin(controller)
+        controller = MockMotorController()
+        rclpy.spin(controller)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    finally:
+        rclpy.try_shutdown()
 
 
 if __name__ == '__main__':

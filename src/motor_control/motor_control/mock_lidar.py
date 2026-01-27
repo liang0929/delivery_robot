@@ -253,12 +253,14 @@ class MockLidar(Node):
 
 
 def main(args=None):
+    rclpy.init(args=args)
     try:
-        with rclpy.init(args=args):
-            lidar = MockLidar()
-            rclpy.spin(lidar)
+        lidar = MockLidar()
+        rclpy.spin(lidar)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    finally:
+        rclpy.try_shutdown()
 
 
 if __name__ == '__main__':

@@ -439,12 +439,14 @@ class ModbusMotorController(Node):
 
 
 def main(args=None):
+    rclpy.init(args=args)
     try:
-        with rclpy.init(args=args):
-            controller = ModbusMotorController()
-            rclpy.spin(controller)
+        controller = ModbusMotorController()
+        rclpy.spin(controller)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    finally:
+        rclpy.try_shutdown()
 
 
 if __name__ == '__main__':

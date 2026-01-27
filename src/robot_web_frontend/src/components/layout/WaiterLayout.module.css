@@ -1,0 +1,68 @@
+.container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #0a0a0a;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 20px;
+  background: #111;
+  border-bottom: 1px solid #222;
+}
+
+.backButton {
+  padding: 10px 20px;
+  border-radius: 8px;
+  background: #222;
+  color: #888;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.backButton:hover {
+  background: #333;
+  color: #fff;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: bold;
+  color: #00ff88;
+}
+
+.rightSection {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.status {
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.status.connected {
+  background: #1a4a2a;
+  color: #00ff88;
+}
+
+.status.disconnected {
+  background: #4a1a1a;
+  color: #ff6666;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  overflow: hidden;
+}

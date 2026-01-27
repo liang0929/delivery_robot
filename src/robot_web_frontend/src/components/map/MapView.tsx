@@ -1,9 +1,15 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { rosbridgeService, OccupancyGridData } from '../../services/rosbridge.service';
 import { Waypoint } from '../../services/api.service';
+import type { Table } from '../../types/table.types';
 import styles from './MapView.module.css';
 
-export type MapInteractionMode = 'navigate' | 'add_waypoint';
+export type MapInteractionMode = 'navigate' | 'add_waypoint' | 'add_table' | 'edit_table';
+
+// Canvas 尺寸常量
+const CANVAS_WIDTH = 600;
+const CANVAS_HEIGHT = 400;
+const FIT_PADDING = 20; // 自動適配時的邊距
 
 interface MapViewProps {
   onClickGoal?: (x: number, y: number, yaw: number) => void;
@@ -11,6 +17,9 @@ interface MapViewProps {
   waypoints?: Waypoint[];
   selectedWaypointId?: string | null;
   mode?: MapInteractionMode;
+  tables?: Table[];
+  selectedTableId?: string | null;
+  onTableClick?: (table: Table) => void;
 }
 
 interface RobotPose {
@@ -25,15 +34,48 @@ export function MapView({
   waypoints = [],
   selectedWaypointId = null,
   mode = 'navigate',
+  tables = [],
+  selectedTableId = null,
+  onTableClick,
 }: MapViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [mapData, setMapData] = useState<OccupancyGridData | null>(null);
   const [robotPose, setRobotPose] = useState<RobotPose>({ x: 0, y: 0, yaw: 0 });
-  const [scale, setScale] = useState(4);
+  const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [goalMarker, setGoalMarker] = useState<{ x: number; y: number } | null>(null);
+  const hasAutoFitted = useRef(false); // 追蹤是否已自動適配
+
+  // 計算最佳縮放和偏移使地圖適配 canvas
+  const calculateFitView = useCallback((map: OccupancyGridData) => {
+    const { width, height } = map.info;
+
+    // 計算可用空間 (扣除邊距)
+    const availableWidth = CANVAS_WIDTH - FIT_PADDING * 2;
+    const availableHeight = CANVAS_HEIGHT - FIT_PADDING * 2;
+
+    // 計算縮放比例，取較小值以確保地圖完全顯示
+    const scaleX = availableWidth / width;
+    const scaleY = availableHeight / height;
+    const fitScale = Math.min(scaleX, scaleY);
+
+    // 計算置中偏移
+    const scaledWidth = width * fitScale;
+    const scaledHeight = height * fitScale;
+    const fitOffsetX = (CANVAS_WIDTH - scaledWidth) / 2;
+    const fitOffsetY = (CANVAS_HEIGHT - scaledHeight) / 2;
+
+    return { scale: fitScale, offset: { x: fitOffsetX, y: fitOffsetY } };
+  }, []);
+
+  // 自動適配地圖到 canvas
+  const fitMapToView = useCallback((map: OccupancyGridData) => {
+    const { scale: fitScale, offset: fitOffset } = calculateFitView(map);
+    setScale(fitScale);
+    setOffset(fitOffset);
+  }, [calculateFitView]);
 
   // Subscribe to map and odom with retry mechanism
   useEffect(() => {
@@ -48,6 +90,11 @@ export function MapView({
       if (!subscribed) {
         rosbridgeService.subscribeToMap((map) => {
           setMapData(map);
+          // 首次收到地圖時自動適配
+          if (!hasAutoFitted.current) {
+            hasAutoFitted.current = true;
+            fitMapToView(map);
+          }
         });
 
         rosbridgeService.subscribeToOdom((odom) => {
@@ -80,7 +127,7 @@ export function MapView({
       rosbridgeService.unsubscribeFromMap();
       rosbridgeService.unsubscribeFromOdom();
     };
-  }, []);
+  }, [fitMapToView]);
 
   // Convert map coordinates to canvas coordinates
   const mapToCanvas = useCallback((mapX: number, mapY: number) => {
@@ -233,7 +280,61 @@ export function MapView({
       ctx.lineWidth = 2;
       ctx.stroke();
     });
-  }, [mapData, robotPose, scale, offset, goalMarker, mapToCanvas, waypoints, selectedWaypointId]);
+
+    // Draw tables
+    tables.forEach((table) => {
+      const tableCanvas = mapToCanvas(table.x, table.y);
+      const isSelected = table.id === selectedTableId;
+      const isActive = table.isActive;
+
+      // Table marker (rounded rectangle)
+      const size = isSelected ? 24 : 20;
+      const halfSize = size / 2;
+
+      ctx.beginPath();
+      ctx.roundRect(
+        tableCanvas.x - halfSize,
+        tableCanvas.y - halfSize,
+        size,
+        size,
+        4
+      );
+
+      if (!isActive) {
+        ctx.fillStyle = 'rgba(100, 100, 100, 0.6)';
+        ctx.strokeStyle = '#666';
+      } else if (isSelected) {
+        ctx.fillStyle = 'rgba(0, 255, 136, 0.9)';
+        ctx.strokeStyle = '#00ff88';
+      } else {
+        ctx.fillStyle = 'rgba(0, 200, 100, 0.7)';
+        ctx.strokeStyle = '#00cc66';
+      }
+
+      ctx.fill();
+      ctx.lineWidth = isSelected ? 3 : 2;
+      ctx.stroke();
+
+      // Table number
+      ctx.fillStyle = isActive ? '#000' : '#888';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(table.number.toString(), tableCanvas.x, tableCanvas.y);
+
+      // Direction indicator (approach angle)
+      const yawRad = table.yaw_deg * Math.PI / 180;
+      const arrowLength = 16;
+      const arrowX = tableCanvas.x + Math.cos(-yawRad + Math.PI / 2) * arrowLength;
+      const arrowY = tableCanvas.y + Math.sin(-yawRad + Math.PI / 2) * arrowLength;
+      ctx.beginPath();
+      ctx.moveTo(tableCanvas.x, tableCanvas.y);
+      ctx.lineTo(arrowX, arrowY);
+      ctx.strokeStyle = isActive ? (isSelected ? '#00ff88' : '#00cc66') : '#666';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+  }, [mapData, robotPose, scale, offset, goalMarker, mapToCanvas, waypoints, selectedWaypointId, tables, selectedTableId]);
 
   // Draw effect
   useEffect(() => {
@@ -265,16 +366,45 @@ export function MapView({
     setIsDragging(false);
   }, []);
 
-  // Goal/Waypoint selection handler
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    if (!showGoalSelector || !onClickGoal || !mapData) return;
+  // Check if a click is on a table
+  const findClickedTable = useCallback((canvasX: number, canvasY: number): Table | null => {
+    for (const table of tables) {
+      const tableCanvas = mapToCanvas(table.x, table.y);
+      const size = 24;
+      const halfSize = size / 2;
 
+      if (
+        canvasX >= tableCanvas.x - halfSize &&
+        canvasX <= tableCanvas.x + halfSize &&
+        canvasY >= tableCanvas.y - halfSize &&
+        canvasY <= tableCanvas.y + halfSize
+      ) {
+        return table;
+      }
+    }
+    return null;
+  }, [tables, mapToCanvas]);
+
+  // Goal/Waypoint/Table selection handler
+  const handleClick = useCallback((e: React.MouseEvent) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !mapData) return;
 
     const rect = canvas.getBoundingClientRect();
     const canvasX = e.clientX - rect.left;
     const canvasY = e.clientY - rect.top;
+
+    // Check for table click first (in edit modes)
+    if (mode === 'edit_table' && onTableClick) {
+      const clickedTable = findClickedTable(canvasX, canvasY);
+      if (clickedTable) {
+        onTableClick(clickedTable);
+        return;
+      }
+    }
+
+    // Handle goal/waypoint/table creation
+    if (!showGoalSelector || !onClickGoal) return;
 
     const mapPos = canvasToMap(canvasX, canvasY);
 
@@ -286,14 +416,14 @@ export function MapView({
     // Calculate yaw towards robot's current direction (or 0)
     const yaw = 0;
     onClickGoal(mapPos.x, mapPos.y, yaw);
-  }, [showGoalSelector, onClickGoal, mapData, canvasToMap, mode]);
+  }, [showGoalSelector, onClickGoal, mapData, canvasToMap, mode, findClickedTable, onTableClick]);
 
   return (
     <div className={styles.container}>
       <canvas
         ref={canvasRef}
-        width={600}
-        height={400}
+        width={CANVAS_WIDTH}
+        height={CANVAS_HEIGHT}
         className={styles.canvas}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
@@ -305,7 +435,7 @@ export function MapView({
       <div className={styles.controls}>
         <button onClick={() => setScale((s) => Math.min(20, s * 1.2))}>+</button>
         <button onClick={() => setScale((s) => Math.max(0.5, s / 1.2))}>-</button>
-        <button onClick={() => { setScale(4); setOffset({ x: 0, y: 0 }); }}>Reset</button>
+        <button onClick={() => { if (mapData) fitMapToView(mapData); }}>Fit</button>
       </div>
       <div className={styles.info}>
         <span>Robot: ({robotPose.x.toFixed(2)}, {robotPose.y.toFixed(2)})</span>

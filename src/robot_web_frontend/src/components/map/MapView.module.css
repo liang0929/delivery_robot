@@ -45,3 +45,18 @@
   color: #888;
   padding: 0 10px;
 }
+
+.loading,
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 600px;
+  height: 400px;
+  color: #888;
+  font-size: 14px;
+}
+
+.error {
+  color: #ff6666;
+}

@@ -10,6 +10,8 @@ import logging
 import time
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+import yaml
 from pydantic import BaseModel
 import uvicorn
 from typing import Optional, Set, List
@@ -99,6 +101,78 @@ class Waypoint(WaypointBase):
     updated_at: str
 
 
+# --- Table Models ---
+class TableBase(BaseModel):
+    number: int
+    name: Optional[str] = None
+    x: float
+    y: float
+    yaw_deg: float
+    isActive: bool = True
+
+
+class TableCreate(TableBase):
+    pass
+
+
+class TableUpdate(BaseModel):
+    number: Optional[int] = None
+    name: Optional[str] = None
+    x: Optional[float] = None
+    y: Optional[float] = None
+    yaw_deg: Optional[float] = None
+    isActive: Optional[bool] = None
+
+
+class Table(TableBase):
+    id: str
+    created_at: str
+    updated_at: str
+
+
+# --- Delivery Models ---
+class DeliveryStopStatus(str, Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    ARRIVED = "arrived"
+    COMPLETED = "completed"
+    SKIPPED = "skipped"
+
+
+class DeliveryTaskStatus(str, Enum):
+    IDLE = "idle"
+    DELIVERING = "delivering"
+    AT_TABLE = "at_table"
+    RETURNING = "returning"
+
+
+class DeliveryStop(BaseModel):
+    tableId: str
+    tableNumber: int
+    tableName: Optional[str] = None
+    status: DeliveryStopStatus = DeliveryStopStatus.PENDING
+
+
+class Position(BaseModel):
+    x: float
+    y: float
+    yaw: float
+
+
+class DeliveryStartRequest(BaseModel):
+    tableIds: List[str]
+    startPosition: Position
+
+
+class DeliveryTask(BaseModel):
+    id: str
+    stops: List[DeliveryStop]
+    status: DeliveryTaskStatus
+    currentStopIndex: int
+    startPosition: Position
+    createdAt: str
+
+
 # --- Configuration ---
 # 從環境變數讀取配置，提供合理預設值
 DEFAULT_MAP_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'map')
@@ -162,6 +236,39 @@ def save_waypoints(map_name: str, waypoints: List[Waypoint]) -> None:
     except Exception as e:
         logger.error(f"Failed to save waypoints: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save waypoints: {str(e)}")
+
+
+# --- Table File Operations ---
+def get_tables_file_path(map_name: str) -> str:
+    """取得 tables 檔案路徑"""
+    safe_name = validate_map_name(map_name)
+    return os.path.join(MAP_SAVE_PATH, f"{safe_name}.tables.json")
+
+
+def load_tables(map_name: str) -> List[Table]:
+    """載入地圖的 tables"""
+    file_path = get_tables_file_path(map_name)
+    if not os.path.exists(file_path):
+        return []
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return [Table(**t) for t in data]
+    except Exception as e:
+        logger.error(f"Failed to load tables: {e}")
+        return []
+
+
+def save_tables(map_name: str, tables: List[Table]) -> None:
+    """儲存地圖的 tables"""
+    file_path = get_tables_file_path(map_name)
+    try:
+        data = [t.model_dump() for t in tables]
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to save tables: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save tables: {str(e)}")
 
 
 # --- Thread-safe State Manager ---
@@ -862,6 +969,61 @@ async def list_maps():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list maps: {str(e)}")
 
+
+@app.get("/maps/{map_name}/image")
+async def get_map_image(map_name: str):
+    """Get the map image (PGM file)."""
+    safe_name = validate_map_name(map_name)
+    pgm_path = os.path.join(MAP_SAVE_PATH, f"{safe_name}.pgm")
+
+    if not os.path.exists(pgm_path):
+        raise HTTPException(status_code=404, detail=f"Map '{map_name}' not found.")
+
+    return FileResponse(pgm_path, media_type="image/x-portable-graymap")
+
+
+@app.get("/maps/{map_name}/metadata")
+async def get_map_metadata(map_name: str):
+    """Get the map metadata (from YAML file)."""
+    safe_name = validate_map_name(map_name)
+    yaml_path = os.path.join(MAP_SAVE_PATH, f"{safe_name}.yaml")
+    pgm_path = os.path.join(MAP_SAVE_PATH, f"{safe_name}.pgm")
+
+    if not os.path.exists(yaml_path):
+        raise HTTPException(status_code=404, detail=f"Map '{map_name}' not found.")
+
+    try:
+        with open(yaml_path, 'r') as f:
+            map_yaml = yaml.safe_load(f)
+
+        # 解析 PGM 檔案獲取尺寸
+        width, height = 0, 0
+        if os.path.exists(pgm_path):
+            with open(pgm_path, 'rb') as f:
+                # 讀取 PGM header
+                magic = f.readline().decode().strip()
+                if magic in ['P5', 'P2']:
+                    # 跳過註解
+                    line = f.readline().decode().strip()
+                    while line.startswith('#'):
+                        line = f.readline().decode().strip()
+                    # 讀取尺寸
+                    parts = line.split()
+                    width, height = int(parts[0]), int(parts[1])
+
+        return {
+            "resolution": map_yaml.get("resolution", 0.05),
+            "origin": map_yaml.get("origin", [0, 0, 0]),
+            "width": width,
+            "height": height,
+            "negate": map_yaml.get("negate", 0),
+            "occupied_thresh": map_yaml.get("occupied_thresh", 0.65),
+            "free_thresh": map_yaml.get("free_thresh", 0.196),
+        }
+    except Exception as e:
+        logger.error(f"Failed to read map metadata: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to read map metadata: {str(e)}")
+
 @app.post("/navigation/start")
 async def start_navigation(request: NavigationStartRequest = None):
     """Start autonomous navigation by launching autonomous_navigation.launch.py."""
@@ -1053,6 +1215,374 @@ async def navigate_to_waypoint(map_name: str, waypoint_id: str):
     except RuntimeError as e:
         logger.error(f"Failed to navigate to waypoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Table API ---
+@app.get("/maps/{map_name}/tables", response_model=List[Table])
+async def get_tables(map_name: str):
+    """Get all tables for a map."""
+    tables = load_tables(map_name)
+    return tables
+
+
+@app.post("/maps/{map_name}/tables", response_model=Table)
+async def create_table(map_name: str, table: TableCreate):
+    """Create a new table."""
+    tables = load_tables(map_name)
+
+    # 檢查桌號是否重複
+    for t in tables:
+        if t.number == table.number:
+            raise HTTPException(status_code=400, detail=f"Table number {table.number} already exists.")
+
+    now = datetime.now().isoformat()
+    new_table = Table(
+        id=str(uuid4()),
+        **table.model_dump(),
+        created_at=now,
+        updated_at=now
+    )
+
+    tables.append(new_table)
+    save_tables(map_name, tables)
+
+    logger.info(f"Created table {new_table.number} for map '{map_name}'")
+    return new_table
+
+
+@app.put("/maps/{map_name}/tables/{table_id}", response_model=Table)
+async def update_table(map_name: str, table_id: str, update: TableUpdate):
+    """Update a table."""
+    tables = load_tables(map_name)
+
+    for i, t in enumerate(tables):
+        if t.id == table_id:
+            # 檢查桌號是否重複
+            if update.number is not None and update.number != t.number:
+                for other in tables:
+                    if other.id != table_id and other.number == update.number:
+                        raise HTTPException(status_code=400, detail=f"Table number {update.number} already exists.")
+
+            # 更新欄位
+            updated_data = t.model_dump()
+            update_dict = update.model_dump(exclude_unset=True)
+            updated_data.update(update_dict)
+            updated_data['updated_at'] = datetime.now().isoformat()
+
+            tables[i] = Table(**updated_data)
+            save_tables(map_name, tables)
+
+            logger.info(f"Updated table {tables[i].number} for map '{map_name}'")
+            return tables[i]
+
+    raise HTTPException(status_code=404, detail=f"Table '{table_id}' not found.")
+
+
+@app.delete("/maps/{map_name}/tables/{table_id}")
+async def delete_table(map_name: str, table_id: str):
+    """Delete a table."""
+    tables = load_tables(map_name)
+
+    for i, t in enumerate(tables):
+        if t.id == table_id:
+            deleted_number = t.number
+            tables.pop(i)
+            save_tables(map_name, tables)
+
+            logger.info(f"Deleted table {deleted_number} from map '{map_name}'")
+            return {"message": f"Table {deleted_number} deleted."}
+
+    raise HTTPException(status_code=404, detail=f"Table '{table_id}' not found.")
+
+
+# --- Delivery Task Manager ---
+class DeliveryManager:
+    """管理送餐任務"""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._current_task: Optional[DeliveryTask] = None
+        self._current_map: Optional[str] = None
+
+    @property
+    def current_task(self) -> Optional[DeliveryTask]:
+        with self._lock:
+            return self._current_task
+
+    def start_delivery(self, map_name: str, table_ids: List[str], start_position: Position) -> DeliveryTask:
+        """開始送餐任務"""
+        with self._lock:
+            if self._current_task is not None and self._current_task.status != DeliveryTaskStatus.IDLE:
+                raise HTTPException(status_code=400, detail="A delivery task is already in progress.")
+
+            # 載入桌位資訊
+            tables = load_tables(map_name)
+            table_map = {t.id: t for t in tables}
+
+            # 建立送餐站點
+            stops = []
+            for table_id in table_ids:
+                if table_id not in table_map:
+                    raise HTTPException(status_code=404, detail=f"Table '{table_id}' not found.")
+                table = table_map[table_id]
+                if not table.isActive:
+                    raise HTTPException(status_code=400, detail=f"Table {table.number} is not active.")
+                stops.append(DeliveryStop(
+                    tableId=table.id,
+                    tableNumber=table.number,
+                    tableName=table.name,
+                    status=DeliveryStopStatus.PENDING
+                ))
+
+            if not stops:
+                raise HTTPException(status_code=400, detail="No valid tables selected.")
+
+            # 建立任務
+            task = DeliveryTask(
+                id=str(uuid4()),
+                stops=stops,
+                status=DeliveryTaskStatus.DELIVERING,
+                currentStopIndex=0,
+                startPosition=start_position,
+                createdAt=datetime.now().isoformat()
+            )
+
+            # 設定第一個站點為進行中
+            task.stops[0].status = DeliveryStopStatus.IN_PROGRESS
+
+            self._current_task = task
+            self._current_map = map_name
+
+            return task
+
+    def get_current_stop_table(self) -> Optional[Table]:
+        """取得當前站點的桌位資訊"""
+        with self._lock:
+            if self._current_task is None or self._current_map is None:
+                return None
+            if self._current_task.currentStopIndex >= len(self._current_task.stops):
+                return None
+
+            stop = self._current_task.stops[self._current_task.currentStopIndex]
+            tables = load_tables(self._current_map)
+            for t in tables:
+                if t.id == stop.tableId:
+                    return t
+            return None
+
+    def mark_arrived(self) -> Optional[DeliveryTask]:
+        """標記已到達當前桌位"""
+        with self._lock:
+            if self._current_task is None:
+                return None
+            if self._current_task.status != DeliveryTaskStatus.DELIVERING:
+                return self._current_task
+
+            stop = self._current_task.stops[self._current_task.currentStopIndex]
+            stop.status = DeliveryStopStatus.ARRIVED
+            self._current_task.status = DeliveryTaskStatus.AT_TABLE
+
+            return self._current_task
+
+    def confirm_arrival(self) -> Optional[DeliveryTask]:
+        """確認到達並前往下一桌"""
+        with self._lock:
+            if self._current_task is None:
+                return None
+            if self._current_task.status != DeliveryTaskStatus.AT_TABLE:
+                return self._current_task
+
+            # 標記當前站點完成
+            stop = self._current_task.stops[self._current_task.currentStopIndex]
+            stop.status = DeliveryStopStatus.COMPLETED
+
+            # 前往下一桌
+            return self._advance_to_next()
+
+    def skip_table(self) -> Optional[DeliveryTask]:
+        """跳過當前桌位"""
+        with self._lock:
+            if self._current_task is None:
+                return None
+            if self._current_task.status != DeliveryTaskStatus.AT_TABLE:
+                return self._current_task
+
+            # 標記當前站點跳過
+            stop = self._current_task.stops[self._current_task.currentStopIndex]
+            stop.status = DeliveryStopStatus.SKIPPED
+
+            # 前往下一桌
+            return self._advance_to_next()
+
+    def _advance_to_next(self) -> DeliveryTask:
+        """移動到下一個站點（需要已獲得鎖）"""
+        self._current_task.currentStopIndex += 1
+
+        # 檢查是否還有站點
+        if self._current_task.currentStopIndex < len(self._current_task.stops):
+            # 設定下一個站點為進行中
+            next_stop = self._current_task.stops[self._current_task.currentStopIndex]
+            next_stop.status = DeliveryStopStatus.IN_PROGRESS
+            self._current_task.status = DeliveryTaskStatus.DELIVERING
+        else:
+            # 所有站點完成，返回出發點
+            self._current_task.status = DeliveryTaskStatus.RETURNING
+
+        return self._current_task
+
+    def complete_return(self) -> Optional[DeliveryTask]:
+        """完成返回"""
+        with self._lock:
+            if self._current_task is None:
+                return None
+
+            self._current_task.status = DeliveryTaskStatus.IDLE
+            task = self._current_task
+            self._current_task = None
+            self._current_map = None
+
+            return task
+
+    def cancel_delivery(self):
+        """取消送餐任務"""
+        with self._lock:
+            self._current_task = None
+            self._current_map = None
+
+
+# 全局送餐管理器
+delivery_manager = DeliveryManager()
+
+
+# --- Delivery API ---
+@app.post("/delivery/start", response_model=DeliveryTask)
+async def start_delivery(request: DeliveryStartRequest):
+    """Start a delivery task."""
+    # 檢查導航是否已啟動
+    if state.nav_status != NavStatus.RUNNING:
+        raise HTTPException(status_code=400, detail="Navigation is not running. Please start navigation first.")
+
+    # 取得當前使用的地圖（假設使用預設地圖）
+    maps_info = []
+    for filename in os.listdir(MAP_SAVE_PATH):
+        if filename.endswith('.yaml'):
+            name = filename[:-5]
+            yaml_path = os.path.join(MAP_SAVE_PATH, filename)
+            pgm_path = os.path.join(MAP_SAVE_PATH, f"{name}.pgm")
+            if os.path.exists(pgm_path):
+                maps_info.append(name)
+
+    if not maps_info:
+        raise HTTPException(status_code=400, detail="No maps available.")
+
+    # 使用第一個地圖（實際應用中應該要記住當前使用的地圖）
+    map_name = maps_info[0]
+
+    task = delivery_manager.start_delivery(map_name, request.tableIds, request.startPosition)
+
+    # 導航到第一個桌位
+    first_table = delivery_manager.get_current_stop_table()
+    if first_table:
+        is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
+        if is_ready:
+            await asyncio.to_thread(nav_manager.send_goal, first_table.x, first_table.y, first_table.yaw_deg)
+            logger.info(f"Starting delivery to table {first_table.number}")
+
+    return task
+
+
+@app.post("/delivery/confirm", response_model=DeliveryTask)
+async def confirm_delivery_arrival():
+    """Confirm arrival at current table and proceed to next."""
+    task = delivery_manager.confirm_arrival()
+    if task is None:
+        raise HTTPException(status_code=400, detail="No active delivery task.")
+
+    # 導航到下一個桌位或返回出發點
+    if task.status == DeliveryTaskStatus.DELIVERING:
+        next_table = delivery_manager.get_current_stop_table()
+        if next_table:
+            is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
+            if is_ready:
+                await asyncio.to_thread(nav_manager.send_goal, next_table.x, next_table.y, next_table.yaw_deg)
+                logger.info(f"Proceeding to table {next_table.number}")
+    elif task.status == DeliveryTaskStatus.RETURNING:
+        # 返回出發點
+        is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
+        if is_ready:
+            await asyncio.to_thread(nav_manager.send_goal, task.startPosition.x, task.startPosition.y, task.startPosition.yaw)
+            logger.info("Returning to start position")
+
+    return task
+
+
+@app.post("/delivery/skip", response_model=DeliveryTask)
+async def skip_delivery_table():
+    """Skip current table and proceed to next."""
+    task = delivery_manager.skip_table()
+    if task is None:
+        raise HTTPException(status_code=400, detail="No active delivery task.")
+
+    # 導航到下一個桌位或返回出發點
+    if task.status == DeliveryTaskStatus.DELIVERING:
+        next_table = delivery_manager.get_current_stop_table()
+        if next_table:
+            is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
+            if is_ready:
+                await asyncio.to_thread(nav_manager.send_goal, next_table.x, next_table.y, next_table.yaw_deg)
+                logger.info(f"Proceeding to table {next_table.number}")
+    elif task.status == DeliveryTaskStatus.RETURNING:
+        # 返回出發點
+        is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
+        if is_ready:
+            await asyncio.to_thread(nav_manager.send_goal, task.startPosition.x, task.startPosition.y, task.startPosition.yaw)
+            logger.info("Returning to start position")
+
+    return task
+
+
+@app.post("/delivery/cancel")
+async def cancel_delivery():
+    """Cancel the current delivery task."""
+    delivery_manager.cancel_delivery()
+    nav_manager.cancel_task()
+    logger.info("Delivery cancelled")
+    return {"message": "Delivery cancelled."}
+
+
+@app.get("/delivery/status")
+async def get_delivery_status():
+    """Get current delivery task status."""
+    task = delivery_manager.current_task
+
+    distance_remaining = None
+    if task and task.status in [DeliveryTaskStatus.DELIVERING, DeliveryTaskStatus.RETURNING]:
+        feedback = nav_manager.get_feedback()
+        if feedback and hasattr(feedback, 'distance_remaining'):
+            distance_remaining = feedback.distance_remaining
+
+        # 檢查是否到達
+        if nav_manager.is_task_complete():
+            if task.status == DeliveryTaskStatus.DELIVERING:
+                delivery_manager.mark_arrived()
+                task = delivery_manager.current_task
+            elif task.status == DeliveryTaskStatus.RETURNING:
+                delivery_manager.complete_return()
+                task = None
+
+    return {
+        "task": task,
+        "distanceRemaining": distance_remaining
+    }
+
+
+@app.get("/robot/position")
+async def get_robot_position():
+    """Get current robot position from odometry."""
+    # 這個 API 需要從 ROS 取得當前位置
+    # 目前使用 placeholder，實際應用需要訂閱 /amcl_pose 或 /odom
+    # 這裡返回預設值，前端應該使用 rosbridge 直接訂閱
+    return {"x": 0.0, "y": 0.0, "yaw": 0.0}
 
 
 # --- Navigator Manager ---

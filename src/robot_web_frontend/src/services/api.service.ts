@@ -157,7 +157,8 @@ export const apiService = {
 
   // Delivery (送餐任務)
   async startDelivery(request: DeliveryStartRequest): Promise<DeliveryTask> {
-    const response = await api.post('/delivery/start', request);
+    // 較長超時：可能需要自動啟動導航系統
+    const response = await api.post('/delivery/start', request, { timeout: 30000 });
     return response.data;
   },
 

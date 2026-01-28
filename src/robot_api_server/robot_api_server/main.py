@@ -1,6 +1,6 @@
 import rclpy
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 import math
 import threading
 import subprocess
@@ -67,6 +67,11 @@ class MapSaveRequest(BaseModel):
 
 class NavigationStartRequest(BaseModel):
     map_name: Optional[str] = None
+
+class InitialPoseRequest(BaseModel):
+    x: float = 0.0
+    y: float = 0.0
+    yaw: float = 0.0  # 弧度
 
 class SlamStatus(str, Enum):
     IDLE = "idle"
@@ -286,6 +291,7 @@ class RobotStateManager:
         self._slam_status = SlamStatus.IDLE
         self._nav_process: Optional[subprocess.Popen] = None
         self._nav_status = NavStatus.IDLE
+        self._current_map: Optional[str] = None  # 當前導航使用的地圖
         self._robot_core_process: Optional[subprocess.Popen] = None
         self._robot_core_running = False
         # Health monitor
@@ -303,6 +309,16 @@ class RobotStateManager:
     def slam_status(self, value: SlamStatus):
         with self._lock:
             self._slam_status = value
+
+    @property
+    def current_map(self) -> Optional[str]:
+        with self._lock:
+            return self._current_map
+
+    @current_map.setter
+    def current_map(self, value: Optional[str]):
+        with self._lock:
+            self._current_map = value
 
     def _wait_for_process_cleanup(self, patterns: list, timeout: float = 5.0) -> bool:
         """等待指定模式的進程完全終止
@@ -503,6 +519,8 @@ class RobotStateManager:
                     raise HTTPException(status_code=500, detail="Navigation process failed to start.")
 
                 self._nav_status = NavStatus.RUNNING
+                # 記錄當前使用的地圖名稱
+                self._current_map = map_name if map_name else "map"
                 return {"message": f"Navigation started with map: {map_yaml}", "status": self._nav_status}
             except HTTPException:
                 raise
@@ -1047,6 +1065,57 @@ async def stop_navigation():
     """Stop autonomous navigation."""
     return await asyncio.to_thread(state.stop_navigation)
 
+@app.post("/navigation/set_initial_pose")
+async def set_initial_pose(request: InitialPoseRequest):
+    """Set the initial pose for AMCL localization."""
+    def _set_pose():
+        try:
+            ensure_rclpy_initialized()
+            node = rclpy.create_node('initial_pose_publisher')
+            publisher = node.create_publisher(
+                PoseWithCovarianceStamped,
+                '/initialpose',
+                10
+            )
+
+            # 等待訂閱者
+            time.sleep(0.5)
+
+            msg = PoseWithCovarianceStamped()
+            msg.header.frame_id = 'map'
+            msg.header.stamp = node.get_clock().now().to_msg()
+            msg.pose.pose.position.x = request.x
+            msg.pose.pose.position.y = request.y
+            msg.pose.pose.position.z = 0.0
+
+            # 從 yaw 計算四元數
+            msg.pose.pose.orientation.x = 0.0
+            msg.pose.pose.orientation.y = 0.0
+            msg.pose.pose.orientation.z = math.sin(request.yaw / 2.0)
+            msg.pose.pose.orientation.w = math.cos(request.yaw / 2.0)
+
+            # 設置協方差（對角線元素）
+            msg.pose.covariance[0] = 0.25  # x
+            msg.pose.covariance[7] = 0.25  # y
+            msg.pose.covariance[35] = 0.06853891945200942  # yaw
+
+            publisher.publish(msg)
+            logger.info(f"Published initial pose: x={request.x}, y={request.y}, yaw={request.yaw}")
+
+            # 等待消息發送
+            time.sleep(0.5)
+
+            node.destroy_node()
+            return {"message": "Initial pose set successfully", "x": request.x, "y": request.y, "yaw": request.yaw}
+        except Exception as e:
+            logger.error(f"Failed to set initial pose: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to set initial pose: {str(e)}")
+
+    if state.nav_status != NavStatus.RUNNING:
+        raise HTTPException(status_code=400, detail="Navigation is not running. Start navigation first.")
+
+    return await asyncio.to_thread(_set_pose)
+
 
 # --- SLAM Endpoints ---
 @app.post("/slam/start")
@@ -1471,11 +1540,7 @@ delivery_manager = DeliveryManager()
 @app.post("/delivery/start", response_model=DeliveryTask)
 async def start_delivery(request: DeliveryStartRequest):
     """Start a delivery task."""
-    # 檢查導航是否已啟動
-    if state.nav_status != NavStatus.RUNNING:
-        raise HTTPException(status_code=400, detail="Navigation is not running. Please start navigation first.")
-
-    # 使用前端指定的地圖，或從當前導航地圖推斷
+    # 決定使用哪個地圖
     if request.mapName:
         map_name = request.mapName
     elif state.current_map:
@@ -1492,6 +1557,19 @@ async def start_delivery(request: DeliveryStartRequest):
         if not maps_info:
             raise HTTPException(status_code=400, detail="No maps available.")
         map_name = maps_info[0]
+
+    # 如果導航未啟動，自動啟動導航
+    if state.nav_status != NavStatus.RUNNING:
+        logger.info(f"Navigation not running, auto-starting with map: {map_name}")
+        try:
+            await asyncio.to_thread(state.start_navigation, map_name)
+            # 等待導航系統完全啟動
+            logger.info("Waiting for navigation system to initialize...")
+            await asyncio.sleep(5)  # 給 Nav2 一些啟動時間
+        except HTTPException as e:
+            raise HTTPException(status_code=500, detail=f"Failed to auto-start navigation: {e.detail}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to auto-start navigation: {str(e)}")
 
     task = delivery_manager.start_delivery(map_name, request.tableIds, request.startPosition)
 

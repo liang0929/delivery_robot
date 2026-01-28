@@ -1573,24 +1573,38 @@ async def start_delivery(request: DeliveryStartRequest):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to auto-start navigation: {str(e)}")
 
-    # 如果導航剛啟動，執行全局定位（讓機器人邊移動邊收斂位置）
+    # 如果導航剛啟動，使用前端傳來的起點位置設定初始位置
     if nav_just_started:
-        logger.info("Triggering global localization...")
+        logger.info(f"Setting initial pose to start position: x={request.startPosition.x}, y={request.startPosition.y}, yaw={request.startPosition.yaw}")
         try:
-            result = subprocess.run(
-                ["ros2", "service", "call", "/reinitialize_global_localization", "std_srvs/srv/Empty"],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            if result.returncode == 0:
-                logger.info("Global localization triggered successfully")
-            else:
-                logger.warning(f"Global localization may have failed: {result.stderr}")
+            def _set_initial_pose():
+                ensure_rclpy_initialized()
+                node = rclpy.create_node('delivery_initial_pose_publisher')
+                publisher = node.create_publisher(PoseWithCovarianceStamped, '/initialpose', 10)
+                time.sleep(0.5)
+
+                msg = PoseWithCovarianceStamped()
+                msg.header.frame_id = 'map'
+                msg.header.stamp = node.get_clock().now().to_msg()
+                msg.pose.pose.position.x = request.startPosition.x
+                msg.pose.pose.position.y = request.startPosition.y
+                msg.pose.pose.position.z = 0.0
+                msg.pose.pose.orientation.z = math.sin(request.startPosition.yaw / 2.0)
+                msg.pose.pose.orientation.w = math.cos(request.startPosition.yaw / 2.0)
+                # 較小的協方差 = 更確定的位置
+                msg.pose.covariance[0] = 0.1   # x
+                msg.pose.covariance[7] = 0.1   # y
+                msg.pose.covariance[35] = 0.05  # yaw
+
+                publisher.publish(msg)
+                time.sleep(0.3)
+                node.destroy_node()
+
+            await asyncio.to_thread(_set_initial_pose)
+            logger.info("Initial pose set successfully")
+            await asyncio.sleep(1)  # 給 AMCL 時間處理
         except Exception as e:
-            logger.warning(f"Failed to trigger global localization: {e}")
-        # 給 AMCL 一點時間散布粒子
-        await asyncio.sleep(1)
+            logger.warning(f"Failed to set initial pose: {e}")
 
     task = delivery_manager.start_delivery(map_name, request.tableIds, request.startPosition)
 

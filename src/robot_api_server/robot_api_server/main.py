@@ -1559,6 +1559,7 @@ async def start_delivery(request: DeliveryStartRequest):
         map_name = maps_info[0]
 
     # 如果導航未啟動，自動啟動導航
+    nav_just_started = False
     if state.nav_status != NavStatus.RUNNING:
         logger.info(f"Navigation not running, auto-starting with map: {map_name}")
         try:
@@ -1566,10 +1567,30 @@ async def start_delivery(request: DeliveryStartRequest):
             # 等待導航系統完全啟動
             logger.info("Waiting for navigation system to initialize...")
             await asyncio.sleep(5)  # 給 Nav2 一些啟動時間
+            nav_just_started = True
         except HTTPException as e:
             raise HTTPException(status_code=500, detail=f"Failed to auto-start navigation: {e.detail}")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to auto-start navigation: {str(e)}")
+
+    # 如果導航剛啟動，執行全局定位（讓機器人邊移動邊收斂位置）
+    if nav_just_started:
+        logger.info("Triggering global localization...")
+        try:
+            result = subprocess.run(
+                ["ros2", "service", "call", "/reinitialize_global_localization", "std_srvs/srv/Empty"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode == 0:
+                logger.info("Global localization triggered successfully")
+            else:
+                logger.warning(f"Global localization may have failed: {result.stderr}")
+        except Exception as e:
+            logger.warning(f"Failed to trigger global localization: {e}")
+        # 給 AMCL 一點時間散布粒子
+        await asyncio.sleep(1)
 
     task = delivery_manager.start_delivery(map_name, request.tableIds, request.startPosition)
 

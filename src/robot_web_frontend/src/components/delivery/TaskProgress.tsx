@@ -46,6 +46,8 @@ export function TaskProgress({ onCancel }: TaskProgressProps) {
         return `Arrived at Table ${currentStop?.tableNumber || '?'}`;
       case 'returning':
         return 'Returning to start position';
+      case 'stuck':
+        return 'Robot is stuck! Please clear the path.';
       default:
         return 'Processing...';
     }
@@ -65,6 +67,7 @@ export function TaskProgress({ onCancel }: TaskProgressProps) {
           {status === 'delivering' && 'Moving'}
           {status === 'at_table' && 'Arrived'}
           {status === 'returning' && 'Returning'}
+          {status === 'stuck' && 'STUCK'}
         </div>
         <div className={styles.statusText}>{getStatusText()}</div>
       </div>

@@ -6,7 +6,8 @@ export type DeliveryStatus =
   | 'idle'
   | 'delivering'
   | 'at_table'
-  | 'returning';
+  | 'returning'
+  | 'stuck';
 
 export type StopStatus =
   | 'pending'
@@ -46,4 +47,5 @@ export interface DeliveryStartRequest {
 export interface DeliveryStatusResponse {
   task: DeliveryTask | null;
   distanceRemaining: number | null;
+  isStuck?: boolean;
 }

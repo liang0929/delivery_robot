@@ -151,6 +151,7 @@ class DeliveryTaskStatus(str, Enum):
     DELIVERING = "delivering"
     AT_TABLE = "at_table"
     RETURNING = "returning"
+    STUCK = "stuck"  # 機器人卡住
 
 
 class DeliveryStop(BaseModel):
@@ -183,8 +184,10 @@ class DeliveryTask(BaseModel):
 
 # --- Configuration ---
 # 從環境變數讀取配置，提供合理預設值
-DEFAULT_MAP_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'map')
-MAP_SAVE_PATH = os.environ.get('ROBOT_MAP_PATH', os.path.abspath(DEFAULT_MAP_PATH))
+# 使用固定的 workspace 路徑，因為從 install 目錄運行時相對路徑會錯誤
+WORKSPACE_ROOT = '/home/robot0/base_dev'
+DEFAULT_MAP_PATH = os.path.join(WORKSPACE_ROOT, 'map')
+MAP_SAVE_PATH = os.environ.get('ROBOT_MAP_PATH', DEFAULT_MAP_PATH)
 
 # 確保地圖目錄存在
 os.makedirs(MAP_SAVE_PATH, exist_ok=True)
@@ -1684,13 +1687,20 @@ async def get_delivery_status():
     task = delivery_manager.current_task
 
     distance_remaining = None
+    is_stuck = False
+
     if task and task.status in [DeliveryTaskStatus.DELIVERING, DeliveryTaskStatus.RETURNING]:
         feedback = nav_manager.get_feedback()
         if feedback and hasattr(feedback, 'distance_remaining'):
             distance_remaining = feedback.distance_remaining
 
+        # 檢查是否卡住
+        if nav_manager.is_stuck():
+            is_stuck = True
+            task.status = DeliveryTaskStatus.STUCK
+            logger.warning(f"Robot is stuck! Task status changed to STUCK")
         # 檢查是否到達
-        if nav_manager.is_task_complete():
+        elif nav_manager.is_task_complete():
             if task.status == DeliveryTaskStatus.DELIVERING:
                 delivery_manager.mark_arrived()
                 task = delivery_manager.current_task
@@ -1698,9 +1708,14 @@ async def get_delivery_status():
                 delivery_manager.complete_return()
                 task = None
 
+    # 如果已經是卡住狀態，繼續回報
+    if task and task.status == DeliveryTaskStatus.STUCK:
+        is_stuck = True
+
     return {
         "task": task,
-        "distanceRemaining": distance_remaining
+        "distanceRemaining": distance_remaining,
+        "isStuck": is_stuck
     }
 
 
@@ -1805,6 +1820,26 @@ class NavigatorManager:
         with self._lock:
             if self.navigator is not None:
                 self.navigator.cancelTask()
+
+    def get_result(self) -> Optional[TaskResult]:
+        """獲取導航結果（線程安全）"""
+        with self._lock:
+            if self.navigator is None or not self._nav2_ready:
+                return None
+            try:
+                return self.navigator.getResult()
+            except RuntimeError as e:
+                logger.debug(f"Get result failed: {e}")
+                return None
+
+    def is_stuck(self) -> bool:
+        """檢查機器人是否卡住（導航失敗）"""
+        if not self.is_task_complete():
+            return False
+        result = self.get_result()
+        if result is None:
+            return False
+        return result == TaskResult.FAILED
 
 
 # Global navigator manager

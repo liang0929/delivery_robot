@@ -106,8 +106,8 @@ class MockLidar(Node):
                 distance = self._room_distance(
                     world_angle, self.room_width, self.room_height)
             elif self.scene == 'corridor':
-                # 走廊 (寬 2m，長 10m)
-                distance = self._corridor_distance(world_angle, 2.0, 10.0)
+                # 走廊 (寬 2m，長 20m) - 模擬長廊
+                distance = self._corridor_distance(world_angle, 2.0, 20.0)
             else:
                 distance = self.range_max
 
@@ -119,8 +119,51 @@ class MockLidar(Node):
 
         return ranges
 
+    # 房間內的障礙物 (圓形: cx, cy, radius)
+    ROOM_OBSTACLES = [
+        (1.5, 1.5, 0.3),    # 右上角圓柱
+        (-1.5, 1.5, 0.3),   # 左上角圓柱
+        (1.5, -1.5, 0.3),   # 右下角圓柱
+        (-1.5, -1.5, 0.3),  # 左下角圓柱
+        (0.0, 1.0, 0.4),    # 中上方障礙物
+    ]
+
+    def _ray_circle_intersection(self, angle: float, cx: float, cy: float, radius: float) -> float:
+        """計算射線與圓的交點距離
+
+        射線從 (robot_x, robot_y) 出發，方向為 angle
+        圓心在 (cx, cy)，半徑為 radius
+        """
+        cos_a = math.cos(angle)
+        sin_a = math.sin(angle)
+
+        # 射線起點到圓心的向量
+        dx = cx - self.robot_x
+        dy = cy - self.robot_y
+
+        # 射線方向在圓心方向上的投影
+        proj = dx * cos_a + dy * sin_a
+
+        # 如果圓心在射線後方，跳過
+        if proj < 0:
+            return self.range_max
+
+        # 圓心到射線的垂直距離
+        perp_dist_sq = dx * dx + dy * dy - proj * proj
+        radius_sq = radius * radius
+
+        # 如果射線不經過圓，跳過
+        if perp_dist_sq > radius_sq:
+            return self.range_max
+
+        # 計算交點距離
+        half_chord = math.sqrt(radius_sq - perp_dist_sq)
+        distance = proj - half_chord
+
+        return distance if distance > 0 else self.range_max
+
     def _room_distance(self, angle: float, width: float, height: float) -> float:
-        """計算從機器人實際位置到方形房間牆壁的距離
+        """計算從機器人實際位置到方形房間牆壁和障礙物的距離
 
         房間以 (0,0) 為中心，牆壁位於 ±width/2 和 ±height/2
         機器人位於 (self.robot_x, self.robot_y)
@@ -171,6 +214,12 @@ class MockLidar(Node):
                 x = self.robot_x + d * cos_a
                 if abs(x) <= half_w:
                     distances.append(d)
+
+        # 計算到障礙物的距離
+        for cx, cy, radius in self.ROOM_OBSTACLES:
+            d = self._ray_circle_intersection(angle, cx, cy, radius)
+            if d < self.range_max:
+                distances.append(d)
 
         return min(distances) if distances else self.range_max
 

@@ -22,7 +22,7 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction, LogInfo, OpaqueFunction
 from launch.conditions import IfCondition, UnlessCondition
-from launch.substitutions import LaunchConfiguration, PythonExpression
+from launch.substitutions import LaunchConfiguration, PythonExpression, Command
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
@@ -135,7 +135,16 @@ def launch_setup(context, *args, **kwargs):
     motor_control_dir = get_package_share_directory('motor_control')
     motor_config = os.path.join(motor_control_dir, 'config', 'hs_motor_config.yaml')
 
-    # TF 配置
+    # URDF 路徑
+    try:
+        robot_description_dir = get_package_share_directory('robot_description')
+        xacro_file = os.path.join(robot_description_dir, 'urdf', 'robot.urdf.xacro')
+        use_urdf = os.path.exists(xacro_file)
+    except Exception:
+        use_urdf = False
+        xacro_file = None
+
+    # TF 配置（僅在沒有 URDF 時使用）
     tf_config = load_tf_config()
 
     nodes = []
@@ -149,19 +158,37 @@ def launch_setup(context, *args, **kwargs):
     if cpu_affinity_enabled:
         nodes.append(LogInfo(msg='=== CPU 親和性已啟用 (Jetson Orin NX 優化) ==='))
 
-    # ========== 靜態 TF (立即啟動) ==========
-    nodes.append(create_static_tf_node(
-        'base_footprint_to_base_link',
-        tf_config.get('base_footprint_to_base_link', {})
-    ))
-    nodes.append(create_static_tf_node(
-        'base_link_to_laser',
-        tf_config.get('base_link_to_laser', {})
-    ))
-    nodes.append(create_static_tf_node(
-        'base_link_to_imu',
-        tf_config.get('base_link_to_imu', {})
-    ))
+    # ========== 機器人描述 (URDF) 或靜態 TF ==========
+    if use_urdf:
+        # 使用 robot_state_publisher 發布 URDF 和 TF
+        nodes.append(LogInfo(msg='=== 使用 URDF 機器人模型 ==='))
+        robot_description = Command(['xacro ', xacro_file])
+        nodes.append(Node(
+            package='robot_state_publisher',
+            executable='robot_state_publisher',
+            name='robot_state_publisher',
+            output='screen',
+            parameters=[{
+                'robot_description': robot_description,
+                'use_sim_time': use_sim_time,
+                'publish_frequency': 50.0,
+            }]
+        ))
+    else:
+        # 回退：使用靜態 TF（當 robot_description 套件不存在時）
+        nodes.append(LogInfo(msg='=== 使用靜態 TF（無 URDF）==='))
+        nodes.append(create_static_tf_node(
+            'base_footprint_to_base_link',
+            tf_config.get('base_footprint_to_base_link', {})
+        ))
+        nodes.append(create_static_tf_node(
+            'base_link_to_laser',
+            tf_config.get('base_link_to_laser', {})
+        ))
+        nodes.append(create_static_tf_node(
+            'base_link_to_imu',
+            tf_config.get('base_link_to_imu', {})
+        ))
 
     # ========== 真實硬體節點 ==========
     if not simulation:

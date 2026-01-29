@@ -1,0 +1,222 @@
+<?xml version="1.0"?>
+<!--
+  送餐機器人 URDF 描述
+
+  座標系統：
+  - X 軸：前方（機器人行進方向）
+  - Y 軸：左側
+  - Z 軸：上方
+
+  TF 樹結構：
+  base_footprint
+    └── base_link
+          ├── left_wheel_link
+          ├── right_wheel_link
+          ├── caster_link
+          ├── laser
+          └── imu_link
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="delivery_robot">
+
+  <!-- ========== 參數定義 ========== -->
+  <xacro:include filename="$(find robot_description)/urdf/properties.xacro"/>
+
+  <!-- ========== 材質定義 ========== -->
+  <material name="white">
+    <color rgba="1.0 1.0 1.0 1.0"/>
+  </material>
+  <material name="dark_gray">
+    <color rgba="0.3 0.3 0.3 1.0"/>
+  </material>
+  <material name="black">
+    <color rgba="0.1 0.1 0.1 1.0"/>
+  </material>
+  <material name="blue">
+    <color rgba="0.2 0.4 0.8 1.0"/>
+  </material>
+  <material name="orange">
+    <color rgba="1.0 0.5 0.0 1.0"/>
+  </material>
+
+  <!-- ========== base_footprint（地面投影） ========== -->
+  <link name="base_footprint"/>
+
+  <!-- ========== base_link（機器人本體） ========== -->
+  <joint name="base_footprint_to_base_link" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 ${base_height}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${base_z_offset}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_length} ${base_width} ${base_box_height}"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${base_z_offset}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_length} ${base_width} ${base_box_height}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 ${base_z_offset}" rpy="0 0 0"/>
+      <mass value="${base_mass}"/>
+      <inertia
+        ixx="${(1/12) * base_mass * (base_width*base_width + base_box_height*base_box_height)}"
+        ixy="0" ixz="0"
+        iyy="${(1/12) * base_mass * (base_length*base_length + base_box_height*base_box_height)}"
+        iyz="0"
+        izz="${(1/12) * base_mass * (base_length*base_length + base_width*base_width)}"/>
+    </inertial>
+  </link>
+
+  <!-- ========== 驅動輪（差動驅動） ========== -->
+  <!-- 左輪 -->
+  <joint name="left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="left_wheel_link"/>
+    <origin xyz="0 ${wheel_separation/2} ${-base_height + wheel_radius}" rpy="${-pi/2} 0 0"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <link name="left_wheel_link">
+    <visual>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+      <material name="dark_gray"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="${wheel_mass}"/>
+      <inertia
+        ixx="${(1/12) * wheel_mass * (3*wheel_radius*wheel_radius + wheel_width*wheel_width)}"
+        ixy="0" ixz="0"
+        iyy="${(1/12) * wheel_mass * (3*wheel_radius*wheel_radius + wheel_width*wheel_width)}"
+        iyz="0"
+        izz="${(1/2) * wheel_mass * wheel_radius*wheel_radius}"/>
+    </inertial>
+  </link>
+
+  <!-- 右輪 -->
+  <joint name="right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="right_wheel_link"/>
+    <origin xyz="0 ${-wheel_separation/2} ${-base_height + wheel_radius}" rpy="${-pi/2} 0 0"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <link name="right_wheel_link">
+    <visual>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+      <material name="dark_gray"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="${wheel_mass}"/>
+      <inertia
+        ixx="${(1/12) * wheel_mass * (3*wheel_radius*wheel_radius + wheel_width*wheel_width)}"
+        ixy="0" ixz="0"
+        iyy="${(1/12) * wheel_mass * (3*wheel_radius*wheel_radius + wheel_width*wheel_width)}"
+        iyz="0"
+        izz="${(1/2) * wheel_mass * wheel_radius*wheel_radius}"/>
+    </inertial>
+  </link>
+
+  <!-- ========== 萬向輪（Caster） ========== -->
+  <joint name="caster_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="caster_link"/>
+    <origin xyz="${-base_length/2 + caster_radius} 0 ${-base_height + caster_radius}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="caster_link">
+    <visual>
+      <geometry>
+        <sphere radius="${caster_radius}"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <geometry>
+        <sphere radius="${caster_radius}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="${caster_mass}"/>
+      <inertia
+        ixx="${(2/5) * caster_mass * caster_radius*caster_radius}"
+        ixy="0" ixz="0"
+        iyy="${(2/5) * caster_mass * caster_radius*caster_radius}"
+        iyz="0"
+        izz="${(2/5) * caster_mass * caster_radius*caster_radius}"/>
+    </inertial>
+  </link>
+
+  <!-- ========== LiDAR 感測器 ========== -->
+  <joint name="laser_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="laser"/>
+    <origin xyz="${laser_x} ${laser_y} ${laser_z}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="laser">
+    <visual>
+      <origin xyz="0 0 -0.02" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.035" length="0.04"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 -0.02" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.035" length="0.04"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.2"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <!-- ========== IMU 感測器 ========== -->
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="${imu_x} ${imu_y} ${imu_z}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="imu_link">
+    <visual>
+      <geometry>
+        <box size="0.02 0.02 0.01"/>
+      </geometry>
+      <material name="orange"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.02 0.02 0.01"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
+    </inertial>
+  </link>
+
+</robot>

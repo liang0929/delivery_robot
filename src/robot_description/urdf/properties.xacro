@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<!--
+  機器人參數定義
+
+  修改此檔案來調整機器人尺寸和感測器位置
+  所有單位為公尺 (m) 和弧度 (rad)
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- 注意：pi 是 xacro 內建常數，無需定義 -->
+
+  <!-- ========== 輪子參數 ========== -->
+  <!-- 來源: motor_control/config/hs_motor_config.yaml -->
+  <xacro:property name="wheel_separation" value="0.27"/>   <!-- 輪距 (m) -->
+  <xacro:property name="wheel_radius" value="0.065"/>      <!-- 輪半徑 (m) -->
+  <xacro:property name="wheel_width" value="0.032"/>        <!-- 輪寬 (m) -->
+  <xacro:property name="wheel_mass" value="0.5"/>          <!-- 輪子質量 (kg) -->
+
+  <!-- ========== 底盤參數 ========== -->
+  <xacro:property name="base_length" value="0.50"/>        <!-- 底盤長度 (m) -->
+  <xacro:property name="base_width" value="0.50"/>         <!-- 底盤寬度 (m) -->
+  <xacro:property name="base_box_height" value="0.20"/>    <!-- 底盤高度 (m) -->
+  <xacro:property name="base_mass" value="5.0"/>           <!-- 底盤質量 (kg) -->
+
+  <!-- base_footprint 到 base_link 的高度 -->
+  <!-- 來源: motor_control/launch/bringup.launch.py (tf_config) -->
+  <xacro:property name="base_height" value="0.05"/>
+  <xacro:property name="base_z_offset" value="${base_box_height/2}"/>
+
+  <!-- ========== 萬向輪參數 ========== -->
+  <xacro:property name="caster_radius" value="0.05"/>     <!-- 萬向輪半徑 (m) -->
+  <xacro:property name="caster_mass" value="0.1"/>         <!-- 萬向輪質量 (kg) -->
+
+  <!-- ========== LiDAR 感測器位置 ========== -->
+  <!-- 相對於 base_link -->
+  <!-- 來源: motor_control/launch/bringup.launch.py (tf_config) -->
+  <xacro:property name="laser_x" value="0.0"/>             <!-- 前方 0cm -->
+  <xacro:property name="laser_y" value="0.0"/>             <!-- 中心 -->
+  <xacro:property name="laser_z" value="0.336"/>            <!-- 高度 40cm -->
+
+  <!-- ========== IMU 感測器位置 ========== -->
+  <!-- 相對於 base_link -->
+  <!-- 來源: motor_control/launch/bringup.launch.py (tf_config) -->
+  <xacro:property name="imu_x" value="0.0"/>               <!-- 中心 -->
+  <xacro:property name="imu_y" value="0.0"/>               <!-- 中心 -->
+  <xacro:property name="imu_z" value="0.05"/>              <!-- 高度 5cm -->
+
+</robot>

@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
-import { rosbridgeService, OccupancyGridData, RobotPoseInMap } from '../../services/rosbridge.service';
+import { rosbridgeService, OccupancyGridData } from '../../services/rosbridge.service';
 import { Waypoint } from '../../services/api.service';
 import type { Table } from '../../types/table.types';
 import styles from './MapView.module.css';
@@ -22,7 +22,11 @@ interface MapViewProps {
   onTableClick?: (table: Table) => void;
 }
 
-// RobotPose type is now imported from rosbridge.service as RobotPoseInMap
+interface RobotPose {
+  x: number;
+  y: number;
+  yaw: number;
+}
 
 export function MapView({
   onClickGoal,
@@ -36,7 +40,7 @@ export function MapView({
 }: MapViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [mapData, setMapData] = useState<OccupancyGridData | null>(null);
-  const [robotPose, setRobotPose] = useState<RobotPoseInMap>({ x: 0, y: 0, yaw: 0 });
+  const [robotPose, setRobotPose] = useState<RobotPose>({ x: 0, y: 0, yaw: 0 });
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -93,10 +97,14 @@ export function MapView({
           }
         });
 
-        // 使用 TF 訂閱機器人在 map 座標系中的位置
-        // 這樣無論是 SLAM 還是導航，都能正確顯示機器人位置
-        rosbridgeService.subscribeToRobotPoseInMap((pose) => {
-          setRobotPose(pose);
+        // 訂閱 odom 獲取機器人位置
+        rosbridgeService.subscribeToOdom((odom) => {
+          const { position, orientation } = odom.pose.pose;
+          const yaw = Math.atan2(
+            2.0 * (orientation.w * orientation.z + orientation.x * orientation.y),
+            1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z)
+          );
+          setRobotPose({ x: position.x, y: position.y, yaw });
         });
 
         subscribed = true;
@@ -118,7 +126,7 @@ export function MapView({
         clearInterval(retryInterval);
       }
       rosbridgeService.unsubscribeFromMap();
-      rosbridgeService.unsubscribeFromRobotPoseInMap();
+      rosbridgeService.unsubscribeFromOdom();
     };
   }, [fitMapToView]);
 

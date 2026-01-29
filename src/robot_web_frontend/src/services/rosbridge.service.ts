@@ -13,7 +13,10 @@ class RosbridgeService {
   private currentBSubscriber: ROSLIB.Topic | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private tfClient: any = null;
+  private tfSubscriber: ROSLIB.Topic | null = null;
   private robotPoseCallback: ((pose: RobotPoseInMap) => void) | null = null;
+  // TF 累積資料 (用於計算 map->base_footprint)
+  private tfData: { [key: string]: { translation: {x: number, y: number, z: number}, rotation: {x: number, y: number, z: number, w: number} } } = {};
   private connected = false;
   private connectionCallbacks: Set<ConnectionCallback> = new Set();
 
@@ -140,47 +143,84 @@ class RosbridgeService {
   }
 
   // Subscribe to robot pose in map frame via TF
-  // This correctly gets robot position in map coordinates (works for both SLAM and navigation)
+  // Directly subscribe to /tf topic and compute map->base_footprint transform
   subscribeToRobotPoseInMap(callback: (pose: RobotPoseInMap) => void): void {
-    if (!this.ros || !this.connected) return;
+    if (!this.ros || !this.connected) {
+      console.warn('[TF] Cannot subscribe: ros not connected');
+      return;
+    }
 
     this.robotPoseCallback = callback;
+    this.tfData = {};
 
-    // Use TFClient to get map->base_link transform
+    console.log('[TF] Subscribing to /tf topic directly');
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const TFClient = (ROSLIB as any).TFClient;
-    this.tfClient = new TFClient({
+    this.tfSubscriber = new ROSLIB.Topic({
       ros: this.ros,
-      fixedFrame: 'map',
-      angularThres: 0.01,
-      transThres: 0.01,
-      rate: 10.0,  // 10 Hz
+      name: '/tf',
+      messageType: 'tf2_msgs/msg/TFMessage',
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this.tfClient.subscribe('base_link', (transform: any) => {
-      if (this.robotPoseCallback) {
-        // Calculate yaw from quaternion
-        const q = transform.rotation;
-        const yaw = Math.atan2(
-          2.0 * (q.w * q.z + q.x * q.y),
-          1.0 - 2.0 * (q.y * q.y + q.z * q.z)
-        );
-        this.robotPoseCallback({
-          x: transform.translation.x,
-          y: transform.translation.y,
-          yaw: yaw,
-        });
+    this.tfSubscriber.subscribe((message: any) => {
+      // 儲存所有 TF 變換
+      for (const transform of message.transforms) {
+        const key = `${transform.header.frame_id}->${transform.child_frame_id}`;
+        this.tfData[key] = {
+          translation: transform.transform.translation,
+          rotation: transform.transform.rotation,
+        };
+      }
+
+      // 計算 map->base_footprint (通過 map->odom->base_footprint)
+      const mapToOdom = this.tfData['map->odom'];
+      const odomToBase = this.tfData['odom->base_footprint'];
+
+      if (mapToOdom && odomToBase && this.robotPoseCallback) {
+        // 組合兩個變換
+        const pose = this.composeTF(mapToOdom, odomToBase);
+        this.robotPoseCallback(pose);
       }
     });
   }
 
+  // 組合兩個 TF 變換
+  private composeTF(
+    tf1: { translation: {x: number, y: number, z: number}, rotation: {x: number, y: number, z: number, w: number} },
+    tf2: { translation: {x: number, y: number, z: number}, rotation: {x: number, y: number, z: number, w: number} }
+  ): RobotPoseInMap {
+    // 簡化計算：假設只有 yaw 旋轉 (2D 導航)
+    const q1 = tf1.rotation;
+    const yaw1 = Math.atan2(2.0 * (q1.w * q1.z + q1.x * q1.y), 1.0 - 2.0 * (q1.y * q1.y + q1.z * q1.z));
+
+    const q2 = tf2.rotation;
+    const yaw2 = Math.atan2(2.0 * (q2.w * q2.z + q2.x * q2.y), 1.0 - 2.0 * (q2.y * q2.y + q2.z * q2.z));
+
+    // 旋轉 tf2 的 translation
+    const cos1 = Math.cos(yaw1);
+    const sin1 = Math.sin(yaw1);
+    const rotatedX = tf2.translation.x * cos1 - tf2.translation.y * sin1;
+    const rotatedY = tf2.translation.x * sin1 + tf2.translation.y * cos1;
+
+    return {
+      x: tf1.translation.x + rotatedX,
+      y: tf1.translation.y + rotatedY,
+      yaw: yaw1 + yaw2,
+    };
+  }
+
   unsubscribeFromRobotPoseInMap(): void {
+    if (this.tfSubscriber) {
+      this.tfSubscriber.unsubscribe();
+      this.tfSubscriber = null;
+    }
     if (this.tfClient) {
-      this.tfClient.unsubscribe('base_link');
+      this.tfClient.unsubscribe('base_footprint');
       this.tfClient = null;
     }
     this.robotPoseCallback = null;
+    this.tfData = {};
   }
 
   // Subscribe to motor voltage

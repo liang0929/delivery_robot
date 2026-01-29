@@ -86,13 +86,13 @@ controller_server:
 
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
-      required_movement_radius: 0.5
-      movement_time_allowance: 10.0
-    
+      required_movement_radius: 0.1   # 減小：0.5 → 0.1m，更快偵測卡住
+      movement_time_allowance: 30.0   # 增加：10 → 30 秒，給更多時間嘗試
+
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.25
-      yaw_goal_tolerance: 0.25
+      xy_goal_tolerance: 0.10         # 減小：0.25 → 0.10m，更精確判定到達
+      yaw_goal_tolerance: 0.15        # 減小：0.25 → 0.15 rad
       stateful: True
     
     FollowPath:
@@ -170,8 +170,8 @@ local_costmap:
       plugins: ["obstacle_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 2.5
-        inflation_radius: 0.35  # 50cm 機器人需要足夠的安全距離
+        cost_scaling_factor: 5.0   # 提高: 2.5 → 5.0 (成本快速衰減，小路可通過)
+        inflation_radius: 0.20     # 提高: 0.15 → 0.20m (保持轉彎安全距離)
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
@@ -223,6 +223,6 @@ global_costmap:
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 2.5
-        inflation_radius: 0.35  # 50cm 機器人需要足夠的安全距離
+        cost_scaling_factor: 5.0   # 提高: 2.5 → 5.0 (成本快速衰減，小路可通過)
+        inflation_radius: 0.15     # 提高: 0.10 → 0.15m (保持轉彎安全距離)
       always_send_full_costmap: True

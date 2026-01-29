@@ -11,6 +11,9 @@ class RosbridgeService {
   private voltageSubscriber: ROSLIB.Topic | null = null;
   private currentASubscriber: ROSLIB.Topic | null = null;
   private currentBSubscriber: ROSLIB.Topic | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private tfClient: any = null;
+  private robotPoseCallback: ((pose: RobotPoseInMap) => void) | null = null;
   private connected = false;
   private connectionCallbacks: Set<ConnectionCallback> = new Set();
 
@@ -136,6 +139,50 @@ class RosbridgeService {
     }
   }
 
+  // Subscribe to robot pose in map frame via TF
+  // This correctly gets robot position in map coordinates (works for both SLAM and navigation)
+  subscribeToRobotPoseInMap(callback: (pose: RobotPoseInMap) => void): void {
+    if (!this.ros || !this.connected) return;
+
+    this.robotPoseCallback = callback;
+
+    // Use TFClient to get map->base_link transform
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const TFClient = (ROSLIB as any).TFClient;
+    this.tfClient = new TFClient({
+      ros: this.ros,
+      fixedFrame: 'map',
+      angularThres: 0.01,
+      transThres: 0.01,
+      rate: 10.0,  // 10 Hz
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.tfClient.subscribe('base_link', (transform: any) => {
+      if (this.robotPoseCallback) {
+        // Calculate yaw from quaternion
+        const q = transform.rotation;
+        const yaw = Math.atan2(
+          2.0 * (q.w * q.z + q.x * q.y),
+          1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+        );
+        this.robotPoseCallback({
+          x: transform.translation.x,
+          y: transform.translation.y,
+          yaw: yaw,
+        });
+      }
+    });
+  }
+
+  unsubscribeFromRobotPoseInMap(): void {
+    if (this.tfClient) {
+      this.tfClient.unsubscribe('base_link');
+      this.tfClient = null;
+    }
+    this.robotPoseCallback = null;
+  }
+
   // Subscribe to motor voltage
   subscribeToVoltage(callback: (voltage: number) => void): void {
     if (!this.ros) return;
@@ -224,6 +271,13 @@ export interface OdomData {
       orientation: { x: number; y: number; z: number; w: number };
     };
   };
+}
+
+// Robot pose in map coordinate frame (used for correct display during SLAM and navigation)
+export interface RobotPoseInMap {
+  x: number;
+  y: number;
+  yaw: number;
 }
 
 export const rosbridgeService = new RosbridgeService();

@@ -85,10 +85,13 @@ export function StaticMapView({
   }, [mapName]);
 
   // 地圖座標轉 canvas 座標
+  // PGM 圖片的 pixel(0,0) 是左上角，對應地圖的左上角（Y 值最大）
+  // 不翻轉繪製，所以 pixel Y 和 map Y 方向相反
   const mapToCanvas = useCallback((mapX: number, mapY: number) => {
     if (!metadata || !mapImage) return { x: 0, y: 0 };
     const { resolution, origin } = metadata;
     const canvasX = (mapX - origin[0]) / resolution * scale + offset.x;
+    // map Y 越大，pixel Y 越小（在圖片上方）
     const canvasY = (mapImage.height - (mapY - origin[1]) / resolution) * scale + offset.y;
     return { x: canvasX, y: canvasY };
   }, [metadata, mapImage, scale, offset]);
@@ -98,6 +101,7 @@ export function StaticMapView({
     if (!metadata || !mapImage) return { x: 0, y: 0 };
     const { resolution, origin } = metadata;
     const mapX = (canvasX - offset.x) / scale * resolution + origin[0];
+    // pixel Y 越大（在圖片下方），map Y 越小
     const mapY = (mapImage.height - (canvasY - offset.y) / scale) * resolution + origin[1];
     return { x: mapX, y: mapY };
   }, [metadata, mapImage, scale, offset]);
@@ -115,14 +119,12 @@ export function StaticMapView({
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // 繪製地圖
+    // PGM 圖片的 (0,0) 是左上角，對應地圖的左上角（Y 值最大）
+    // 直接繪製，不翻轉，這樣視覺上北（Y+）在上方
     ctx.save();
     ctx.translate(offset.x, offset.y);
     ctx.scale(scale, scale);
     ctx.imageSmoothingEnabled = false;
-
-    // PGM 地圖需要翻轉 Y 軸
-    ctx.translate(0, mapImage.height);
-    ctx.scale(1, -1);
     ctx.drawImage(mapImage, 0, 0);
     ctx.restore();
 
@@ -205,12 +207,20 @@ export function StaticMapView({
     return null;
   }, [tables, mapToCanvas]);
 
-  // 滾輪縮放
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setScale((s) => Math.max(0.5, Math.min(20, s * delta)));
-  }, []);
+  // 滾輪縮放 - 使用 useEffect 添加非 passive 事件監聽器
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      setScale((s) => Math.max(0.5, Math.min(20, s * delta)));
+    };
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheel);
+  }, [mapImage]);
 
   // 拖曳平移
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -296,7 +306,6 @@ export function StaticMapView({
         width={CANVAS_WIDTH}
         height={CANVAS_HEIGHT}
         className={styles.canvas}
-        onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}

@@ -1148,7 +1148,8 @@ async def save_map(request: MapSaveRequest):
     map_path = validate_map_path(map_name, MAP_SAVE_PATH)
 
     def _save_map():
-        cmd = f"source /opt/ros/humble/setup.bash && source /home/robot0/base_dev/install/setup.bash && ros2 run nav2_map_server map_saver_cli -f {map_path} -t /map"
+        # 使用 /map_saver topic，需指定 TRANSIENT_LOCAL QoS 才能接收 latched message
+        cmd = f"source /opt/ros/humble/setup.bash && source /home/robot0/base_dev/install/setup.bash && ros2 run nav2_map_server map_saver_cli -f {map_path} -t /map_saver --ros-args -p map_subscribe_transient_local:=true"
         return subprocess.run(
             ["bash", "-c", cmd],
             capture_output=True,

@@ -91,8 +91,8 @@ controller_server:
 
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.10         # 減小：0.25 → 0.10m，更精確判定到達
-      yaw_goal_tolerance: 0.15        # 減小：0.25 → 0.15 rad
+      xy_goal_tolerance: 0.20         # 放寬容差，減少終點搖擺
+      yaw_goal_tolerance: 0.35        # 放寬到 ~20 度，避免持續旋轉對齊
       stateful: True
     
     FollowPath:
@@ -114,7 +114,7 @@ controller_server:
       use_cost_regulated_linear_velocity_scaling: false
       regulated_linear_velocity_scaling_min_radius: 0.9
       regulated_linear_velocity_scaling_min_speed: 0.02
-      use_rotate_to_heading: true
+      use_rotate_to_heading: false       # 關閉終點旋轉對齊，減少搖擺
       rotate_to_heading_min_angle: 0.785
       max_angular_accel: 3.2
       max_robot_pose_search_dist: 10.0
@@ -171,7 +171,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 5.0   # 提高: 2.5 → 5.0 (成本快速衰減，小路可通過)
-        inflation_radius: 0.20     # 提高: 0.15 → 0.20m (保持轉彎安全距離)
+        inflation_radius: 0.20     # 膨脹半徑 20cm
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
@@ -224,5 +224,5 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 5.0   # 提高: 2.5 → 5.0 (成本快速衰減，小路可通過)
-        inflation_radius: 0.15     # 提高: 0.10 → 0.15m (保持轉彎安全距離)
+        inflation_radius: 0.20     # 膨脹半徑 20cm
       always_send_full_costmap: True

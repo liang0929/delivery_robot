@@ -223,6 +223,7 @@ def launch_setup(context, *args, **kwargs):
             package='imu_bno055',
             executable='bno055_i2c_node',
             name='bno055',
+            namespace='imu',
             output='screen',
             parameters=[{
                 'device': imu_device,

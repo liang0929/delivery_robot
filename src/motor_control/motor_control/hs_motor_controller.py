@@ -58,7 +58,7 @@ class HSMotorController(Node):
         self.declare_parameter('control_frequency', 50.0)  # 控制頻率 (Hz)
         self.declare_parameter('invert_motor_a', True)  # A馬達反轉
         self.declare_parameter('invert_motor_b', False)
-        self.declare_parameter('invert_angular_velocity', True)  # 角速度反轉
+        self.declare_parameter('invert_angular_velocity', False)  # 角速度反轉（True 會污染 odom x,y）
 
         # 獲取參數
         self.serial_port = self.get_parameter('serial_port').value
@@ -474,9 +474,9 @@ class HSMotorController(Node):
             if motor_rpm_b > 0 and self.logical_dir_b == 1:
                 vel_b = -vel_b
 
-            # 計算機器人速度
+            # 計算機器人速度 (Motor A = 物理右輪, Motor B = 物理左輪)
             vx = (vel_a + vel_b) / 2.0
-            vth = (vel_b - vel_a) / self.wheel_separation
+            vth = (vel_a - vel_b) / self.wheel_separation
 
             # 根據配置反轉角速度 (旋轉方向)
             if self.invert_angular_velocity:
@@ -519,8 +519,8 @@ class HSMotorController(Node):
         left_vel = linear_x - (angular_z * self.wheel_separation / 2.0)
         right_vel = linear_x + (angular_z * self.wheel_separation / 2.0)
 
-        # 設定馬達
-        self.set_motor_speeds(left_vel, right_vel)
+        # 設定馬達 (Motor A = 物理右輪, Motor B = 物理左輪)
+        self.set_motor_speeds(right_vel, left_vel)
 
     def set_motor_speeds(self, left_vel: float, right_vel: float) -> None:
         """設定馬達速度 (m/s)"""

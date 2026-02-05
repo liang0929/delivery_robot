@@ -59,7 +59,7 @@ def load_tf_config():
         'base_link_to_laser': {
             'parent_frame': 'base_link',
             'child_frame': 'laser',
-            'translation': {'x': 0.1, 'y': 0.0, 'z': 0.15},
+            'translation': {'x': 0.0, 'y': 0.0, 'z': 0.1},
             'rotation': {'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0}
         },
         'base_link_to_imu': {

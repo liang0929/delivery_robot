@@ -70,25 +70,7 @@ def launch_setup(context, *args, **kwargs):
     if cpu_affinity_enabled:
         nodes.append(LogInfo(msg='=== 導航節點 CPU 親和性已啟用 (核心 4-5) ==='))
 
-    # 靜態 TF 發布器 (base_link -> laser, base_footprint -> base_link, base_link -> imu_link)
-    nodes.append(Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='base_link_to_laser',
-        arguments=['--x', '0', '--y', '0', '--z', '0.1', '--roll', '0', '--pitch', '0', '--yaw', '0', '--frame-id', 'base_link', '--child-frame-id', 'laser']
-    ))
-    nodes.append(Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='base_footprint_to_base_link',
-        arguments=['--x', '0', '--y', '0', '--z', '0.05', '--roll', '0', '--pitch', '0', '--yaw', '0', '--frame-id', 'base_footprint', '--child-frame-id', 'base_link']
-    ))
-    nodes.append(Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='base_link_to_imu',
-        arguments=['--x', '0', '--y', '0', '--z', '0.05', '--roll', '0', '--pitch', '0', '--yaw', '0', '--frame-id', 'base_link', '--child-frame-id', 'imu_link']
-    ))
+    # 靜態 TF 由 bringup.launch.py 提供，此處不重複發布
 
     # Map Server - 載入地圖 (核心 4-5)
     nodes.append(Node(

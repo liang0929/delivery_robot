@@ -184,8 +184,27 @@ class DeliveryTask(BaseModel):
 
 # --- Configuration ---
 # 從環境變數讀取配置，提供合理預設值
-# 使用固定的 workspace 路徑，因為從 install 目錄運行時相對路徑會錯誤
-WORKSPACE_ROOT = '/home/robot0/base_dev'
+# ROBOT_WORKSPACE 環境變數優先，否則從當前檔案位置推導
+def _get_workspace_root() -> str:
+    """取得 workspace 根目錄路徑"""
+    # 優先使用環境變數
+    env_workspace = os.environ.get('ROBOT_WORKSPACE')
+    if env_workspace and os.path.isdir(env_workspace):
+        return env_workspace
+
+    # 從當前檔案位置推導: .../src/robot_api_server/robot_api_server/main.py
+    # 往上 4 層即為 workspace 根目錄
+    current_file = os.path.abspath(__file__)
+    workspace = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file))))
+
+    # 驗證路徑有效性（檢查 src 目錄是否存在）
+    if os.path.isdir(os.path.join(workspace, 'src')):
+        return workspace
+
+    # 最後 fallback（相容舊配置）
+    return '/home/robot0/base_dev'
+
+WORKSPACE_ROOT = _get_workspace_root()
 DEFAULT_MAP_PATH = os.path.join(WORKSPACE_ROOT, 'map')
 MAP_SAVE_PATH = os.environ.get('ROBOT_MAP_PATH', DEFAULT_MAP_PATH)
 
@@ -1149,7 +1168,7 @@ async def save_map(request: MapSaveRequest):
 
     def _save_map():
         # 使用 /map_saver topic，需指定 TRANSIENT_LOCAL QoS 才能接收 latched message
-        cmd = f"source /opt/ros/humble/setup.bash && source /home/robot0/base_dev/install/setup.bash && ros2 run nav2_map_server map_saver_cli -f {map_path} -t /map_saver --ros-args -p map_subscribe_transient_local:=true"
+        cmd = f"source /opt/ros/humble/setup.bash && source {WORKSPACE_ROOT}/install/setup.bash && ros2 run nav2_map_server map_saver_cli -f {map_path} -t /map_saver --ros-args -p map_subscribe_transient_local:=true"
         return subprocess.run(
             ["bash", "-c", cmd],
             capture_output=True,

@@ -674,12 +674,15 @@ class HSMotorController(Node):
 
 def main(args=None):
     rclpy.init(args=args)
+    controller = None
     try:
         controller = HSMotorController()
         rclpy.spin(controller)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
+        if controller is not None:
+            controller.destroy_node()
         rclpy.try_shutdown()
 
 

@@ -19,7 +19,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from geometry_msgs.msg import Twist, Quaternion, Point, Vector3
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Float32, Int32
+from std_msgs.msg import Float32, Int32, Bool
 
 from motor_control.odom_constants import POSE_COVARIANCE, TWIST_COVARIANCE
 
@@ -96,6 +96,16 @@ class HSMotorController(Node):
         self.current_a_pub = self.create_publisher(Float32, 'motor/current_a', qos)
         self.current_b_pub = self.create_publisher(Float32, 'motor/current_b', qos)
         self.fault_pub = self.create_publisher(Int32, 'motor/fault', qos)
+
+        # E-Stop 訂閱 (TRANSIENT_LOCAL 確保收到 latched 狀態)
+        e_stop_qos = QoSProfile(
+            depth=1,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL
+        )
+        self.e_stop_sub = self.create_subscription(
+            Bool, '/e_stop', self.e_stop_callback, e_stop_qos)
+        self.e_stop_active = False
 
         # 馬達狀態
         self.target_rpm_a = 0
@@ -260,10 +270,21 @@ class HSMotorController(Node):
         """
         # 使用鎖保護讀取共享狀態，獲取快照
         with self.state_lock:
+            e_stop = self.e_stop_active
             dir_a = self.dir_a
             dir_b = self.dir_b
             target_rpm_a = self.target_rpm_a
             target_rpm_b = self.target_rpm_b
+
+        # E-Stop 啟動時：強制制動，RPM 歸零
+        if e_stop:
+            motor_control_byte = self.MOTOR_BRAKE
+            target_rpm_a = 0
+            target_rpm_b = 0
+        elif self.motor_enabled:
+            motor_control_byte = self.MOTOR_ENABLE
+        else:
+            motor_control_byte = self.MOTOR_DISABLE
 
         packet = bytearray()
 
@@ -283,10 +304,10 @@ class HSMotorController(Node):
         packet.append(0x00)
 
         # Byte 6: A電機控制 (00: 失能, 01: 使能, 03: 制動)
-        packet.append(self.MOTOR_ENABLE if self.motor_enabled else self.MOTOR_DISABLE)
+        packet.append(motor_control_byte)
 
         # Byte 7: B電機控制 (00: 失能, 01: 使能, 03: 制動)
-        packet.append(self.MOTOR_ENABLE if self.motor_enabled else self.MOTOR_DISABLE)
+        packet.append(motor_control_byte)
 
         # Byte 8: A電機運行方向 (00: 正轉, 01: 反轉)
         packet.append(dir_a & 0x01)
@@ -499,8 +520,24 @@ class HSMotorController(Node):
         # 發布里程計 (TF 由 EKF 發布，避免重複)
         self.publish_odometry(vx, vth)
 
+    def e_stop_callback(self, msg: Bool) -> None:
+        """E-Stop 狀態回調"""
+        with self.state_lock:
+            prev = self.e_stop_active
+            self.e_stop_active = msg.data
+
+        if msg.data and not prev:
+            self.get_logger().warn('E-STOP ACTIVATED - motors will brake')
+        elif not msg.data and prev:
+            self.get_logger().info('E-Stop released - motors resuming')
+
     def cmd_vel_callback(self, msg: Twist) -> None:
         """速度命令回調"""
+        # E-Stop 啟動時拒絕所有速度命令
+        with self.state_lock:
+            if self.e_stop_active:
+                return
+
         self.last_cmd_time = self.get_clock().now()
 
         # 驗證輸入值（防止 NaN 或無窮大）

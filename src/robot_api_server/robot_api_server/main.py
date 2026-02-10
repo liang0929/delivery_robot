@@ -316,10 +316,22 @@ class RobotStateManager:
         self._current_map: Optional[str] = None  # 當前導航使用的地圖
         self._robot_core_process: Optional[subprocess.Popen] = None
         self._robot_core_running = False
+        self._e_stop_active = False
         # Health monitor
         self._health_thread: Optional[threading.Thread] = None
         self._health_stop_event = threading.Event()
         self._crash_info: dict = {}  # 記錄 crash 資訊
+
+    # --- E-Stop ---
+    @property
+    def e_stop_active(self) -> bool:
+        with self._lock:
+            return self._e_stop_active
+
+    @e_stop_active.setter
+    def e_stop_active(self, value: bool):
+        with self._lock:
+            self._e_stop_active = value
 
     # --- SLAM ---
     @property
@@ -723,6 +735,7 @@ class RobotStateManager:
                 "slam_status": self._slam_status,
                 "nav_status": self._nav_status,
                 "crash_info": self._crash_info.copy(),
+                "e_stop_active": self._e_stop_active,
             }
 
 
@@ -811,14 +824,46 @@ def get_full_status() -> dict:
             "is_complete": is_complete,
             "distance_remaining": distance_remaining,
         },
+        "e_stop": {
+            "active": snapshot["e_stop_active"],
+        },
         "crash_info": snapshot["crash_info"],
     }
+
+
+# --- E-Stop ROS2 Subscriber Thread ---
+def _e_stop_subscriber_thread():
+    """背景線程：訂閱 /e_stop topic 更新 API Server 狀態"""
+    try:
+        from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
+        from std_msgs.msg import Bool
+
+        ensure_rclpy_initialized()
+        node = rclpy.create_node('api_e_stop_listener')
+
+        e_stop_qos = QoSProfile(
+            depth=1,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL
+        )
+
+        def _cb(msg):
+            state.e_stop_active = msg.data
+
+        node.create_subscription(Bool, '/e_stop', _cb, e_stop_qos)
+        logger.info("E-Stop subscriber thread started")
+        rclpy.spin(node)
+    except Exception as e:
+        logger.error(f"E-Stop subscriber thread failed: {e}")
 
 
 # --- Lifespan for cleanup ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     state.start_health_monitor()
+    # 啟動 E-Stop 訂閱背景線程
+    e_stop_thread = threading.Thread(target=_e_stop_subscriber_thread, daemon=True)
+    e_stop_thread.start()
     # 啟動狀態廣播任務
     broadcast_task = asyncio.create_task(status_broadcast_loop())
     yield
@@ -861,10 +906,11 @@ async def websocket_status(websocket: WebSocket):
     """WebSocket 端點：即時狀態更新"""
     await ws_manager.connect(websocket)
     try:
-        # 連線時立即發送當前狀態
+        # 連線時立即發送當前狀態（使用 to_thread 避免阻塞事件循環）
+        initial_status = await asyncio.to_thread(get_full_status)
         await websocket.send_json({
             "type": "status_update",
-            "data": get_full_status()
+            "data": initial_status
         })
         # 保持連線，等待客戶端斷線
         while True:
@@ -908,6 +954,11 @@ async def start_lidar_motor():
         raise HTTPException(status_code=500, detail="LiDAR start timed out.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to start LiDAR: {str(e)}")
+
+@app.get("/robot/e_stop")
+async def get_e_stop_status():
+    """Get E-Stop status."""
+    return {"active": state.e_stop_active}
 
 @app.get("/robot/status")
 async def get_robot_status():
@@ -1168,7 +1219,8 @@ async def save_map(request: MapSaveRequest):
 
     def _save_map():
         # 使用 /map_saver topic，需指定 TRANSIENT_LOCAL QoS 才能接收 latched message
-        cmd = f"source /opt/ros/humble/setup.bash && source {WORKSPACE_ROOT}/install/setup.bash && ros2 run nav2_map_server map_saver_cli -f {map_path} -t /map_saver --ros-args -p map_subscribe_transient_local:=true"
+        # 加上 map_timeout 讓 map_saver_cli 等久一點，避免 DDS discovery 來不及配對
+        cmd = f"source /opt/ros/humble/setup.bash && source {WORKSPACE_ROOT}/install/setup.bash && ros2 run nav2_map_server map_saver_cli -f {map_path} -t /map_saver --ros-args -p map_subscribe_transient_local:=true -p save_map_timeout:=10000.0"
         return subprocess.run(
             ["bash", "-c", cmd],
             capture_output=True,

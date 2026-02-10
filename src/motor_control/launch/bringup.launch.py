@@ -234,6 +234,22 @@ def launch_setup(context, *args, **kwargs):
             prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
         ))
 
+        # E-Stop GPIO 監控節點 (核心 2-3)
+        nodes.append(Node(
+            package='motor_control',
+            executable='e_stop_node',
+            name='e_stop_node',
+            output='screen',
+            parameters=[{
+                'gpio_pin': 7,
+                'active_low': True,
+                'poll_rate': 100.0,
+                'debounce_ms': 50,
+                'simulation': False,
+            }],
+            prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
+        ))
+
     # ========== 模擬節點 ==========
     if simulation:
         # Mock 馬達控制器 (核心 0-1)
@@ -278,6 +294,18 @@ def launch_setup(context, *args, **kwargs):
             parameters=[{
                 'frame_id': 'imu_link',
                 'publish_frequency': 50.0,
+            }],
+            prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
+        ))
+
+        # E-Stop 模擬節點 (核心 2-3, 永遠不觸發)
+        nodes.append(Node(
+            package='motor_control',
+            executable='e_stop_node',
+            name='e_stop_node',
+            output='screen',
+            parameters=[{
+                'simulation': True,
             }],
             prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
         ))

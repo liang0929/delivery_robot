@@ -37,6 +37,8 @@ setup(
             'mock_motor_controller = motor_control.mock_motor_controller:main',
             'mock_lidar = motor_control.mock_lidar:main',
             'mock_imu = motor_control.mock_imu:main',
+            # E-Stop 節點
+            'e_stop_node = motor_control.e_stop_node:main',
         ],
     },
 )

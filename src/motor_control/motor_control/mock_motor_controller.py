@@ -12,7 +12,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from geometry_msgs.msg import Twist, Quaternion, Point, Vector3
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Header
+from std_msgs.msg import Header, Bool
 
 from motor_control.odom_constants import POSE_COVARIANCE_SIM, TWIST_COVARIANCE_SIM
 
@@ -47,6 +47,16 @@ class MockMotorController(Node):
             Twist, 'cmd_vel', self.cmd_vel_callback, qos)
         self.odom_pub = self.create_publisher(Odometry, 'odom_raw', qos)
 
+        # E-Stop 訂閱 (TRANSIENT_LOCAL 確保收到 latched 狀態)
+        e_stop_qos = QoSProfile(
+            depth=1,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL
+        )
+        self.e_stop_sub = self.create_subscription(
+            Bool, '/e_stop', self.e_stop_callback, e_stop_qos)
+        self.e_stop_active = False
+
         # 里程計狀態
         self.odom_x = 0.0
         self.odom_y = 0.0
@@ -71,8 +81,26 @@ class MockMotorController(Node):
             f'wheel_radius: {self.wheel_radius}m'
         )
 
+    def e_stop_callback(self, msg: Bool) -> None:
+        """E-Stop 狀態回調"""
+        prev = self.e_stop_active
+        self.e_stop_active = msg.data
+
+        if msg.data:
+            # 急停啟動：立即歸零速度
+            self.current_linear_x = 0.0
+            self.current_angular_z = 0.0
+            if not prev:
+                self.get_logger().warn('E-STOP ACTIVATED - velocities zeroed')
+        elif prev:
+            self.get_logger().info('E-Stop released - accepting commands')
+
     def cmd_vel_callback(self, msg: Twist) -> None:
         """速度命令回調"""
+        # E-Stop 啟動時拒絕所有速度命令
+        if self.e_stop_active:
+            return
+
         # 驗證輸入值（防止 NaN 或無窮大）
         if math.isnan(msg.linear.x) or math.isinf(msg.linear.x):
             self.get_logger().warning('Invalid linear.x value (NaN/Inf), ignoring command')
@@ -101,6 +129,11 @@ class MockMotorController(Node):
 
         if dt <= 0:
             return
+
+        # E-Stop 啟動時速度歸零
+        if self.e_stop_active:
+            self.current_linear_x = 0.0
+            self.current_angular_z = 0.0
 
         # 使用當前速度命令計算位移
         vx = self.current_linear_x

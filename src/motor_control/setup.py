@@ -10,13 +10,11 @@ setup(
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch', [
             'launch/keyboard_control.launch.py',
-            'launch/modbus_motor_controller.launch.py',
             'launch/hs_motor_controller.launch.py',
             'launch/robot_state_publisher.launch.py',
             'launch/bringup.launch.py',
         ]),
         ('share/' + package_name + '/config', [
-            'config/modbus_motor_config.yaml',
             'config/hs_motor_config.yaml',
             'config/tf_config.yaml'
         ]),
@@ -30,7 +28,6 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'modbus_motor_controller = motor_control.modbus_motor_controller:main',
             'hs_motor_controller = motor_control.hs_motor_controller:main',
             'map_relay = motor_control.map_relay:main',
             # Mock 節點 (模擬模式)

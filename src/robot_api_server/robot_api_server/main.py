@@ -1713,7 +1713,7 @@ async def confirm_delivery_arrival():
         # 返回出發點
         is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
         if is_ready:
-            await asyncio.to_thread(nav_manager.send_goal, task.startPosition.x, task.startPosition.y, task.startPosition.yaw)
+            await asyncio.to_thread(nav_manager.send_goal, task.startPosition.x, task.startPosition.y, math.degrees(task.startPosition.yaw))
             logger.info("Returning to start position")
 
     return task
@@ -1738,7 +1738,7 @@ async def skip_delivery_table():
         # 返回出發點
         is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
         if is_ready:
-            await asyncio.to_thread(nav_manager.send_goal, task.startPosition.x, task.startPosition.y, task.startPosition.yaw)
+            await asyncio.to_thread(nav_manager.send_goal, task.startPosition.x, task.startPosition.y, math.degrees(task.startPosition.yaw))
             logger.info("Returning to start position")
 
     return task

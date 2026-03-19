@@ -557,10 +557,15 @@ class HSMotorController(Node):
         right_vel = linear_x + (angular_z * self.wheel_separation / 2.0)
 
         # 設定馬達 (Motor A = 物理右輪, Motor B = 物理左輪)
-        self.set_motor_speeds(right_vel, left_vel)
+        self.set_motor_speeds(left_vel, right_vel)
 
     def set_motor_speeds(self, left_vel: float, right_vel: float) -> None:
-        """設定馬達速度 (m/s)"""
+        """設定馬達速度 (m/s)
+
+        Args:
+            left_vel: 左輪目標速度 → Motor B
+            right_vel: 右輪目標速度 → Motor A
+        """
         # 轉換為輪子 RPM
         left_wheel_rpm = abs(left_vel) / (2 * math.pi * self.wheel_radius) * 60.0
         right_wheel_rpm = abs(right_vel) / (2 * math.pi * self.wheel_radius) * 60.0
@@ -570,8 +575,9 @@ class HSMotorController(Node):
         right_motor_rpm = right_wheel_rpm * self.gear_ratio
 
         # 計算邏輯方向 (用於里程計，反轉前)
-        logical_dir_a = 0 if left_vel >= 0 else 1
-        logical_dir_b = 0 if right_vel >= 0 else 1
+        # Motor A = 物理右輪, Motor B = 物理左輪
+        logical_dir_a = 0 if right_vel >= 0 else 1
+        logical_dir_b = 0 if left_vel >= 0 else 1
 
         # 物理方向 (發送給驅動器，考慮馬達反轉設定)
         dir_a = logical_dir_a
@@ -584,13 +590,15 @@ class HSMotorController(Node):
             dir_b = 1 - dir_b
 
         # 計算目標 RPM (處理死區)
-        if left_motor_rpm >= self.min_rpm:
-            target_rpm_a = int(min(left_motor_rpm, self.max_rpm))
+        # Motor A = 右輪
+        if right_motor_rpm >= self.min_rpm:
+            target_rpm_a = int(min(right_motor_rpm, self.max_rpm))
         else:
             target_rpm_a = 0
 
-        if right_motor_rpm >= self.min_rpm:
-            target_rpm_b = int(min(right_motor_rpm, self.max_rpm))
+        # Motor B = 左輪
+        if left_motor_rpm >= self.min_rpm:
+            target_rpm_b = int(min(left_motor_rpm, self.max_rpm))
         else:
             target_rpm_b = 0
 

@@ -15,7 +15,6 @@ setup(
             'config/slam_toolbox_params.yaml',
         ]),
         ('share/' + package_name + '/launch', [
-            'launch/nav2.launch.py',
             'launch/mapping.launch.py',
             'launch/autonomous_navigation.launch.py'
         ]),

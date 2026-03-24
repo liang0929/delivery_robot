@@ -53,7 +53,7 @@ class HSMotorController(Node):
         self.declare_parameter('gear_ratio', 20.0)  # 減速比 (馬達轉20圈=輪子轉1圈)
         self.declare_parameter('max_linear_vel', 0.05)  # 最大線速度 (m/s)
         self.declare_parameter('max_angular_vel', 0.4)  # 最大角速度 (rad/s)
-        self.declare_parameter('min_rpm', 60.0)  # 最小馬達 RPM
+        self.declare_parameter('min_rpm', 100.0)  # 最小馬達 RPM (根據 AGV-BLD-2S 手冊)
         self.declare_parameter('max_rpm', 3000.0)  # 最大馬達 RPM
         self.declare_parameter('control_frequency', 50.0)  # 控制頻率 (Hz)
         self.declare_parameter('invert_motor_a', True)  # A馬達反轉

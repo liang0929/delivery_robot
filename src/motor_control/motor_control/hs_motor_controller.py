@@ -662,8 +662,8 @@ class HSMotorController(Node):
     def destroy_node(self) -> None:
         """節點銷毀"""
         self.running = False
-        self.motor_enabled = False
         with self.state_lock:
+            self.e_stop_active = True  # 觸發 MOTOR_BRAKE 而非 MOTOR_DISABLE
             self.target_rpm_a = 0
             self.target_rpm_b = 0
 

@@ -861,6 +861,7 @@ def _e_stop_subscriber_thread():
     """背景線程：訂閱 /e_stop topic 更新 API Server 狀態"""
     try:
         from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
+        from rclpy.executors import SingleThreadedExecutor
         from std_msgs.msg import Bool
 
         ensure_rclpy_initialized()
@@ -877,7 +878,10 @@ def _e_stop_subscriber_thread():
 
         node.create_subscription(Bool, '/e_stop', _cb, e_stop_qos)
         logger.info("E-Stop subscriber thread started")
-        rclpy.spin(node)
+        # 使用獨立的 executor 避免與 BasicNavigator 的 spin 衝突
+        executor = SingleThreadedExecutor()
+        executor.add_node(node)
+        executor.spin()
     except Exception as e:
         logger.error(f"E-Stop subscriber thread failed: {e}")
 
@@ -1726,13 +1730,21 @@ async def start_delivery(request: DeliveryStartRequest):
 
     task = delivery_manager.start_delivery(map_name, request.tableIds, request.startPosition)
 
-    # 導航到第一個桌位
-    first_table = delivery_manager.get_current_stop_table()
-    if first_table:
-        is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
-        if is_ready:
-            await asyncio.to_thread(nav_manager.send_goal, first_table.x, first_table.y, first_table.yaw_deg)
-            logger.info(f"Starting delivery to table {first_table.number}")
+    # 非阻塞地導航到第一個桌位（避免 ensure_nav2_ready 掛住阻塞 HTTP 回應）
+    async def _send_first_goal():
+        try:
+            first_table = delivery_manager.get_current_stop_table()
+            if first_table:
+                is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
+                if is_ready:
+                    await asyncio.to_thread(nav_manager.send_goal, first_table.x, first_table.y, first_table.yaw_deg)
+                    logger.info(f"Starting delivery to table {first_table.number}")
+                else:
+                    logger.warning("Nav2 not ready, delivery goal not sent")
+        except Exception as e:
+            logger.error(f"Failed to send first delivery goal: {e}")
+
+    asyncio.create_task(_send_first_goal())
 
     return task
 
@@ -1845,28 +1857,32 @@ class NavigatorManager:
 
     def ensure_nav2_ready(self) -> bool:
         """確保 Nav2 已準備好"""
+        # 快速檢查（持有鎖）
         with self._lock:
             if self._nav2_ready and self.navigator is not None:
                 return True
 
-            try:
-                if self.navigator is None:
-                    # 使用全局線程安全的 rclpy 初始化
-                    if not ensure_rclpy_initialized():
-                        logger.error("Failed to initialize rclpy")
-                        return False
+        # 建立 navigator（持有鎖）
+        with self._lock:
+            if self.navigator is None:
+                if not ensure_rclpy_initialized():
+                    logger.error("Failed to initialize rclpy")
+                    return False
+                logger.info("Creating BasicNavigator...")
+                self.navigator = BasicNavigator()
+            nav = self.navigator
 
-                    logger.info("Creating BasicNavigator...")
-                    self.navigator = BasicNavigator()
-
-                logger.info("Waiting for Nav2 to become active...")
-                self.navigator.waitUntilNav2Active()
+        # 等待 Nav2 就緒（不持有鎖，避免阻塞其他操作）
+        try:
+            logger.info("Waiting for Nav2 to become active...")
+            nav.waitUntilNav2Active()
+            with self._lock:
                 self._nav2_ready = True
-                logger.info("Nav2 is active.")
-                return True
-            except RuntimeError as e:
-                logger.error(f"Failed to connect to Nav2: {e}")
-                return False
+            logger.info("Nav2 is active.")
+            return True
+        except RuntimeError as e:
+            logger.error(f"Failed to connect to Nav2: {e}")
+            return False
 
     def reset(self):
         """重置 navigator"""

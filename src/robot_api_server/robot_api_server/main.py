@@ -838,6 +838,10 @@ async def _delivery_monitor_loop():
         try:
             task = delivery_manager.current_task
             if task and task.status in [DeliveryTaskStatus.DELIVERING, DeliveryTaskStatus.RETURNING]:
+                # Navigator 未就緒時跳過，避免 is_task_complete() 誤判為 True
+                if not nav_manager.is_ready:
+                    await asyncio.sleep(0.5)
+                    continue
                 if await asyncio.to_thread(nav_manager.is_stuck):
                     delivery_manager.mark_stuck()
                     logger.warning("Robot is stuck! Task status changed to STUCK")
@@ -1832,6 +1836,12 @@ class NavigatorManager:
         self.navigator: Optional[BasicNavigator] = None
         self._nav2_ready = False
         self._lock = threading.Lock()
+
+    @property
+    def is_ready(self) -> bool:
+        """Navigator 是否已就緒"""
+        with self._lock:
+            return self._nav2_ready and self.navigator is not None
 
     def ensure_nav2_ready(self) -> bool:
         """確保 Nav2 已準備好"""

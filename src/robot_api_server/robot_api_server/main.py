@@ -832,6 +832,27 @@ def get_full_status() -> dict:
 
 
 # --- E-Stop ROS2 Subscriber Thread ---
+async def _delivery_monitor_loop():
+    """背景任務：監控送餐導航狀態，偵測到達或卡住並推進狀態機"""
+    while True:
+        try:
+            task = delivery_manager.current_task
+            if task and task.status in [DeliveryTaskStatus.DELIVERING, DeliveryTaskStatus.RETURNING]:
+                if await asyncio.to_thread(nav_manager.is_stuck):
+                    delivery_manager.mark_stuck()
+                    logger.warning("Robot is stuck! Task status changed to STUCK")
+                elif await asyncio.to_thread(nav_manager.is_task_complete):
+                    if task.status == DeliveryTaskStatus.DELIVERING:
+                        delivery_manager.mark_arrived()
+                        logger.info("Arrived at table")
+                    elif task.status == DeliveryTaskStatus.RETURNING:
+                        delivery_manager.complete_return()
+                        logger.info("Returned to start position")
+        except Exception as e:
+            logger.error(f"Delivery monitor error: {e}")
+        await asyncio.sleep(0.5)
+
+
 def _e_stop_subscriber_thread():
     """背景線程：訂閱 /e_stop topic 更新 API Server 狀態"""
     try:
@@ -866,8 +887,15 @@ async def lifespan(app: FastAPI):
     e_stop_thread.start()
     # 啟動狀態廣播任務
     broadcast_task = asyncio.create_task(status_broadcast_loop())
+    # 啟動送餐狀態監控任務
+    delivery_monitor_task = asyncio.create_task(_delivery_monitor_loop())
     yield
+    delivery_monitor_task.cancel()
     broadcast_task.cancel()
+    try:
+        await delivery_monitor_task
+    except asyncio.CancelledError:
+        pass
     try:
         await broadcast_task
     except asyncio.CancelledError:
@@ -1527,6 +1555,17 @@ class DeliveryManager:
                     return t
             return None
 
+    def mark_stuck(self) -> Optional[DeliveryTask]:
+        """標記機器人卡住"""
+        with self._lock:
+            if self._current_task is None:
+                return None
+            if self._current_task.status not in [DeliveryTaskStatus.DELIVERING, DeliveryTaskStatus.RETURNING]:
+                return self._current_task
+
+            self._current_task.status = DeliveryTaskStatus.STUCK
+            return self._current_task
+
     def mark_arrived(self) -> Optional[DeliveryTask]:
         """標記已到達當前桌位"""
         with self._lock:
@@ -1755,7 +1794,7 @@ async def cancel_delivery():
 
 @app.get("/delivery/status")
 async def get_delivery_status():
-    """Get current delivery task status."""
+    """Get current delivery task status (pure read, no side effects)."""
     task = delivery_manager.current_task
 
     distance_remaining = None
@@ -1766,21 +1805,6 @@ async def get_delivery_status():
         if feedback and hasattr(feedback, 'distance_remaining'):
             distance_remaining = feedback.distance_remaining
 
-        # 檢查是否卡住
-        if nav_manager.is_stuck():
-            is_stuck = True
-            task.status = DeliveryTaskStatus.STUCK
-            logger.warning(f"Robot is stuck! Task status changed to STUCK")
-        # 檢查是否到達
-        elif nav_manager.is_task_complete():
-            if task.status == DeliveryTaskStatus.DELIVERING:
-                delivery_manager.mark_arrived()
-                task = delivery_manager.current_task
-            elif task.status == DeliveryTaskStatus.RETURNING:
-                delivery_manager.complete_return()
-                task = None
-
-    # 如果已經是卡住狀態，繼續回報
     if task and task.status == DeliveryTaskStatus.STUCK:
         is_stuck = True
 

@@ -588,6 +588,11 @@ class HSMotorController(Node):
         with self.state_lock:
             prev = self.e_stop_active
             self.e_stop_active = msg.data
+            if msg.data:
+                # 立即清零目標轉速，避免 e_stop 短暫觸發又釋放時
+                # 恢復舊命令造成機器人竄動
+                self.target_rpm_a = 0
+                self.target_rpm_b = 0
 
         if msg.data and not prev:
             self.get_logger().warn('E-STOP ACTIVATED - motors will brake')
@@ -738,12 +743,17 @@ class HSMotorController(Node):
             self.target_rpm_a = 0
             self.target_rpm_b = 0
 
-        # 發送停止命令
+        # 發送停止命令（重試 3 次，確保煞車封包送達）
         if self.serial_conn and self.serial_conn.is_open:
-            try:
-                self.send_and_receive()
-            except Exception as e:
-                self.get_logger().warning(f'Error sending stop command: {e}')
+            for attempt in range(3):
+                try:
+                    if self.send_and_receive():
+                        break
+                    self.get_logger().warning(
+                        f'Stop command attempt {attempt + 1}/3 failed')
+                except Exception as e:
+                    self.get_logger().warning(
+                        f'Error sending stop command (attempt {attempt + 1}/3): {e}')
 
         # 使用安全關閉方法
         self._close_serial_safely()

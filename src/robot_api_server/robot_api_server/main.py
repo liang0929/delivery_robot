@@ -45,11 +45,14 @@ def ensure_rclpy_initialized() -> bool:
             _rclpy_initialized = True
             logger.info("rclpy initialized successfully")
             return True
-        except RuntimeError:
-            # rclpy 已被初始化（可能在其他進程/線程中）
-            _rclpy_initialized = True
-            logger.info("rclpy already initialized elsewhere")
-            return True
+        except RuntimeError as e:
+            # 只有「已初始化」才視為成功；其他 RuntimeError 是真正的初始化失敗
+            if 'already' in str(e).lower():
+                _rclpy_initialized = True
+                logger.info("rclpy already initialized elsewhere")
+                return True
+            logger.error(f"Failed to initialize rclpy: {e}")
+            raise
         except Exception as e:
             logger.error(f"Failed to initialize rclpy: {e}")
             return False

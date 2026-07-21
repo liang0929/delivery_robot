@@ -49,7 +49,12 @@ class StatusWebSocketService {
   }
 
   connect(): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
+    // 已連線或連線中都直接返回，避免孤立 CONNECTING 狀態的 socket
+    if (
+      this.ws &&
+      (this.ws.readyState === WebSocket.OPEN ||
+        this.ws.readyState === WebSocket.CONNECTING)
+    ) {
       return;
     }
 
@@ -112,7 +117,11 @@ class StatusWebSocketService {
       this.ws.onmessage = null;
       this.ws.onclose = null;
       this.ws.onerror = null;
-      if (this.ws.readyState === WebSocket.OPEN) {
+      if (
+        this.ws.readyState === WebSocket.OPEN ||
+        this.ws.readyState === WebSocket.CONNECTING
+      ) {
+        // CONNECTING 狀態呼叫 close() 會中止握手，避免 socket 被孤立
         this.ws.close();
       }
       this.ws = null;

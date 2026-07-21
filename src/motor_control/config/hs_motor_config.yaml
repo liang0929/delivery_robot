@@ -22,8 +22,10 @@ hs_motor_controller:
 # EKF 感測器融合配置
 # 配置原理：
 # - 使用輪式里程計 + BNO055 IMU
-# - odom: 提供 x, y 位置、線速度
-# - imu: 提供姿態、角速度、線加速度
+# - odom: 只提供 vx, vyaw（velocity-only，避免輪式積分的絕對位姿
+#   與 IMU 航向路徑不一致造成 filtered pose 自相矛盾）
+# - imu: 提供絕對姿態 (roll/pitch/yaw, 相對上電方位) 與角速度
+# - 不融合線加速度（BNO055 未提供 covariance，2D 模式下只引入漂移）
 ekf_filter_node:
   ros__parameters:
     frequency: 30.0
@@ -36,28 +38,31 @@ ekf_filter_node:
     base_link_frame: base_footprint
     world_frame: odom
 
-    # 輪式里程計配置（yaw 由 IMU 提供，odom 只提供位置和線速度）
+    # 輪式里程計配置（velocity-only：只融 vx 與 vyaw）
+    # 絕對 x, y 是馬達節點用輪式 theta 積分的結果，與 EKF 的 IMU 航向
+    # 走不同路徑，融合絕對位置會造成位移方向與姿態矛盾
     # 狀態向量: [x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az]
     odom0: /odom_raw
-    odom0_config: [true,  true,  false,    # 使用 x, y 位置
-                   false, false, false,    # yaw 由 IMU 提供
-                   true,  true,  false,    # 使用 vx, vy 線速度
-                   false, false, false,    # vyaw 由 IMU 提供
+    odom0_config: [false, false, false,    # 不融絕對位置
+                   false, false, false,    # 不融絕對姿態
+                   true,  false, false,    # 使用 vx（差動機器人 vy 恆為 0，不需融合）
+                   false, false, true,     # 使用 vyaw（輪差角速度）
                    false, false, false]    # 不使用加速度
     odom0_queue_size: 10
     odom0_differential: false
     odom0_relative: false
 
-    # IMU 配置（BNO055，不使用磁力計 yaw，靠 gyro 角速度）
+    # IMU 配置（BNO055 fusion 姿態；yaw 為相對上電方位，
+    # imu0_relative: true 以啟動時姿態為零點，避免磁力計絕對方位跳變）
     imu0: /imu/data
     imu0_config: [false, false, false,
-                  true,  true,  false,
+                  true,  true,  true,      # 融合 roll, pitch, yaw 絕對姿態
                   false, false, false,
-                  true,  true,  true,
-                  true,  true,  true]
+                  true,  true,  true,      # 融合 gyro 角速度
+                  false, false, false]     # 不融合線加速度（無 covariance、易漂移）
     imu0_queue_size: 10
     imu0_differential: false
-    imu0_relative: false
+    imu0_relative: true
     imu0_remove_gravitational_acceleration: true
 
     process_noise_covariance: [0.05,  0.0,   0.0,   0.0,   0.0,   0.0,   0.0,   0.0,   0.0,   0.0,   0.0,   0.0,   0.0,   0.0,   0.0,

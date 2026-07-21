@@ -1758,12 +1758,15 @@ class DeliveryManager:
             return self._current_task.model_copy(deep=True)
 
     def confirm_arrival(self) -> Optional[DeliveryTask]:
-        """確認到達並前往下一桌"""
+        """確認到達並前往下一桌；非 AT_TABLE 狀態回 409"""
         with self._lock:
             if self._current_task is None:
                 return None
             if self._current_task.status != DeliveryTaskStatus.AT_TABLE:
-                return self._current_task.model_copy(deep=True)
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Cannot confirm arrival in state '{self._current_task.status.value}'."
+                )
 
             # 標記當前站點完成
             stop = self._current_task.stops[self._current_task.currentStopIndex]
@@ -1773,12 +1776,15 @@ class DeliveryManager:
             return self._advance_to_next()
 
     def skip_table(self) -> Optional[DeliveryTask]:
-        """跳過當前桌位"""
+        """跳過當前桌位；非 AT_TABLE 狀態回 409"""
         with self._lock:
             if self._current_task is None:
                 return None
             if self._current_task.status != DeliveryTaskStatus.AT_TABLE:
-                return self._current_task.model_copy(deep=True)
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Cannot skip table in state '{self._current_task.status.value}'."
+                )
 
             # 標記當前站點跳過
             stop = self._current_task.stops[self._current_task.currentStopIndex]
@@ -1804,6 +1810,29 @@ class DeliveryManager:
         # 新的導航目標尚未發送
         self._awaiting_goal = True
         return self._current_task.model_copy(deep=True)
+
+    def retry_current_stop(self) -> Optional[DeliveryTask]:
+        """STUCK 狀態下重試：重發當前站點（或返程）的導航目標並回到對應狀態"""
+        with self._lock:
+            if self._current_task is None:
+                return None
+            if self._current_task.status != DeliveryTaskStatus.STUCK:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Can only retry when stuck (current state: '{self._current_task.status.value}')."
+                )
+
+            if self._current_task.currentStopIndex < len(self._current_task.stops):
+                # 卡在前往某桌的路上：重試該桌
+                stop = self._current_task.stops[self._current_task.currentStopIndex]
+                stop.status = DeliveryStopStatus.IN_PROGRESS
+                self._current_task.status = DeliveryTaskStatus.DELIVERING
+            else:
+                # 卡在返程路上：重試返回出發點
+                self._current_task.status = DeliveryTaskStatus.RETURNING
+
+            self._awaiting_goal = True
+            return self._current_task.model_copy(deep=True)
 
     def complete_return(self) -> Optional[DeliveryTask]:
         """完成返回"""
@@ -1969,6 +1998,19 @@ async def skip_delivery_table():
         raise HTTPException(status_code=400, detail="No active delivery task.")
 
     # 導航到下一個桌位或返回出發點（依快照決策；只有 awaiting 時才會實際發送）
+    await _dispatch_delivery_goal(task)
+
+    return task
+
+
+@app.post("/delivery/retry", response_model=DeliveryTask)
+async def retry_delivery():
+    """Retry current stop (or the return trip) after the robot got stuck."""
+    task = delivery_manager.retry_current_stop()
+    if task is None:
+        raise HTTPException(status_code=400, detail="No active delivery task.")
+
+    # 重發當前目標
     await _dispatch_delivery_goal(task)
 
     return task

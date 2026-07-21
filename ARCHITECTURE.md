@@ -40,15 +40,11 @@
 │  └──────┬───────┘    └──────────────┘    └──────┬───────┘          │
 │         │                                        │                  │
 │         ▼                                        ▼                  │
-│  ┌──────────────┐                        /cmd_vel                  │
-│  │  rosbridge   │◄──── WebSocket ────────────────┘                 │
-│  │  (9090)      │                                                   │
-│  └──────┬───────┘                                                   │
-│         │                                                           │
-│  ┌──────┴───────┐                                                   │
-│  │  API Server  │◄──── REST API (8000)                             │
-│  │  (FastAPI)   │                                                   │
-│  └──────────────┘                                                   │
+│  ┌──────────────────────────────┐        /cmd_vel                  │
+│  │  Robot API Server (FastAPI)  │◄───────────────┘                 │
+│  │  REST 5000  /  WebSocket 5001│                                   │
+│  │  Winstec Robot API v1.1      │                                   │
+│  └──────────────────────────────┘                                   │
 └─────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -243,21 +239,20 @@ AA + 地址 + 回傳類型 + 故障清除 + 保留 + A控制 + B控制 + A方向
 **技術棧：**
 - React 18 + TypeScript
 - Vite (建置工具)
-- roslibjs (ROS WebSocket 通訊)
-- Axios (REST API)
+- 原生 fetch + WebSocket（**不使用 roslibjs**，只依賴 Robot API）
 
 **架構：**
 ```
 ┌─────────────────────────────────────────────┐
 │              React App                       │
 ├─────────────────────────────────────────────┤
-│  Pages: RemoteControl / SlamMapping / Nav   │
+│  Pages: 建圖 / 點位設定 / 自動導航           │
 ├─────────────────────────────────────────────┤
-│  Components: Joystick / MapView / Panels    │
+│  Components: MapCanvas / DPad / StatusBar   │
 ├─────────────────────────────────────────────┤
-│  Services: rosbridge.service / api.service  │
+│  api/robot.api.ts    ws/RobotSocket.ts      │
 ├─────────────────────────────────────────────┤
-│       rosbridge (9090)    API (8000)        │
+│    REST (5000)          WebSocket (5001)    │
 └─────────────────────────────────────────────┘
 ```
 
@@ -265,25 +260,41 @@ AA + 地址 + 回傳類型 + 故障清除 + 保留 + A控制 + B控制 + A方向
 
 ## 5. 通訊協議
 
-### 5.1 rosbridge WebSocket (Port 9090)
+對外介面遵循 **Winstec Robot API v1.1**，完整規格與實作決策見
+`docs/winstec_api_v1.1.md`，原始文件為 `Winstec_RobotAPI_V1.1.pdf`。
 
-用於即時 ROS2 topic 訂閱/發布：
-- 發布 `/cmd_vel` (搖桿控制)
-- 訂閱 `/map` (地圖顯示)
-- 訂閱 `/odometry/filtered` (機器人位置)
-- 訂閱 `/motor/voltage` (電壓監控)
+### 5.1 REST API (Port 5000)
 
-### 5.2 REST API (Port 8000)
-
-用於控制命令和狀態查詢：
+路徑前綴一律 `/v1/robot`。錯誤回應格式為 `{"event": {"code": "..."}}`。
 
 | 端點 | 方法 | 用途 |
 |------|------|------|
-| `/robot/start` | POST | 啟動 bringup.launch.py (僅核心節點) |
-| `/robot/stop` | POST | 停止機器人核心 |
-| `/slam/start` | POST | 啟動 SLAM |
-| `/slam/save_map` | POST | 儲存地圖 |
-| `/navigate_to_goal` | POST | 發送導航目標 |
+| `/info` | GET | 取得 op_mode / status / battery / location |
+| `/move`、`/move/{pointId}` | POST | 導航至座標或既有點位 |
+| `/manual/move` | POST | 手動移動（forward/backward/left/right/stop）|
+| `/stop` | POST | 軟停止並取消導航 |
+| `/relocate/location`、`/relocate/{pointId}` | POST | 設定機器人位姿 |
+| `/points`、`/virtual-walls`、`/groups` | CRUD | 點位、虛擬牆與群組管理 |
+| `/edits/commit`、`/edits/discard` | POST | 編輯交易的提交與捨棄 |
+| `/mode`、`/maps/*` | — | 🟡 本專案擴充：模式切換與地圖管理 |
+
+**座標單位**：對外為**公分整數** + 角度（度，0–360），僅在與 ROS 互動的
+邊界換算為公尺／弧度。
+
+### 5.2 WebSocket 事件 (Port 5001)
+
+- `robot_info` — 每秒推播 op_mode / status / battery / location
+- `go_point`、`go_charging`、`switch_mode`、`relocate`、`power` — 事件式，
+  帶事件碼 `COMPLETE` / `STUCK` / `ABORT` / `CHG_STA_NOT_FOUND` / `SHUTDOWN`
+
+### 5.3 虛擬牆
+
+Virtual Wall 為**線段**，歸屬於 Group；只有 `is_enable: true` 的 Group 會生效。
+`commit` 或 `groups/actions/apply` 時由 `nav2.keepout` 產生 keepout mask
+（`<map>.keepout.pgm`／`.yaml`），經 Nav2 的 `KeepoutFilter` 套用到 costmap。
+
+> mask 的 `negate: 1` 不可省略 —— mask 語意是「254 = 禁行」，與一般地圖相反，
+> 少了這個旗標虛擬牆會靜默失效。
 
 ---
 
@@ -359,9 +370,10 @@ ros2 lifecycle set /map_server activate
 3. 檢查 AMCL 是否發布 `map → odom` TF
 
 ### Q: 前端顯示 Disconnected？
-1. 確認 rosbridge 正在運行 (port 9090)
-2. 檢查 `robot.config.ts` 中的 IP 設定
-3. 確認防火牆沒有阻擋
+1. 確認 API server 正在運行：`curl http://<IP>:5000/v1/robot/info`
+2. 確認 WebSocket port 5001 也有監聽：`ss -tlnp | grep 5001`
+3. 檢查 `robot.config.ts` 中的 IP 設定（或 build 時的 `VITE_ROBOT_IP`）
+4. 確認防火牆沒有阻擋 5000 / 5001
 
 ---
 

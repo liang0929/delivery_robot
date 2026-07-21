@@ -536,6 +536,8 @@ class RobotStateManager:
         with self._lock:
             self._slam_process = process
             self._slam_status = SlamStatus.MAPPING
+            # 成功重啟後清除舊的 crash 紀錄，避免 /health 永久誤報
+            self._crash_info.pop('slam', None)
             return {"message": "Mapping started.", "status": self._slam_status}
 
     def stop_slam(self) -> dict:
@@ -628,6 +630,8 @@ class RobotStateManager:
         with self._lock:
             self._nav_process = process
             self._nav_status = NavStatus.RUNNING
+            # 成功重啟後清除舊的 crash 紀錄，避免 /health 永久誤報
+            self._crash_info.pop('navigation', None)
             # 記錄當前使用的地圖名稱
             self._current_map = map_name if map_name else "map"
             return {"message": f"Navigation started with map: {map_yaml}", "status": self._nav_status}
@@ -691,6 +695,8 @@ class RobotStateManager:
             self._robot_core_process = process
             self._robot_core_running = True
             self._robot_core_transition = False
+            # 成功重啟後清除舊的 crash 紀錄，避免 /health 永久誤報
+            self._crash_info.pop('robot_core', None)
             return {"message": "Robot core started.", "is_running": True}
 
     def stop_robot_core(self) -> dict:

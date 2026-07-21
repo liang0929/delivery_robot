@@ -16,6 +16,8 @@ StandardError=journal
 # 環境變數
 Environment="HOME=/home/robot0"
 Environment="USER=robot0"
+# 載入專案 .env（不存在時忽略），見 .env.example
+EnvironmentFile=-/home/robot0/base_dev/.env
 
 [Install]
 WantedBy=multi-user.target

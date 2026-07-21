@@ -6,7 +6,6 @@ import threading
 import subprocess
 import os
 import signal
-import logging
 import time
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,11 +23,11 @@ from contextlib import asynccontextmanager
 import asyncio
 import json
 
+from .logging_config import setup_logging, get_logger
+
 # --- Logging Setup ---
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+setup_logging()
+logger = get_logger(__name__)
 
 # --- rclpy 全局初始化管理 ---
 _rclpy_init_lock = threading.Lock()
@@ -44,17 +43,16 @@ def ensure_rclpy_initialized() -> bool:
         try:
             rclpy.init()
             _rclpy_initialized = True
-            logging.getLogger(__name__).info("rclpy initialized successfully")
+            logger.info("rclpy initialized successfully")
             return True
         except RuntimeError:
             # rclpy 已被初始化（可能在其他進程/線程中）
             _rclpy_initialized = True
-            logging.getLogger(__name__).info("rclpy already initialized elsewhere")
+            logger.info("rclpy already initialized elsewhere")
             return True
         except Exception as e:
-            logging.getLogger(__name__).error(f"Failed to initialize rclpy: {e}")
+            logger.error(f"Failed to initialize rclpy: {e}")
             return False
-logger = logging.getLogger(__name__)
 
 # --- Pydantic Models ---
 class Goal(BaseModel):

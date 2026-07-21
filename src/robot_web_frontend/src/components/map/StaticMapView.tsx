@@ -40,6 +40,11 @@ export function StaticMapView({
   useEffect(() => {
     if (!mapName) return;
 
+    // 競態保護：mapName 快速切換時，取消舊的載入流程，
+    // 避免舊 metadata 配上新圖片（或反之）造成座標轉換錯誤
+    let cancelled = false;
+    let img: HTMLImageElement | null = null;
+
     setIsLoading(true);
     setError(null);
 
@@ -47,41 +52,56 @@ export function StaticMapView({
       try {
         // 載入 metadata
         const meta = await apiService.getMapMetadata(mapName);
-        setMetadata(meta);
+        if (cancelled) return;
 
         // 載入圖片
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          setMapImage(img);
+        const image = new Image();
+        img = image;
+        image.crossOrigin = 'anonymous';
+        image.onload = () => {
+          if (cancelled) return;
+
+          // metadata 與圖片一起原子性更新，確保兩者永遠對應同一張地圖
+          setMetadata(meta);
+          setMapImage(image);
           setIsLoading(false);
 
           // 自動適配
           const availableWidth = CANVAS_WIDTH - FIT_PADDING * 2;
           const availableHeight = CANVAS_HEIGHT - FIT_PADDING * 2;
-          const scaleX = availableWidth / img.width;
-          const scaleY = availableHeight / img.height;
+          const scaleX = availableWidth / image.width;
+          const scaleY = availableHeight / image.height;
           const fitScale = Math.min(scaleX, scaleY);
-          const scaledWidth = img.width * fitScale;
-          const scaledHeight = img.height * fitScale;
+          const scaledWidth = image.width * fitScale;
+          const scaledHeight = image.height * fitScale;
           const fitOffsetX = (CANVAS_WIDTH - scaledWidth) / 2;
           const fitOffsetY = (CANVAS_HEIGHT - scaledHeight) / 2;
 
           setScale(fitScale);
           setOffset({ x: fitOffsetX, y: fitOffsetY });
         };
-        img.onerror = () => {
+        image.onerror = () => {
+          if (cancelled) return;
           setError('Failed to load map image');
           setIsLoading(false);
         };
-        img.src = apiService.getMapImageUrl(mapName);
+        image.src = apiService.getMapImageUrl(mapName);
       } catch (err) {
+        if (cancelled) return;
         setError('Failed to load map metadata');
         setIsLoading(false);
       }
     };
 
     loadMap();
+
+    return () => {
+      cancelled = true;
+      if (img) {
+        img.onload = null;
+        img.onerror = null;
+      }
+    };
   }, [mapName]);
 
   // 地圖座標轉 canvas 座標

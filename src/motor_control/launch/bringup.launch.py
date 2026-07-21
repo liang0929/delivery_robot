@@ -253,6 +253,8 @@ def launch_setup(context, *args, **kwargs):
     # ========== 模擬節點 ==========
     if simulation:
         # Mock 馬達控制器 (核心 0-1)
+        # 參數與 hs_motor_config.yaml 真機設定一致，
+        # 模擬中才能重現速度上限與 min_rpm 死區行為
         nodes.append(Node(
             package='motor_control',
             executable='mock_motor_controller',
@@ -261,8 +263,11 @@ def launch_setup(context, *args, **kwargs):
             parameters=[{
                 'wheel_separation': 0.27,
                 'wheel_radius': 0.065,
-                'max_linear_vel': 0.5,
-                'max_angular_vel': 1.0,
+                'max_linear_vel': 0.05,
+                'max_angular_vel': 0.4,
+                'gear_ratio': 20.0,
+                'min_rpm': 100.0,
+                'max_rpm': 3000.0,
                 'odom_frequency': 50.0,
                 'use_sim_time': use_sim_time,
             }],

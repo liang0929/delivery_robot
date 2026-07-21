@@ -918,6 +918,20 @@ class ConnectionManager:
 ws_manager = ConnectionManager()
 
 
+# --- Background Task Tracking ---
+# event loop 對 task 只持弱引用，fire-and-forget 的 task 必須保留強引用
+# 否則可能在執行途中被 GC 回收
+_background_tasks: Set[asyncio.Task] = set()
+
+
+def spawn_background_task(coro) -> asyncio.Task:
+    """建立背景任務並保留強引用，完成後自動移除"""
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
+
 async def status_broadcast_loop():
     """定期廣播狀態更新"""
     last_status = {}
@@ -1972,7 +1986,7 @@ async def start_delivery(request: DeliveryStartRequest):
     task = delivery_manager.start_delivery(map_name, request.tableIds, request.startPosition)
 
     # 非阻塞地導航到第一個桌位（避免 ensure_nav2_ready 掛住阻塞 HTTP 回應）
-    asyncio.create_task(_dispatch_delivery_goal(task))
+    spawn_background_task(_dispatch_delivery_goal(task))
 
     return task
 

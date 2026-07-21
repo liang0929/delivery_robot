@@ -360,17 +360,19 @@ class HSMotorController(Node):
         if len(data) < 16:
             return False
 
-        # 找到起始碼 0x55
-        try:
-            start_idx = data.index(self.START_BYTE_SLAVE)
-        except ValueError:
-            return False
+        # 掃描所有 0x55 候選起始碼，直到找到驗證通過的封包
+        # （0x55 可能出現在數據內容中，只試第一個會漏掉緊接在雜訊後的有效封包）
+        start_idx = data.find(self.START_BYTE_SLAVE)
+        while start_idx != -1 and len(data) - start_idx >= 16:
+            packet = data[start_idx:start_idx + 16]
+            if self._try_parse_packet(packet):
+                return True
+            start_idx = data.find(self.START_BYTE_SLAVE, start_idx + 1)
 
-        if len(data) - start_idx < 16:
-            return False
+        return False
 
-        packet = data[start_idx:start_idx + 16]
-
+    def _try_parse_packet(self, packet: bytes) -> bool:
+        """驗證並解析單一 16-byte 候選封包，成功時更新回饋狀態"""
         # 驗證結束碼 (Byte 14 = 0xAA)
         if packet[13] != self.END_BYTE_SLAVE:
             self.get_logger().debug(f'Invalid end byte: {packet[13]:02X}')
@@ -383,8 +385,13 @@ class HSMotorController(Node):
             self.get_logger().debug(f'CRC mismatch: recv={received_crc:04X} calc={calculated_crc:04X}')
             return False
 
+        # 驗證地址 (Byte 2)；device_id 127 為廣播地址，跳過檢查
+        if self.device_id != 127 and packet[1] != self.device_id:
+            self.get_logger().debug(
+                f'Address mismatch: recv={packet[1]} expect={self.device_id}')
+            return False
+
         # 解析數據 (高位在前 Big-endian)
-        # Byte 2: 地址 (packet[1]) - 已驗證，不需額外處理
 
         # Byte 3-4: A電機電流 (解析度 0.1A)
         self.current_a = int.from_bytes(packet[2:4], byteorder='big') * 0.1

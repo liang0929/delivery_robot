@@ -687,6 +687,20 @@ class RobotStateManager:
 
         process: Optional[subprocess.Popen] = None
         try:
+            # 偵測系統上既有的 bringup（例如 systemd robot-core.service 已在跑），
+            # 避免啟動第二份互搶 /dev/motor 等硬體資源
+            existing = subprocess.run(
+                ["pgrep", "-f", "ros2 launch motor_control bringup"],
+                capture_output=True
+            )
+            if existing.returncode == 0:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Robot core is already running outside this API "
+                           "(e.g. managed by systemd robot-core.service). "
+                           "Stop it there before starting via API."
+                )
+
             # 使用 DEVNULL 避免管道緩衝區滿導致死鎖
             process = subprocess.Popen(
                 ["ros2", "launch", "motor_control", "bringup.launch.py", "enable_web:=false"],

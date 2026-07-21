@@ -312,6 +312,32 @@ class RobotStateManager:
 
     HEALTH_CHECK_INTERVAL = 2.0  # 每 2 秒檢查一次
 
+    # pkill -f 用的殘留進程清理 pattern。
+    # 自己啟動的進程一律優先透過 Popen 的 pgid（_terminate_process_safely）終止，
+    # pkill 只用來清理上次 server 異常結束留下的孤兒進程。
+    # pattern 必須錨定完整指令或「套件/執行檔」路徑，避免誤殺
+    # （例如舊 pattern "nav2_" 會殺掉存圖中的 nav2_map_server/map_saver_cli）。
+    NAV_CLEANUP_PATTERNS = [
+        "ros2 launch nav2 autonomous_navigation",
+        "nav2_map_server/map_server",  # 不會匹配 map_saver_cli
+        "nav2_amcl/amcl",
+        "nav2_controller/controller_server",
+        "nav2_planner/planner_server",
+        "nav2_smoother/smoother_server",
+        "nav2_behaviors/behavior_server",
+        "nav2_bt_navigator/bt_navigator",
+        "nav2_waypoint_follower/waypoint_follower",
+        "nav2_velocity_smoother/velocity_smoother",
+        "nav2_lifecycle_manager/lifecycle_manager",
+        "motor_control/map_relay",
+    ]
+    SLAM_CLEANUP_PATTERNS = [
+        "ros2 launch nav2 mapping.launch",
+        "slam_toolbox/async_slam_toolbox_node",
+        "slam_toolbox/sync_slam_toolbox_node",
+        "motor_control/map_relay",
+    ]
+
     def __init__(self):
         self._lock = threading.Lock()
         self._slam_process: Optional[subprocess.Popen] = None
@@ -396,8 +422,8 @@ class RobotStateManager:
         return False
 
     def _cleanup_nav_processes(self):
-        """清理所有導航相關殘留進程"""
-        patterns = ["nav2_", "autonomous_navigation.launch", "basic_navigator"]
+        """清理導航相關的殘留（孤兒）進程"""
+        patterns = self.NAV_CLEANUP_PATTERNS
         for pattern in patterns:
             try:
                 subprocess.run(["pkill", "-f", pattern], capture_output=True)
@@ -409,8 +435,8 @@ class RobotStateManager:
             logger.warning("Some navigation processes may still be running after cleanup")
 
     def _cleanup_slam_processes(self):
-        """清理所有建圖相關殘留進程"""
-        patterns = ["slam_toolbox", "mapping.launch", "map_relay"]
+        """清理建圖相關的殘留（孤兒）進程"""
+        patterns = self.SLAM_CLEANUP_PATTERNS
         for pattern in patterns:
             try:
                 subprocess.run(["pkill", "-f", pattern], capture_output=True)

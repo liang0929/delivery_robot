@@ -61,6 +61,8 @@ status:
 	@systemctl is-active robot-web >/dev/null 2>&1 && echo "robot-web:  ✅ 運行中" || echo "robot-web:  ❌ 未運行"
 	@echo ""
 	@echo "網頁控制: http://$$(hostname -I | awk '{print $$1}'):3000"
+	@echo "Robot API: http://$$(hostname -I | awk '{print $$1}'):5000/v1/robot"
+	@echo "事件推播: ws://$$(hostname -I | awk '{print $$1}'):5001"
 
 logs:
 	@echo "按 Ctrl+C 退出日誌..."

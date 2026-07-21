@@ -1991,6 +1991,8 @@ class NavigatorManager:
         self.navigator: Optional[BasicNavigator] = None
         self._nav2_ready = False
         self._lock = threading.Lock()
+        # 序列化 waitUntilNav2Active：避免多個執行緒同時對同一個 node spin
+        self._ready_lock = threading.Lock()
 
     @property
     def is_ready(self) -> bool:
@@ -2000,32 +2002,40 @@ class NavigatorManager:
 
     def ensure_nav2_ready(self) -> bool:
         """確保 Nav2 已準備好"""
-        # 快速檢查（持有鎖）
+        # 快速檢查（持有狀態鎖）
         with self._lock:
             if self._nav2_ready and self.navigator is not None:
                 return True
 
-        # 建立 navigator（持有鎖）
-        with self._lock:
-            if self.navigator is None:
-                if not ensure_rclpy_initialized():
-                    logger.error("Failed to initialize rclpy")
-                    return False
-                logger.info("Creating BasicNavigator...")
-                self.navigator = BasicNavigator()
-            nav = self.navigator
-
-        # 等待 Nav2 就緒（不持有鎖，避免阻塞其他操作）
-        try:
-            logger.info("Waiting for Nav2 to become active...")
-            nav.waitUntilNav2Active()
+        # 慢路徑整段以 _ready_lock 序列化：
+        # 避免多個執行緒同時對同一個 BasicNavigator node 執行 waitUntilNav2Active（併發 spin 會拋錯）
+        with self._ready_lock:
+            # 後到者等到鎖後重新檢查，可能前一個 waiter 已完成
             with self._lock:
-                self._nav2_ready = True
-            logger.info("Nav2 is active.")
-            return True
-        except RuntimeError as e:
-            logger.error(f"Failed to connect to Nav2: {e}")
-            return False
+                if self._nav2_ready and self.navigator is not None:
+                    return True
+                if self.navigator is None:
+                    if not ensure_rclpy_initialized():
+                        logger.error("Failed to initialize rclpy")
+                        return False
+                    logger.info("Creating BasicNavigator...")
+                    self.navigator = BasicNavigator()
+                nav = self.navigator
+
+            # 等待 Nav2 就緒（不持有狀態鎖，避免阻塞查詢類操作）
+            try:
+                logger.info("Waiting for Nav2 to become active...")
+                nav.waitUntilNav2Active()
+                with self._lock:
+                    if self.navigator is not nav:
+                        # 等待期間被 reset，視為未就緒
+                        return False
+                    self._nav2_ready = True
+                logger.info("Nav2 is active.")
+                return True
+            except RuntimeError as e:
+                logger.error(f"Failed to connect to Nav2: {e}")
+                return False
 
     def reset(self):
         """重置 navigator（導航進程停止或崩潰後呼叫）
@@ -2090,7 +2100,9 @@ class NavigatorManager:
     def cancel_task(self):
         """取消當前任務（線程安全）"""
         with self._lock:
-            if self.navigator is not None:
+            # 未就緒時沒有可取消的目標；且此時可能有執行緒正在
+            # waitUntilNav2Active spin 同一個 node，不可併發 spin
+            if self.navigator is not None and self._nav2_ready:
                 self.navigator.cancelTask()
 
     def get_result(self) -> Optional[TaskResult]:

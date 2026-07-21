@@ -521,6 +521,9 @@ class RobotStateManager:
             return self._nav_status
 
     def start_navigation(self, map_name: Optional[str] = None) -> dict:
+        # 先驗證地圖名稱，防止路徑注入
+        if map_name:
+            map_name = validate_map_name(map_name)
         with self._lock:
             if self._nav_status == NavStatus.RUNNING:
                 raise HTTPException(status_code=400, detail="Navigation is already running.")
@@ -1301,6 +1304,7 @@ async def get_slam_status():
 @app.get("/maps/{map_name}/waypoints", response_model=List[Waypoint])
 async def get_waypoints(map_name: str):
     """Get all waypoints for a specific map."""
+    map_name = validate_map_name(map_name)
     # 驗證地圖存在
     map_yaml = os.path.join(MAP_SAVE_PATH, f"{map_name}.yaml")
     if not os.path.exists(map_yaml):
@@ -1311,6 +1315,7 @@ async def get_waypoints(map_name: str):
 @app.post("/maps/{map_name}/waypoints", response_model=Waypoint)
 async def create_waypoint(map_name: str, waypoint: WaypointCreate):
     """Create a new waypoint for a specific map."""
+    map_name = validate_map_name(map_name)
     # 驗證地圖存在
     map_yaml = os.path.join(MAP_SAVE_PATH, f"{map_name}.yaml")
     if not os.path.exists(map_yaml):
@@ -1340,6 +1345,7 @@ async def create_waypoint(map_name: str, waypoint: WaypointCreate):
 @app.put("/maps/{map_name}/waypoints/{waypoint_id}", response_model=Waypoint)
 async def update_waypoint(map_name: str, waypoint_id: str, update: WaypointUpdate):
     """Update an existing waypoint."""
+    map_name = validate_map_name(map_name)
     waypoints = load_waypoints(map_name)
 
     # 找到要更新的 waypoint
@@ -1363,6 +1369,7 @@ async def update_waypoint(map_name: str, waypoint_id: str, update: WaypointUpdat
 @app.delete("/maps/{map_name}/waypoints/{waypoint_id}")
 async def delete_waypoint(map_name: str, waypoint_id: str):
     """Delete a waypoint."""
+    map_name = validate_map_name(map_name)
     waypoints = load_waypoints(map_name)
 
     # 找到並刪除 waypoint
@@ -1381,6 +1388,7 @@ async def delete_waypoint(map_name: str, waypoint_id: str):
 @app.post("/maps/{map_name}/waypoints/{waypoint_id}/navigate")
 async def navigate_to_waypoint(map_name: str, waypoint_id: str):
     """Navigate to a specific waypoint."""
+    map_name = validate_map_name(map_name)
     # 檢查導航是否已啟動
     if state.nav_status != NavStatus.RUNNING:
         raise HTTPException(status_code=400, detail="Navigation is not running. Please start navigation first.")
@@ -1415,6 +1423,7 @@ async def navigate_to_waypoint(map_name: str, waypoint_id: str):
 @app.get("/maps/{map_name}/tables", response_model=List[Table])
 async def get_tables(map_name: str):
     """Get all tables for a map."""
+    map_name = validate_map_name(map_name)
     tables = load_tables(map_name)
     return tables
 
@@ -1422,6 +1431,7 @@ async def get_tables(map_name: str):
 @app.post("/maps/{map_name}/tables", response_model=Table)
 async def create_table(map_name: str, table: TableCreate):
     """Create a new table."""
+    map_name = validate_map_name(map_name)
     tables = load_tables(map_name)
 
     # 檢查桌號是否重複
@@ -1447,6 +1457,7 @@ async def create_table(map_name: str, table: TableCreate):
 @app.put("/maps/{map_name}/tables/{table_id}", response_model=Table)
 async def update_table(map_name: str, table_id: str, update: TableUpdate):
     """Update a table."""
+    map_name = validate_map_name(map_name)
     tables = load_tables(map_name)
 
     for i, t in enumerate(tables):
@@ -1475,6 +1486,7 @@ async def update_table(map_name: str, table_id: str, update: TableUpdate):
 @app.delete("/maps/{map_name}/tables/{table_id}")
 async def delete_table(map_name: str, table_id: str):
     """Delete a table."""
+    map_name = validate_map_name(map_name)
     tables = load_tables(map_name)
 
     for i, t in enumerate(tables):
@@ -1665,7 +1677,7 @@ async def start_delivery(request: DeliveryStartRequest):
     """Start a delivery task."""
     # 決定使用哪個地圖
     if request.mapName:
-        map_name = request.mapName
+        map_name = validate_map_name(request.mapName)
     elif state.current_map:
         map_name = state.current_map
     else:

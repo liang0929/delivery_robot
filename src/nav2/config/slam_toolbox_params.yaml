@@ -10,7 +10,9 @@ slam_toolbox:
     use_sim_time: false
 
     # ========== 地圖品質 ==========
-    resolution: 0.025              # 地圖解析度 (m)，越小越精細
+    resolution: 0.05               # 地圖解析度 (m)，與 nav2 costmap 0.05 對齊
+                                   # (12m LiDAR + 0.2m 目標容差用不到 2.5cm 精度，
+                                   #  0.025 會使 static layer 記憶體與計算量 4 倍)
     max_laser_range: 12.0          # LiDAR 最大有效範圍 (m)
     minimum_travel_distance: 0.2   # 移動多少距離才更新地圖 (m)
     minimum_travel_heading: 0.2    # 轉動多少角度才更新地圖 (rad)

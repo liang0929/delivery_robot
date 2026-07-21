@@ -29,6 +29,7 @@ setup(
     entry_points={
         'console_scripts': [
             'nav2_commander = nav2.nav2_commander:main',
+            'keepout_regen = nav2.keepout:main',
         ],
     },
 )

@@ -506,11 +506,27 @@ class RobotStateManager:
         with self._lock:
             if self._slam_status != SlamStatus.IDLE:
                 raise HTTPException(status_code=400, detail="Mapping is already running or busy.")
+            if self._nav_status in (NavStatus.STARTING, NavStatus.STOPPING):
+                raise HTTPException(status_code=409, detail="Navigation is busy; try again later.")
+            nav_running = self._nav_status == NavStatus.RUNNING
             self._slam_status = SlamStatus.STARTING
 
         process: Optional[subprocess.Popen] = None
         try:
-            # 先清理可能殘留的導航進程
+            # 導航運行中：先走正常停止路徑（以自己持有的 pgid 終止），而非直接 pkill
+            if nav_running:
+                logger.info("Navigation is running; stopping it before starting SLAM")
+                try:
+                    self.stop_navigation()
+                except HTTPException:
+                    pass  # 可能已被其他請求或健康監控搶先停止
+                if self.on_navigation_down is not None:
+                    try:
+                        self.on_navigation_down()
+                    except Exception as e:
+                        logger.warning(f"Navigation-down handler failed: {e}")
+
+            # 再清理可能殘留的導航孤兒進程
             self._cleanup_nav_processes()
 
             # 使用 DEVNULL 避免管道緩衝區滿導致死鎖

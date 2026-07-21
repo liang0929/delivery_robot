@@ -8,33 +8,20 @@ export function RobotCorePanel() {
   const [currentB, setCurrentB] = useState<number>(0);
   const [connected, setConnected] = useState(false);
 
-  // Subscribe to motor data (with retry for connection)
+  // Subscribe to motor data
+  // service 端有訂閱登記表：未連線時先登記，連線（或斷線重連）後自動建立，
+  // 不需輪詢重試，也避免重複訂閱洩漏
   useEffect(() => {
-    let retryInterval: number | null = null;
+    const unsubConnection = rosbridgeService.onConnectionChange(setConnected);
 
-    const subscribe = () => {
-      const isConnected = rosbridgeService.isConnected();
-      setConnected(isConnected);
-
-      if (isConnected) {
-        rosbridgeService.subscribeToVoltage((v) => setVoltage(v));
-        rosbridgeService.subscribeToCurrents((a, b) => {
-          setCurrentA(a);
-          setCurrentB(b);
-        });
-        if (retryInterval) {
-          clearInterval(retryInterval);
-          retryInterval = null;
-        }
-      }
-    };
-
-    // Try immediately, then retry every second until connected
-    subscribe();
-    retryInterval = window.setInterval(subscribe, 1000);
+    rosbridgeService.subscribeToVoltage((v) => setVoltage(v));
+    rosbridgeService.subscribeToCurrents((a, b) => {
+      setCurrentA(a);
+      setCurrentB(b);
+    });
 
     return () => {
-      if (retryInterval) clearInterval(retryInterval);
+      unsubConnection();
       rosbridgeService.unsubscribeFromVoltage();
       rosbridgeService.unsubscribeFromCurrents();
     };

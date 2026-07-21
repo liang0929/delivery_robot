@@ -41,6 +41,9 @@ class HSMotorController(Node):
     # 里程計參數
     RPM_DEADZONE = 10.0  # 低於此值的 RPM 視為靜止，避免漂移
 
+    # 低於此馬達 RPM 的命令視為零命令（吸收運動學計算的浮點殘差）
+    ZERO_RPM_EPSILON = 1.0
+
     def __init__(self):
         super().__init__('hs_motor_controller')
 
@@ -581,6 +584,17 @@ class HSMotorController(Node):
         # 設定馬達 (Motor A = 物理右輪, Motor B = 物理左輪)
         self.set_motor_speeds(left_vel, right_vel)
 
+    def _quantize_rpm(self, motor_rpm: float) -> int:
+        """將馬達 RPM 量化到驅動器有效範圍 [min_rpm, max_rpm]
+
+        - 低於 ZERO_RPM_EPSILON 視為零命令 → 0
+        - 非零但低於 min_rpm → clamp 到 min_rpm（避免低速死區導致不動）
+        - 其餘 clamp 到 max_rpm
+        """
+        if motor_rpm < self.ZERO_RPM_EPSILON:
+            return 0
+        return int(max(min(motor_rpm, self.max_rpm), self.min_rpm))
+
     def set_motor_speeds(self, left_vel: float, right_vel: float) -> None:
         """設定馬達速度 (m/s)
 
@@ -611,18 +625,14 @@ class HSMotorController(Node):
         if self.invert_motor_b:
             dir_b = 1 - dir_b
 
-        # 計算目標 RPM (處理死區)
+        # 計算目標 RPM
+        # 非零命令低於 min_rpm 時 clamp 到 min_rpm（驅動器有效範圍下限），
+        # 避免低速命令完全不動；完全為零的命令仍設 0。
         # Motor A = 右輪
-        if right_motor_rpm >= self.min_rpm:
-            target_rpm_a = int(min(right_motor_rpm, self.max_rpm))
-        else:
-            target_rpm_a = 0
+        target_rpm_a = self._quantize_rpm(right_motor_rpm)
 
         # Motor B = 左輪
-        if left_motor_rpm >= self.min_rpm:
-            target_rpm_b = int(min(left_motor_rpm, self.max_rpm))
-        else:
-            target_rpm_b = 0
+        target_rpm_b = self._quantize_rpm(left_motor_rpm)
 
         # 使用鎖保護共享狀態的寫入
         with self.state_lock:

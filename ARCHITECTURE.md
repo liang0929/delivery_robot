@@ -188,16 +188,18 @@ base_dev/
 **HS 協議封包格式：**
 ```
 詢問封包 (16 bytes):
-AA + 地址 + 數據類型 + 故障清除 + 保留 + A控制 + A方向 + A轉速(2B) + B控制 + B方向 + B轉速(2B) + 55 + CRC16
+AA + 地址 + 回傳類型 + 故障清除 + 保留 + A控制 + B控制 + A方向 + B方向 + A轉速(2B) + B轉速(2B) + 55 + CRC16
 
 應答封包 (16 bytes):
 55 + 地址 + A電流(2B) + B電流(2B) + A轉速(2B) + B轉速(2B) + 電壓(2B) + 故障 + AA + CRC16
 ```
+（欄位順序以實測硬體行為為準，詳見 `hs_motor_controller.py` docstring）
 
-**關鍵參數：**
-- `wheel_separation`: 0.37m (左右輪間距)
-- `wheel_radius`: 0.0775m (輪子半徑)
-- `max_rpm`: 200 (最大轉速)
+**關鍵參數（`hs_motor_config.yaml`）：**
+- `wheel_separation`: 0.27m (左右輪間距)
+- `wheel_radius`: 0.065m (輪子半徑)
+- `gear_ratio`: 20.0 (減速比，馬達 RPM = 輪 RPM × 20)
+- `min_rpm` / `max_rpm`: 100 / 3000 (馬達轉速範圍，非零命令低於 min_rpm 時 clamp 到 min_rpm)
 
 **訂閱/發布：**
 | Topic | 類型 | 方向 | 說明 |
@@ -234,7 +236,7 @@ AA + 地址 + 數據類型 + 故障清除 + 保留 + A控制 + A方向 + A轉速
 **關鍵參數 (`nav2_params.yaml`)：**
 - `desired_linear_vel`: 0.05 m/s
 - `max_angular_vel`: 0.4 rad/s
-- `robot_radius`: 0.22m
+- footprint: 0.5m × 0.5m 方形（`inflation_radius`: 0.35m）
 
 ### 4.4 Web Frontend
 

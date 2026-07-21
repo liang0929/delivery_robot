@@ -138,6 +138,8 @@ class HSMotorController(Node):
         self.serial_lock = threading.Lock()
         self.consecutive_failures = 0
         self.max_failures_before_reconnect = 5  # 連續失敗 5 次後嘗試重連
+        self.reconnect_cooldown = 3.0  # 重連冷卻期（秒），避免阻塞 executor
+        self.last_reconnect_attempt = float('-inf')  # 上次重連嘗試時間 (monotonic)
 
         # 狀態鎖 - 保護馬達狀態和里程計狀態的並發訪問
         self.state_lock = threading.Lock()
@@ -246,10 +248,10 @@ class HSMotorController(Node):
         return False
 
     def reconnect_serial(self) -> bool:
-        """嘗試重新連接串口"""
+        """嘗試重新連接串口（單次嘗試，無退避 sleep，避免阻塞 executor）"""
         self.get_logger().info('Attempting to reconnect serial port...')
-        # 使用安全關閉方法，然後重新連接
-        return self.connect_serial()
+        # 使用安全關閉方法，然後單次重新連接
+        return self.connect_serial(max_retries=1)
 
     def crc16(self, data: bytes) -> int:
         """計算 CRC16 校驗碼 (Modbus CRC16)"""
@@ -389,11 +391,15 @@ class HSMotorController(Node):
         return True
 
     def send_and_receive(self, clear_fault: int = 0) -> bool:
-        """發送命令並接收回應，支援自動重連"""
+        """發送命令並接收回應，支援自動重連
+
+        重連不在 serial_lock 內執行，避免持鎖期間阻塞其他串口操作。
+        """
         if not self.serial_conn or not self.serial_conn.is_open:
             self._handle_serial_failure("Serial port not open")
             return False
 
+        failure_reason = None
         with self.serial_lock:
             try:
                 # 清空接收緩衝區
@@ -417,27 +423,43 @@ class HSMotorController(Node):
                     else:
                         self.get_logger().warning(f'Failed to parse response: {response.hex()}')
 
-                self._handle_serial_failure("No valid response")
-                return False
+                failure_reason = "No valid response"
 
             except serial.SerialException as e:
                 self.get_logger().error(f'Serial error: {e}')
-                self._handle_serial_failure(str(e))
-                return False
+                failure_reason = str(e)
+
+        # 在鎖外處理失敗（可能觸發重連）
+        self._handle_serial_failure(failure_reason)
+        return False
 
     def _handle_serial_failure(self, reason: str) -> None:
-        """處理串口通訊失敗，必要時嘗試重連"""
+        """處理串口通訊失敗，必要時嘗試重連
+
+        重連採冷卻機制：連續失敗達門檻後，每個冷卻期最多嘗試一次
+        單次連線（無退避 sleep 迴圈），避免在 executor callback 內
+        長時間阻塞導致 e_stop/cmd_vel 無法處理。
+        """
         self.consecutive_failures += 1
 
-        if self.consecutive_failures >= self.max_failures_before_reconnect:
-            self.get_logger().warning(
-                f'Serial communication failed {self.consecutive_failures} times ({reason}), attempting reconnect...'
+        if self.consecutive_failures < self.max_failures_before_reconnect:
+            return
+
+        now = time.monotonic()
+        if now - self.last_reconnect_attempt < self.reconnect_cooldown:
+            return  # 冷卻期內不重試，等下個冷卻期
+
+        self.last_reconnect_attempt = now
+        self.get_logger().warning(
+            f'Serial communication failed {self.consecutive_failures} times ({reason}), attempting reconnect...'
+        )
+        if self.reconnect_serial():
+            self.consecutive_failures = 0
+            self.get_logger().info('Serial reconnection successful')
+        else:
+            self.get_logger().error(
+                f'Serial reconnection failed, next attempt in {self.reconnect_cooldown:.0f}s'
             )
-            if self.reconnect_serial():
-                self.consecutive_failures = 0
-                self.get_logger().info('Serial reconnection successful')
-            else:
-                self.get_logger().error('Serial reconnection failed')
 
     def control_loop(self) -> None:
         """控制循環 - 發送命令並更新里程計"""

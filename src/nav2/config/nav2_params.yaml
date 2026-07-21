@@ -124,6 +124,48 @@ controller_server:
       max_angular_accel: 3.2
       max_robot_pose_search_dist: 10.0
 
+# 以下三個節點由 nav2_bringup/navigation_launch.py 啟動，
+# 先前未配置導致全用預設值（velocity_smoother 預設上限 0.5 m/s，
+# 與馬達 clamp 0.05 嚴重不符）。cmd_vel 實際路徑：
+# controller -> /cmd_vel_nav -> velocity_smoother -> /cmd_vel
+velocity_smoother:
+  ros__parameters:
+    use_sim_time: False
+    smoothing_frequency: 20.0
+    scale_velocities: False
+    feedback: "OPEN_LOOP"
+    # 與 hs_motor_config.yaml 的 max_linear_vel/max_angular_vel 一致
+    max_velocity: [0.05, 0.0, 0.4]
+    min_velocity: [-0.05, 0.0, -0.4]
+    # 線加減速與 RPP 的 max_linear_accel/decel 0.5 對齊
+    max_accel: [0.5, 0.0, 3.2]
+    max_decel: [-0.5, 0.0, -3.2]
+    odom_topic: "/odometry/filtered"
+    odom_duration: 0.1
+    deadband_velocity: [0.0, 0.0, 0.0]
+    velocity_timeout: 1.0
+
+smoother_server:
+  ros__parameters:
+    use_sim_time: False
+    smoother_plugins: ["simple_smoother"]
+    simple_smoother:
+      plugin: "nav2_smoother::SimpleSmoother"
+      tolerance: 1.0e-10
+      max_its: 1000
+      do_refinement: True
+
+waypoint_follower:
+  ros__parameters:
+    use_sim_time: False
+    loop_rate: 20
+    stop_on_failure: false
+    waypoint_task_executor_plugin: "wait_at_waypoint"
+    wait_at_waypoint:
+      plugin: "nav2_waypoint_follower::WaitAtWaypoint"
+      enabled: True
+      waypoint_pause_duration: 200
+
 planner_server:
   ros__parameters:
     use_sim_time: False

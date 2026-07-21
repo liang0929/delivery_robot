@@ -1719,31 +1719,31 @@ class DeliveryManager:
 
     def start_delivery(self, map_name: str, table_ids: List[str], start_position: Position) -> DeliveryTask:
         """開始送餐任務"""
+        # 檔案 I/O 與站點驗證在鎖外執行，避免持鎖做磁碟讀取
+        tables = load_tables(map_name)
+        table_map = {t.id: t for t in tables}
+
+        # 建立送餐站點
+        stops = []
+        for table_id in table_ids:
+            if table_id not in table_map:
+                raise HTTPException(status_code=404, detail=f"Table '{table_id}' not found.")
+            table = table_map[table_id]
+            if not table.isActive:
+                raise HTTPException(status_code=400, detail=f"Table {table.number} is not active.")
+            stops.append(DeliveryStop(
+                tableId=table.id,
+                tableNumber=table.number,
+                tableName=table.name,
+                status=DeliveryStopStatus.PENDING
+            ))
+
+        if not stops:
+            raise HTTPException(status_code=400, detail="No valid tables selected.")
+
         with self._lock:
             if self._current_task is not None and self._current_task.status != DeliveryTaskStatus.IDLE:
                 raise HTTPException(status_code=400, detail="A delivery task is already in progress.")
-
-            # 載入桌位資訊
-            tables = load_tables(map_name)
-            table_map = {t.id: t for t in tables}
-
-            # 建立送餐站點
-            stops = []
-            for table_id in table_ids:
-                if table_id not in table_map:
-                    raise HTTPException(status_code=404, detail=f"Table '{table_id}' not found.")
-                table = table_map[table_id]
-                if not table.isActive:
-                    raise HTTPException(status_code=400, detail=f"Table {table.number} is not active.")
-                stops.append(DeliveryStop(
-                    tableId=table.id,
-                    tableNumber=table.number,
-                    tableName=table.name,
-                    status=DeliveryStopStatus.PENDING
-                ))
-
-            if not stops:
-                raise HTTPException(status_code=400, detail="No valid tables selected.")
 
             # 建立任務
             task = DeliveryTask(
@@ -1767,18 +1767,21 @@ class DeliveryManager:
 
     def get_current_stop_table(self) -> Optional[Table]:
         """取得當前站點的桌位資訊"""
+        # 鎖內只讀取需要的識別資訊，檔案 I/O 在鎖外執行
         with self._lock:
             if self._current_task is None or self._current_map is None:
                 return None
             if self._current_task.currentStopIndex >= len(self._current_task.stops):
                 return None
 
-            stop = self._current_task.stops[self._current_task.currentStopIndex]
-            tables = load_tables(self._current_map)
-            for t in tables:
-                if t.id == stop.tableId:
-                    return t
-            return None
+            stop_table_id = self._current_task.stops[self._current_task.currentStopIndex].tableId
+            map_name = self._current_map
+
+        tables = load_tables(map_name)
+        for t in tables:
+            if t.id == stop_table_id:
+                return t
+        return None
 
     def mark_stuck(self) -> Optional[DeliveryTask]:
         """標記機器人卡住"""

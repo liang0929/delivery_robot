@@ -1,8 +1,23 @@
 #!/bin/bash
 # 機器人核心啟動腳本
 
-# 等待系統完全啟動
-sleep 10
+# 輪詢等待硬體裝置節點 (udev) 出現，取代固定 sleep
+# 最多等待 30 秒，逾時警告後仍繼續（launch 內有各自的錯誤處理）
+WAIT_DEVICES="/dev/motor /dev/lidar"
+DEADLINE=$((SECONDS + 30))
+while [ $SECONDS -lt $DEADLINE ]; do
+    ALL_READY=true
+    for dev in $WAIT_DEVICES; do
+        [ -e "$dev" ] || ALL_READY=false
+    done
+    $ALL_READY && break
+    sleep 1
+done
+for dev in $WAIT_DEVICES; do
+    if [ ! -e "$dev" ]; then
+        echo "[WARN] 裝置 $dev 未出現（等待 30 秒逾時），仍繼續啟動" >&2
+    fi
+done
 
 # Source ROS2 環境
 source /opt/ros/humble/setup.bash

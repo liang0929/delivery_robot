@@ -91,6 +91,36 @@
   color: #fff;
 }
 
+.retryButton {
+  margin-left: auto;
+  padding: 8px 16px;
+  background: #ffaa00;
+  border: none;
+  border-radius: 8px;
+  color: #1a1a1a;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.retryButton:hover:not(:disabled) {
+  background: #cc8800;
+}
+
+.retryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.error {
+  padding: 10px 15px;
+  background: #5a1a1a;
+  border-radius: 8px;
+  color: #ff8888;
+  font-size: 14px;
+}
+
 .distance {
   display: flex;
   align-items: center;

@@ -66,6 +66,15 @@
   margin: 0 0 30px 0;
 }
 
+.error {
+  padding: 10px 15px;
+  margin: 0 0 15px 0;
+  background: #ffeeee;
+  border-radius: 8px;
+  color: #cc3333;
+  font-size: 14px;
+}
+
 .buttons {
   display: flex;
   flex-direction: column;

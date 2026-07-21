@@ -176,6 +176,12 @@ export const apiService = {
     await api.post('/delivery/cancel');
   },
 
+  // STUCK 狀態時重發當前目標，狀態轉回 delivering
+  async retryDelivery(): Promise<DeliveryTask> {
+    const response = await api.post('/delivery/retry');
+    return response.data;
+  },
+
   async getDeliveryStatus(): Promise<DeliveryStatusResponse> {
     const response = await api.get('/delivery/status');
     return response.data;

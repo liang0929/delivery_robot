@@ -7,8 +7,17 @@ interface TaskProgressProps {
 }
 
 export function TaskProgress({ onCancel }: TaskProgressProps) {
-  const { status, stops, currentStopIndex, distanceRemaining, refreshStatus, cancelDelivery } =
-    useDeliveryStore();
+  const {
+    status,
+    stops,
+    currentStopIndex,
+    distanceRemaining,
+    error,
+    isLoading,
+    refreshStatus,
+    cancelDelivery,
+    retryDelivery,
+  } = useDeliveryStore();
 
   // 定期刷新狀態
   useEffect(() => {
@@ -34,8 +43,21 @@ export function TaskProgress({ onCancel }: TaskProgressProps) {
   const progress = (completedCount / stops.length) * 100;
 
   const handleCancel = async () => {
-    await cancelDelivery();
-    onCancel?.();
+    try {
+      await cancelDelivery();
+      onCancel?.();
+    } catch (err) {
+      // 錯誤訊息已寫入 store.error，由下方錯誤區塊顯示
+      console.error('Failed to cancel delivery:', err);
+    }
+  };
+
+  const handleRetry = async () => {
+    try {
+      await retryDelivery();
+    } catch (err) {
+      console.error('Failed to retry delivery:', err);
+    }
   };
 
   const getStatusText = () => {
@@ -70,7 +92,18 @@ export function TaskProgress({ onCancel }: TaskProgressProps) {
           {status === 'stuck' && 'STUCK'}
         </div>
         <div className={styles.statusText}>{getStatusText()}</div>
+        {status === 'stuck' && (
+          <button
+            className={styles.retryButton}
+            onClick={handleRetry}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Retrying...' : 'Retry'}
+          </button>
+        )}
       </div>
+
+      {error && <div className={styles.error}>{error}</div>}
 
       {distanceRemaining !== null && (
         <div className={styles.distance}>

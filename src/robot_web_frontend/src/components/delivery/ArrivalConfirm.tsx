@@ -2,7 +2,7 @@ import { useDeliveryStore } from '../../stores/useDeliveryStore';
 import styles from './ArrivalConfirm.module.css';
 
 export function ArrivalConfirm() {
-  const { status, stops, currentStopIndex, confirmArrival, skipTable, isLoading } =
+  const { status, stops, currentStopIndex, confirmArrival, skipTable, isLoading, error } =
     useDeliveryStore();
 
   // 只在到達桌位時顯示
@@ -13,11 +13,20 @@ export function ArrivalConfirm() {
   const currentStop = stops[currentStopIndex];
 
   const handleConfirm = async () => {
-    await confirmArrival();
+    try {
+      await confirmArrival();
+    } catch (err) {
+      // 錯誤訊息已寫入 store.error，由 modal 內錯誤區塊顯示
+      console.error('Failed to confirm arrival:', err);
+    }
   };
 
   const handleSkip = async () => {
-    await skipTable();
+    try {
+      await skipTable();
+    } catch (err) {
+      console.error('Failed to skip table:', err);
+    }
   };
 
   return (
@@ -32,6 +41,8 @@ export function ArrivalConfirm() {
         )}
 
         <p className={styles.message}>Please serve the food and confirm when done.</p>
+
+        {error && <div className={styles.error}>{error}</div>}
 
         <div className={styles.buttons}>
           <button

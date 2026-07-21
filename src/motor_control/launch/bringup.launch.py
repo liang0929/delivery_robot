@@ -200,7 +200,9 @@ def launch_setup(context, *args, **kwargs):
             name='hs_motor_controller',
             output='screen',
             parameters=[motor_config, {'use_sim_time': use_sim_time}],
-            prefix=get_cpu_prefix('motor', cpu_affinity_enabled)
+            prefix=get_cpu_prefix('motor', cpu_affinity_enabled),
+            respawn=True,
+            respawn_delay=2.0
         ))
 
         # LiDAR 節點 (核心 2-3)
@@ -216,7 +218,9 @@ def launch_setup(context, *args, **kwargs):
                 'inverted': False,
                 'angle_compensate': True,
             }],
-            prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
+            prefix=get_cpu_prefix('sensor', cpu_affinity_enabled),
+            respawn=True,
+            respawn_delay=2.0
         ))
 
         # IMU 節點 (核心 2-3, 50Hz - EKF 只需 30Hz)
@@ -248,7 +252,9 @@ def launch_setup(context, *args, **kwargs):
                 'debounce_ms': 50,
                 'simulation': False,
             }],
-            prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
+            prefix=get_cpu_prefix('sensor', cpu_affinity_enabled),
+            respawn=True,
+            respawn_delay=2.0
         ))
 
     # ========== 模擬節點 ==========
@@ -323,7 +329,9 @@ def launch_setup(context, *args, **kwargs):
         name='ekf_filter_node',
         output='screen',
         parameters=[motor_config, {'use_sim_time': use_sim_time}],
-        prefix=get_cpu_prefix('localization', cpu_affinity_enabled)
+        prefix=get_cpu_prefix('localization', cpu_affinity_enabled),
+        respawn=True,
+        respawn_delay=2.0
     )
     nodes.append(TimerAction(period=2.0, actions=[ekf_node]))
 
@@ -349,9 +357,13 @@ def launch_setup(context, *args, **kwargs):
         # API Server
         web_prefix_list = get_cpu_prefix_list('web', cpu_affinity_enabled)
         api_cmd = web_prefix_list + ['ros2', 'run', 'robot_api_server', 'api_server']
+        # respawn: API server 被外部殺掉（如 cleanup_ros.sh）時自動復活，
+        # 否則 ExecuteProcess 結束後 launch 不會補起
         api_server = ExecuteProcess(
             cmd=api_cmd,
-            output='screen'
+            output='screen',
+            respawn=True,
+            respawn_delay=2.0
         )
 
         nodes.append(TimerAction(period=3.0, actions=[rosbridge_node, api_server]))

@@ -18,17 +18,27 @@ from motor_control.odom_constants import POSE_COVARIANCE_SIM, TWIST_COVARIANCE_S
 
 
 class MockMotorController(Node):
-    """Mock 馬達控制器 - 模擬差動驅動"""
+    """Mock 馬達控制器 - 模擬差動驅動
+
+    行為對齊 HSMotorController：速度上限、min_rpm 死區 clamp、
+    1 秒 cmd_vel watchdog，避免模擬測試通過但真機失敗。
+    """
+
+    # 低於此馬達 RPM 的命令視為零命令（與 HSMotorController 一致）
+    ZERO_RPM_EPSILON = 1.0
 
     def __init__(self):
         super().__init__('mock_motor_controller')
 
-        # 宣告參數
+        # 宣告參數（預設值與 hs_motor_config.yaml 保持一致）
         self.declare_parameter('wheel_separation', 0.27)
         self.declare_parameter('wheel_radius', 0.065)
-        self.declare_parameter('max_linear_vel', 0.5)
-        self.declare_parameter('max_angular_vel', 1.0)
+        self.declare_parameter('max_linear_vel', 0.05)
+        self.declare_parameter('max_angular_vel', 0.4)
         self.declare_parameter('odom_frequency', 50.0)
+        self.declare_parameter('gear_ratio', 20.0)
+        self.declare_parameter('min_rpm', 100.0)   # 模擬驅動器低速死區
+        self.declare_parameter('max_rpm', 3000.0)
 
         # 獲取參數
         self.wheel_separation = self.get_parameter('wheel_separation').value
@@ -36,6 +46,9 @@ class MockMotorController(Node):
         self.max_linear_vel = self.get_parameter('max_linear_vel').value
         self.max_angular_vel = self.get_parameter('max_angular_vel').value
         self.odom_frequency = self.get_parameter('odom_frequency').value
+        self.gear_ratio = self.get_parameter('gear_ratio').value
+        self.min_rpm = self.get_parameter('min_rpm').value
+        self.max_rpm = self.get_parameter('max_rpm').value
 
         # ROS2 發布者和訂閱者
         qos = QoSProfile(
@@ -68,10 +81,14 @@ class MockMotorController(Node):
 
         # 時間追蹤
         self.last_time = self.get_clock().now()
+        self.last_cmd_time = self.get_clock().now()
 
         # 定時器 - 里程計更新
         odom_period = 1.0 / self.odom_frequency
         self.odom_timer = self.create_timer(odom_period, self.update_odometry)
+
+        # 安全定時器 - cmd_vel watchdog（與真機一致，1 秒逾時歸零）
+        self.safety_timer = self.create_timer(0.1, self.safety_check)
 
         self.get_logger().info(
             f'Mock Motor Controller initialized (simulation mode)'
@@ -109,16 +126,52 @@ class MockMotorController(Node):
             self.get_logger().warning('Invalid angular.z value (NaN/Inf), ignoring command')
             return
 
+        # 驗證通過後才更新 watchdog 時間（與真機一致）
+        self.last_cmd_time = self.get_clock().now()
+
         # 限制速度
-        self.current_linear_x = max(
+        linear_x = max(
             min(msg.linear.x, self.max_linear_vel), -self.max_linear_vel)
-        self.current_angular_z = max(
+        angular_z = max(
             min(msg.angular.z, self.max_angular_vel), -self.max_angular_vel)
+
+        # 差動運動學 + min_rpm 死區 clamp（模擬真機驅動器行為）
+        left_vel = linear_x - (angular_z * self.wheel_separation / 2.0)
+        right_vel = linear_x + (angular_z * self.wheel_separation / 2.0)
+
+        left_vel = self._quantize_wheel_vel(left_vel)
+        right_vel = self._quantize_wheel_vel(right_vel)
+
+        # 換算回機器人速度
+        self.current_linear_x = (left_vel + right_vel) / 2.0
+        self.current_angular_z = (right_vel - left_vel) / self.wheel_separation
 
         self.get_logger().debug(
             f'Cmd: linear={self.current_linear_x:.3f}, '
             f'angular={self.current_angular_z:.3f}'
         )
+
+    def _quantize_wheel_vel(self, wheel_vel: float) -> float:
+        """模擬驅動器 RPM 量化：非零命令低於 min_rpm 時 clamp 到 min_rpm
+
+        與 HSMotorController._quantize_rpm 行為一致：
+        - 低於 ZERO_RPM_EPSILON 的馬達 RPM 視為零命令 → 0
+        - 非零但低於 min_rpm → clamp 到 min_rpm（保留方向）
+        - 其餘 clamp 到 max_rpm
+        """
+        motor_rpm = abs(wheel_vel) / (2 * math.pi * self.wheel_radius) * 60.0 * self.gear_ratio
+        if motor_rpm < self.ZERO_RPM_EPSILON:
+            return 0.0
+        motor_rpm = max(min(motor_rpm, self.max_rpm), self.min_rpm)
+        quantized = (motor_rpm / self.gear_ratio / 60.0) * (2 * math.pi * self.wheel_radius)
+        return math.copysign(quantized, wheel_vel)
+
+    def safety_check(self) -> None:
+        """cmd_vel watchdog - 1 秒未收到命令即歸零（與真機一致）"""
+        time_since_cmd = (self.get_clock().now() - self.last_cmd_time).nanoseconds / 1e9
+        if time_since_cmd > 1.0:
+            self.current_linear_x = 0.0
+            self.current_angular_z = 0.0
 
     def update_odometry(self) -> None:
         """更新里程計 - 模擬理想運動學"""

@@ -3,13 +3,16 @@
 <package format="3">
   <name>robot_api_server</name>
   <version>0.0.0</version>
-  <description>A ROS2 package that provides a web API to control the robot.</description>
+  <description>Winstec Robot API v1.1 server (REST 5000 + WebSocket 5001).</description>
   <maintainer email="jetson@todo.todo">jetson</maintainer>
   <license>TODO: License declaration</license>
 
   <depend>rclpy</depend>
   <depend>geometry_msgs</depend>
   <depend>nav2_simple_commander</depend>
+  <depend>nav_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>tf2_ros</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

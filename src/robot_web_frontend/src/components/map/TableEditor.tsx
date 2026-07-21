@@ -254,7 +254,7 @@ export function TableEditor({ mapName }: TableEditorProps) {
               <p className={styles.emptyList}>No tables configured</p>
             ) : (
               <ul className={styles.list}>
-                {tables
+                {[...tables]
                   .sort((a, b) => a.number - b.number)
                   .map((table) => (
                     <li

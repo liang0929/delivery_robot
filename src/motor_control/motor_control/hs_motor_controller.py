@@ -227,7 +227,7 @@ class HSMotorController(Node):
                     bytesize=serial.EIGHTBITS,
                     parity=serial.PARITY_NONE,
                     stopbits=serial.STOPBITS_ONE,
-                    timeout=0.1
+                    timeout=0.03
                 )
                 self.get_logger().info(f'Connected to {self.serial_port}')
                 return True
@@ -407,8 +407,8 @@ class HSMotorController(Node):
                 # 等待回應
                 time.sleep(0.02)
 
-                # 讀取回應
-                response = self.serial_conn.read(32)
+                # 讀取回應 (應答封包固定 16 bytes；讀超過 16 會等滿 timeout 造成阻塞)
+                response = self.serial_conn.read(16)
                 if len(response) > 0:
                     self.get_logger().debug(f'RX: {response.hex()}')
                     if self.parse_response_packet(response):

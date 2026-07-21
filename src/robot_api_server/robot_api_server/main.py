@@ -76,12 +76,16 @@ class InitialPoseRequest(BaseModel):
 
 class SlamStatus(str, Enum):
     IDLE = "idle"
+    STARTING = "starting"  # 過渡狀態：啟動中
     MAPPING = "mapping"
     SAVING = "saving"
+    STOPPING = "stopping"  # 過渡狀態：停止中
 
 class NavStatus(str, Enum):
     IDLE = "idle"
+    STARTING = "starting"  # 過渡狀態：啟動中
     RUNNING = "running"
+    STOPPING = "stopping"  # 過渡狀態：停止中
 
 
 # --- Waypoint Models ---
@@ -317,6 +321,7 @@ class RobotStateManager:
         self._current_map: Optional[str] = None  # 當前導航使用的地圖
         self._robot_core_process: Optional[subprocess.Popen] = None
         self._robot_core_running = False
+        self._robot_core_transition = False  # 過渡狀態 guard（啟動/停止中）
         self._e_stop_active = False
         # Health monitor
         self._health_thread: Optional[threading.Thread] = None
@@ -469,50 +474,61 @@ class RobotStateManager:
             return False
 
     def start_slam(self) -> dict:
+        # 鎖內只做狀態檢查與過渡狀態轉移，慢操作（清理/spawn/驗證）在鎖外執行
         with self._lock:
-            if self._slam_status == SlamStatus.MAPPING:
-                raise HTTPException(status_code=400, detail="Mapping is already running.")
+            if self._slam_status != SlamStatus.IDLE:
+                raise HTTPException(status_code=400, detail="Mapping is already running or busy.")
+            self._slam_status = SlamStatus.STARTING
 
+        process: Optional[subprocess.Popen] = None
+        try:
             # 先清理可能殘留的導航進程
             self._cleanup_nav_processes()
 
-            try:
-                # 使用 DEVNULL 避免管道緩衝區滿導致死鎖
-                self._slam_process = subprocess.Popen(
-                    ["ros2", "launch", "nav2", "mapping.launch.py"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    preexec_fn=os.setsid
-                )
+            # 使用 DEVNULL 避免管道緩衝區滿導致死鎖
+            process = subprocess.Popen(
+                ["ros2", "launch", "nav2", "mapping.launch.py"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                preexec_fn=os.setsid
+            )
 
-                # 驗證進程確實啟動成功
-                if not self._verify_process_started(self._slam_process, "SLAM"):
-                    self._slam_process = None
-                    raise HTTPException(status_code=500, detail="SLAM process failed to start.")
+            # 驗證進程確實啟動成功
+            if not self._verify_process_started(process, "SLAM"):
+                raise HTTPException(status_code=500, detail="SLAM process failed to start.")
+        except HTTPException:
+            with self._lock:
+                self._slam_status = SlamStatus.IDLE
+            raise
+        except Exception as e:
+            if process is not None:
+                self._terminate_process_safely(process, "SLAM", timeout=3)
+            with self._lock:
+                self._slam_status = SlamStatus.IDLE
+            raise HTTPException(status_code=500, detail=f"Failed to start mapping: {str(e)}")
 
-                self._slam_status = SlamStatus.MAPPING
-                return {"message": "Mapping started.", "status": self._slam_status}
-            except HTTPException:
-                raise
-            except Exception as e:
-                self._slam_process = None
-                raise HTTPException(status_code=500, detail=f"Failed to start mapping: {str(e)}")
+        with self._lock:
+            self._slam_process = process
+            self._slam_status = SlamStatus.MAPPING
+            return {"message": "Mapping started.", "status": self._slam_status}
 
     def stop_slam(self) -> dict:
+        # 鎖內取得進程所有權並進入過渡狀態，實際終止在鎖外執行
         with self._lock:
             if self._slam_status != SlamStatus.MAPPING:
                 raise HTTPException(status_code=400, detail="Mapping is not running.")
+            process = self._slam_process
+            self._slam_process = None
+            self._slam_status = SlamStatus.STOPPING
 
-            try:
-                if self._slam_process:
-                    if not self._terminate_process_safely(self._slam_process, "SLAM"):
-                        logger.error("SLAM process may still be running")
-                    self._slam_process = None
+        try:
+            if process:
+                if not self._terminate_process_safely(process, "SLAM"):
+                    logger.error("SLAM process may still be running")
+        finally:
+            with self._lock:
                 self._slam_status = SlamStatus.IDLE
-                return {"message": "Mapping stopped.", "status": self._slam_status}
-            except Exception as e:
-                logger.error(f"Failed to stop mapping: {e}")
-                raise HTTPException(status_code=500, detail=f"Failed to stop mapping: {str(e)}")
+        return {"message": "Mapping stopped.", "status": SlamStatus.IDLE}
 
     # --- Navigation ---
     @property
@@ -524,64 +540,76 @@ class RobotStateManager:
         # 先驗證地圖名稱，防止路徑注入
         if map_name:
             map_name = validate_map_name(map_name)
+
+        # 鎖內只做狀態檢查與過渡狀態轉移，慢操作在鎖外執行
         with self._lock:
-            if self._nav_status == NavStatus.RUNNING:
+            if self._nav_status != NavStatus.IDLE:
                 raise HTTPException(status_code=400, detail="Navigation is already running.")
 
-            if self._slam_status == SlamStatus.MAPPING:
+            if self._slam_status != SlamStatus.IDLE:
                 raise HTTPException(status_code=400, detail="Cannot start navigation while mapping is running.")
+
+            self._nav_status = NavStatus.STARTING
+
+        process: Optional[subprocess.Popen] = None
+        try:
+            if map_name:
+                map_yaml = os.path.join(MAP_SAVE_PATH, f"{map_name}.yaml")
+                if not os.path.exists(map_yaml):
+                    raise HTTPException(status_code=404, detail=f"Map '{map_name}' not found.")
+            else:
+                map_yaml = os.path.join(MAP_SAVE_PATH, "map.yaml")
 
             # 先清理可能殘留的建圖和導航進程
             self._cleanup_slam_processes()
             self._cleanup_nav_processes()
 
-            try:
-                if map_name:
-                    map_yaml = os.path.join(MAP_SAVE_PATH, f"{map_name}.yaml")
-                    if not os.path.exists(map_yaml):
-                        raise HTTPException(status_code=404, detail=f"Map '{map_name}' not found.")
-                else:
-                    map_yaml = os.path.join(MAP_SAVE_PATH, "map.yaml")
+            # 使用 DEVNULL 避免管道緩衝區滿導致死鎖
+            process = subprocess.Popen(
+                ["ros2", "launch", "nav2", "autonomous_navigation.launch.py", f"map:={map_yaml}"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                preexec_fn=os.setsid
+            )
 
-                # 使用 DEVNULL 避免管道緩衝區滿導致死鎖
-                self._nav_process = subprocess.Popen(
-                    ["ros2", "launch", "nav2", "autonomous_navigation.launch.py", f"map:={map_yaml}"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    preexec_fn=os.setsid
-                )
+            # 驗證進程確實啟動成功
+            if not self._verify_process_started(process, "Navigation"):
+                raise HTTPException(status_code=500, detail="Navigation process failed to start.")
+        except HTTPException:
+            with self._lock:
+                self._nav_status = NavStatus.IDLE
+            raise
+        except Exception as e:
+            if process is not None:
+                self._terminate_process_safely(process, "Navigation", timeout=3)
+            with self._lock:
+                self._nav_status = NavStatus.IDLE
+            raise HTTPException(status_code=500, detail=f"Failed to start navigation: {str(e)}")
 
-                # 驗證進程確實啟動成功
-                if not self._verify_process_started(self._nav_process, "Navigation"):
-                    self._nav_process = None
-                    raise HTTPException(status_code=500, detail="Navigation process failed to start.")
-
-                self._nav_status = NavStatus.RUNNING
-                # 記錄當前使用的地圖名稱
-                self._current_map = map_name if map_name else "map"
-                return {"message": f"Navigation started with map: {map_yaml}", "status": self._nav_status}
-            except HTTPException:
-                raise
-            except Exception as e:
-                self._nav_process = None
-                raise HTTPException(status_code=500, detail=f"Failed to start navigation: {str(e)}")
+        with self._lock:
+            self._nav_process = process
+            self._nav_status = NavStatus.RUNNING
+            # 記錄當前使用的地圖名稱
+            self._current_map = map_name if map_name else "map"
+            return {"message": f"Navigation started with map: {map_yaml}", "status": self._nav_status}
 
     def stop_navigation(self) -> dict:
+        # 鎖內取得進程所有權並進入過渡狀態，實際終止在鎖外執行
         with self._lock:
             if self._nav_status != NavStatus.RUNNING:
                 raise HTTPException(status_code=400, detail="Navigation is not running.")
+            process = self._nav_process
+            self._nav_process = None
+            self._nav_status = NavStatus.STOPPING
 
-            try:
-                if self._nav_process:
-                    if not self._terminate_process_safely(self._nav_process, "Navigation"):
-                        logger.error("Navigation process may still be running")
-                    self._nav_process = None
-
+        try:
+            if process:
+                if not self._terminate_process_safely(process, "Navigation"):
+                    logger.error("Navigation process may still be running")
+        finally:
+            with self._lock:
                 self._nav_status = NavStatus.IDLE
-                return {"message": "Navigation stopped.", "status": self._nav_status}
-            except Exception as e:
-                logger.error(f"Failed to stop navigation: {e}")
-                raise HTTPException(status_code=500, detail=f"Failed to stop navigation: {str(e)}")
+        return {"message": "Navigation stopped.", "status": NavStatus.IDLE}
 
     # --- Robot Core ---
     @property
@@ -590,47 +618,60 @@ class RobotStateManager:
             return self._robot_core_running
 
     def start_robot_core(self) -> dict:
+        # 鎖內只做狀態檢查與過渡狀態轉移，慢操作在鎖外執行
         with self._lock:
-            if self._robot_core_running:
+            if self._robot_core_running or self._robot_core_transition:
                 raise HTTPException(status_code=400, detail="Robot core is already running.")
+            self._robot_core_transition = True
 
-            try:
-                # 使用 DEVNULL 避免管道緩衝區滿導致死鎖
-                self._robot_core_process = subprocess.Popen(
-                    ["ros2", "launch", "motor_control", "bringup.launch.py", "enable_web:=false"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    preexec_fn=os.setsid
-                )
+        process: Optional[subprocess.Popen] = None
+        try:
+            # 使用 DEVNULL 避免管道緩衝區滿導致死鎖
+            process = subprocess.Popen(
+                ["ros2", "launch", "motor_control", "bringup.launch.py", "enable_web:=false"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                preexec_fn=os.setsid
+            )
 
-                # 驗證進程確實啟動成功
-                if not self._verify_process_started(self._robot_core_process, "Robot Core"):
-                    self._robot_core_process = None
-                    raise HTTPException(status_code=500, detail="Robot core process failed to start.")
+            # 驗證進程確實啟動成功
+            if not self._verify_process_started(process, "Robot Core"):
+                raise HTTPException(status_code=500, detail="Robot core process failed to start.")
+        except HTTPException:
+            with self._lock:
+                self._robot_core_transition = False
+            raise
+        except Exception as e:
+            if process is not None:
+                self._terminate_process_safely(process, "Robot Core", timeout=3)
+            with self._lock:
+                self._robot_core_transition = False
+            raise HTTPException(status_code=500, detail=f"Failed to start robot core: {str(e)}")
 
-                self._robot_core_running = True
-                return {"message": "Robot core started.", "is_running": True}
-            except HTTPException:
-                raise
-            except Exception as e:
-                self._robot_core_process = None
-                raise HTTPException(status_code=500, detail=f"Failed to start robot core: {str(e)}")
+        with self._lock:
+            self._robot_core_process = process
+            self._robot_core_running = True
+            self._robot_core_transition = False
+            return {"message": "Robot core started.", "is_running": True}
 
     def stop_robot_core(self) -> dict:
+        # 鎖內取得進程所有權並進入過渡狀態，實際終止在鎖外執行
         with self._lock:
             if not self._robot_core_running:
                 raise HTTPException(status_code=400, detail="Robot core is not running.")
+            process = self._robot_core_process
+            self._robot_core_process = None
+            self._robot_core_running = False
+            self._robot_core_transition = True
 
-            try:
-                if self._robot_core_process:
-                    if not self._terminate_process_safely(self._robot_core_process, "Robot Core"):
-                        logger.error("Robot Core process may still be running")
-                    self._robot_core_process = None
-                self._robot_core_running = False
-                return {"message": "Robot core stopped.", "is_running": False}
-            except Exception as e:
-                logger.error(f"Failed to stop robot core: {e}")
-                raise HTTPException(status_code=500, detail=f"Failed to stop robot core: {str(e)}")
+        try:
+            if process:
+                if not self._terminate_process_safely(process, "Robot Core"):
+                    logger.error("Robot Core process may still be running")
+        finally:
+            with self._lock:
+                self._robot_core_transition = False
+        return {"message": "Robot core stopped.", "is_running": False}
 
     # --- Health Monitor ---
     def start_health_monitor(self):
@@ -714,21 +755,24 @@ class RobotStateManager:
         """Clean up all running processes."""
         logger.info("Starting cleanup of all processes...")
         self.stop_health_monitor()
+        # 鎖內取得進程所有權並重置狀態，實際終止在鎖外執行
         with self._lock:
-            for process, name in [
+            processes = [
                 (self._slam_process, "SLAM"),
                 (self._nav_process, "Navigation"),
                 (self._robot_core_process, "Robot Core")
-            ]:
-                if process:
-                    self._terminate_process_safely(process, name, timeout=3)
-
+            ]
             self._slam_process = None
             self._nav_process = None
             self._robot_core_process = None
             self._slam_status = SlamStatus.IDLE
             self._nav_status = NavStatus.IDLE
             self._robot_core_running = False
+            self._robot_core_transition = False
+
+        for process, name in processes:
+            if process:
+                self._terminate_process_safely(process, name, timeout=3)
         logger.info("Cleanup completed")
 
     def get_status_snapshot(self) -> dict:

@@ -563,8 +563,6 @@ class HSMotorController(Node):
             if self.e_stop_active:
                 return
 
-        self.last_cmd_time = self.get_clock().now()
-
         # 驗證輸入值（防止 NaN 或無窮大）
         if math.isnan(msg.linear.x) or math.isinf(msg.linear.x):
             self.get_logger().warning('Invalid linear.x value (NaN/Inf), ignoring command')
@@ -572,6 +570,9 @@ class HSMotorController(Node):
         if math.isnan(msg.angular.z) or math.isinf(msg.angular.z):
             self.get_logger().warning('Invalid angular.z value (NaN/Inf), ignoring command')
             return
+
+        # 驗證通過後才更新 watchdog 時間，避免無效命令流打穿逾時保護
+        self.last_cmd_time = self.get_clock().now()
 
         # 限制速度
         linear_x = max(min(msg.linear.x, self.max_linear_vel), -self.max_linear_vel)

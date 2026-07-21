@@ -5,7 +5,7 @@ export default defineConfig({
   timeout: 120000,
   retries: 0,
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: process.env.ROBOT_WEB_BASE ?? 'http://localhost:3000',
     headless: true,
   },
   projects: [

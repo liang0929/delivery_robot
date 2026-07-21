@@ -1,7 +1,7 @@
 # Robot Development Makefile
 # 使用方式: make <target>
 
-.PHONY: help start stop restart status logs build install uninstall dev core web sim sim-core
+.PHONY: help start stop restart status logs build install uninstall dev core web sim sim-core orphans kill-orphans
 
 # 預設顯示幫助
 help:
@@ -13,6 +13,8 @@ help:
 	@echo "  make restart    - 重啟所有服務 (修改程式碼後使用)"
 	@echo "  make status     - 查看服務狀態"
 	@echo "  make logs       - 查看即時日誌"
+	@echo "  make orphans    - 檢查 systemd 管不到的殘留節點"
+	@echo "  make kill-orphans - 清除殘留節點"
 	@echo ""
 	@echo "個別服務:"
 	@echo "  make core       - 只重啟機器人核心"
@@ -60,9 +62,37 @@ status:
 	@systemctl is-active robot-core >/dev/null 2>&1 && echo "robot-core: ✅ 運行中" || echo "robot-core: ❌ 未運行"
 	@systemctl is-active robot-web >/dev/null 2>&1 && echo "robot-web:  ✅ 運行中" || echo "robot-web:  ❌ 未運行"
 	@echo ""
+	@echo "=== 孤兒節點檢查 ==="
+	@$(MAKE) -s orphans
+	@echo ""
 	@echo "網頁控制: http://$$(hostname -I | awk '{print $$1}'):3000"
 	@echo "Robot API: http://$$(hostname -I | awk '{print $$1}'):5000/v1/robot"
 	@echo "事件推播: ws://$$(hostname -I | awk '{print $$1}'):5001"
+
+# 在 systemd 之外跑過 bringup、父進程死掉後留下的節點。
+# 這些不在 service 的 cgroup 內，systemctl restart 清不掉，
+# 會與正常節點重複發布 TF 與 /e_stop，必須手動處理。
+orphans:
+	@found=0; \
+	for p in $$(pgrep -f "opt/ros/humble/lib|base_dev/install" 2>/dev/null); do \
+	  ppid=$$(ps -o ppid= -p $$p 2>/dev/null | tr -d ' '); \
+	  node=$$(ps -o cmd= -p $$p 2>/dev/null | grep -oE "__node:=[a-z_0-9]+" | head -1); \
+	  if [ "$$ppid" = "1" ] && [ -n "$$node" ]; then \
+	    echo "  ⚠️  PID $$p  $$node  (父進程為 init)"; found=1; \
+	  fi; \
+	done; \
+	[ $$found -eq 0 ] && echo "  ✅ 無孤兒節點" || \
+	  echo "  → 用 'make kill-orphans' 清除"
+
+kill-orphans:
+	@for p in $$(pgrep -f "opt/ros/humble/lib|base_dev/install" 2>/dev/null); do \
+	  ppid=$$(ps -o ppid= -p $$p 2>/dev/null | tr -d ' '); \
+	  node=$$(ps -o cmd= -p $$p 2>/dev/null | grep -oE "__node:=[a-z_0-9]+" | head -1); \
+	  if [ "$$ppid" = "1" ] && [ -n "$$node" ]; then \
+	    echo "終止 PID $$p ($$node)"; kill $$p 2>/dev/null || true; \
+	  fi; \
+	done; \
+	sleep 2; $(MAKE) -s orphans
 
 logs:
 	@echo "按 Ctrl+C 退出日誌..."

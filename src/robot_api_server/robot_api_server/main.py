@@ -2020,7 +2020,8 @@ async def retry_delivery():
 async def cancel_delivery():
     """Cancel the current delivery task."""
     delivery_manager.cancel_delivery()
-    nav_manager.cancel_task()
+    # cancelTask 會 spin rclpy node 並等待 action server 回應，不可在 event loop 上直接呼叫
+    await asyncio.to_thread(nav_manager.cancel_task)
     logger.info("Delivery cancelled")
     return {"message": "Delivery cancelled."}
 
@@ -2034,7 +2035,8 @@ async def get_delivery_status():
     is_stuck = False
 
     if task and task.status in [DeliveryTaskStatus.DELIVERING, DeliveryTaskStatus.RETURNING]:
-        feedback = nav_manager.get_feedback()
+        # navigator 鎖可能被正在 spin 的執行緒持有數秒，不可在 event loop 上直接搶
+        feedback = await asyncio.to_thread(nav_manager.get_feedback)
         if feedback and hasattr(feedback, 'distance_remaining'):
             distance_remaining = feedback.distance_remaining
 

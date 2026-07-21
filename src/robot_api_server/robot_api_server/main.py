@@ -898,17 +898,31 @@ class ConnectionManager:
             self._connections.discard(websocket)
 
     async def broadcast(self, message: dict):
-        """廣播訊息給所有連線"""
+        """廣播訊息給所有連線
+
+        鎖內只複製連線集合，實際送出在鎖外並行執行，
+        避免單一慢速 client 拖垮所有廣播與新連線。
+        """
         async with self._lock:
-            dead_connections = set()
-            for conn in self._connections:
-                try:
-                    await conn.send_json(message)
-                except (ConnectionError, RuntimeError) as e:
-                    logger.debug(f"WebSocket connection lost: {e}")
-                    dead_connections.add(conn)
-            # 移除斷線的連線
-            self._connections -= dead_connections
+            connections = list(self._connections)
+        if not connections:
+            return
+
+        results = await asyncio.gather(
+            *(conn.send_json(message) for conn in connections),
+            return_exceptions=True
+        )
+
+        dead_connections = {
+            conn for conn, result in zip(connections, results)
+            if isinstance(result, Exception)
+        }
+        if dead_connections:
+            for conn, result in zip(connections, results):
+                if isinstance(result, Exception):
+                    logger.debug(f"WebSocket connection lost: {result}")
+            async with self._lock:
+                self._connections -= dead_connections
 
     @property
     def connection_count(self) -> int:

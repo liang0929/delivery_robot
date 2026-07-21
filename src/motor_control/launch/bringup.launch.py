@@ -14,6 +14,9 @@
   # 模擬模式 + Web 服務
   ros2 launch motor_control bringup.launch.py simulation:=true enable_web:=true
 
+  # 無 IMU 模式（BNO055 未接線或故障時）
+  ros2 launch motor_control bringup.launch.py enable_imu:=false
+
 啟動後，可透過 Web 前端選擇：
   - 遙控模式（預設）
   - 建圖模式（Start Mapping）
@@ -35,6 +38,13 @@ import yaml
 #   核心 2-3: LiDAR/IMU 感測器處理
 #   核心 4-5: EKF/AMCL 定位
 #   核心 6-7: Web 服務/API（優先級最低）
+# enable_imu:=false 時的提示。EKF 的 odom0 提供 vx 與 vyaw，
+# 因此缺少 IMU 仍可推算航向，但航向僅來自輪差、打滑無法修正。
+IMU_DISABLED_NOTICE = LogInfo(msg=(
+    '[bringup] IMU 已停用 (enable_imu:=false)：EKF 將僅以輪式里程計推算航向，'
+    '打滑造成的航向誤差無法被修正。建圖/導航時由 SLAM 或 AMCL 修正 map->odom。'
+))
+
 CPU_AFFINITY = {
     'motor': '0-1',
     'sensor': '2-3',
@@ -131,6 +141,7 @@ def launch_setup(context, *args, **kwargs):
     sim_scene = LaunchConfiguration('sim_scene').perform(context)
     lidar_port = LaunchConfiguration('lidar_port').perform(context)
     imu_device = LaunchConfiguration('imu_device').perform(context)
+    enable_imu = LaunchConfiguration('enable_imu').perform(context).lower() == 'true'
 
     # 套件路徑
     motor_control_dir = get_package_share_directory('motor_control')
@@ -224,20 +235,23 @@ def launch_setup(context, *args, **kwargs):
         ))
 
         # IMU 節點 (核心 2-3, 50Hz - EKF 只需 30Hz)
-        nodes.append(Node(
-            package='imu_bno055',
-            executable='bno055_i2c_node',
-            name='bno055',
-            namespace='imu',
-            output='screen',
-            parameters=[{
-                'device': imu_device,
-                'address': 40,
-                'frame_id': 'imu_link',
-                'rate': 50.0,
-            }],
-            prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
-        ))
+        if enable_imu:
+            nodes.append(Node(
+                package='imu_bno055',
+                executable='bno055_i2c_node',
+                name='bno055',
+                namespace='imu',
+                output='screen',
+                parameters=[{
+                    'device': imu_device,
+                    'address': 40,
+                    'frame_id': 'imu_link',
+                    'rate': 50.0,
+                }],
+                prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
+            ))
+        else:
+            nodes.append(IMU_DISABLED_NOTICE)
 
         # E-Stop GPIO 監控節點 (核心 2-3)
         nodes.append(Node(
@@ -298,17 +312,21 @@ def launch_setup(context, *args, **kwargs):
         ))
 
         # Mock IMU (核心 2-3, 50Hz - EKF 只需 30Hz)
-        nodes.append(Node(
-            package='motor_control',
-            executable='mock_imu',
-            name='mock_imu',
-            output='screen',
-            parameters=[{
-                'frame_id': 'imu_link',
-                'publish_frequency': 50.0,
-            }],
-            prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
-        ))
+        # 同樣受 enable_imu 控制，讓「無 IMU」路徑能在模擬中驗證
+        if enable_imu:
+            nodes.append(Node(
+                package='motor_control',
+                executable='mock_imu',
+                name='mock_imu',
+                output='screen',
+                parameters=[{
+                    'frame_id': 'imu_link',
+                    'publish_frequency': 50.0,
+                }],
+                prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
+            ))
+        else:
+            nodes.append(IMU_DISABLED_NOTICE)
 
         # E-Stop 模擬節點 (核心 2-3, 永遠不觸發)
         nodes.append(Node(
@@ -387,6 +405,8 @@ def generate_launch_description():
                              description='LiDAR 串口設備路徑'),
         DeclareLaunchArgument('imu_device', default_value='/dev/i2c-7',
                              description='IMU I2C 設備路徑'),
+        DeclareLaunchArgument('enable_imu', default_value='true',
+                             description='啟用 IMU (false 時 EKF 僅用輪式里程計推算航向)'),
         DeclareLaunchArgument('cpu_affinity', default_value='true',
                              description='啟用 CPU 親和性綁定 (Jetson Orin NX 優化)'),
 

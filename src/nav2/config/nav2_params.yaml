@@ -26,8 +26,10 @@ amcl:
     recovery_alpha_slow: 0.001
     recovery_alpha_fast: 0.1
     resample_interval: 1
-    robot_model_type: "differential"
+    # Humble 需使用 plugin 名稱（舊寫法 "differential" 會 load 失敗）
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
     save_pose_rate: 0.5
+    scan_topic: /scan
     sigma_hit: 0.2
     tf_broadcast: true
     transform_tolerance: 1.0

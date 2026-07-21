@@ -95,27 +95,24 @@ def launch_setup(context, *args, **kwargs):
     ))
 
     # AMCL - 定位 (核心 4-5)
+    # 參數以 nav2_params.yaml 為單一真相來源，
+    # 僅 launch 專屬項（use_sim_time、初始位姿）以覆蓋方式提供
     nodes.append(Node(
         package='nav2_amcl',
         executable='amcl',
         name='amcl',
         output='screen',
-        parameters=[{
-            'use_sim_time': use_sim_time,
-            'base_frame_id': 'base_footprint',
-            'odom_frame_id': 'odom',
-            'global_frame_id': 'map',
-            'scan_topic': '/scan',
-            'robot_model_type': 'nav2_amcl::DifferentialMotionModel',
-            'set_initial_pose': True,
-            'initial_pose.x': 0.0,
-            'initial_pose.y': 0.0,
-            'initial_pose.z': 0.0,
-            'initial_pose.yaw': 0.0,
-            'max_particles': 1000,
-            'min_particles': 200,
-            'max_beams': 30,
-        }],
+        parameters=[
+            params_file,
+            {
+                'use_sim_time': use_sim_time,
+                'set_initial_pose': True,
+                'initial_pose.x': 0.0,
+                'initial_pose.y': 0.0,
+                'initial_pose.z': 0.0,
+                'initial_pose.yaw': 0.0,
+            },
+        ],
         prefix=cpu_prefix
     ))
 

@@ -67,6 +67,11 @@ class EStopNode(Node):
         if not self.simulation:
             self._setup_gpio()
 
+        # 先讀取 GPIO 真實狀態再發布初始值
+        # （避免按鈕已鎖定時，latched topic 先出現短暫的 False）
+        # simulation 模式 _read_gpio 固定回傳 False
+        self.e_stop_active = self._read_gpio()
+
         # 發布初始狀態
         self._publish_state()
 

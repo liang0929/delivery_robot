@@ -975,6 +975,11 @@ async def _delivery_monitor_loop():
         try:
             task = delivery_manager.current_task
             if task and task.status in [DeliveryTaskStatus.DELIVERING, DeliveryTaskStatus.RETURNING]:
+                # goal 尚未發送時只等待：此刻 is_task_complete() 反映的是
+                # 上一段航程的結果，據此推進狀態機會誤判「已到達」
+                if delivery_manager.awaiting_goal:
+                    await asyncio.sleep(0.5)
+                    continue
                 # Navigator 未就緒時跳過，避免 is_task_complete() 誤判為 True
                 if not nav_manager.is_ready:
                     await asyncio.sleep(0.5)
@@ -1639,11 +1644,28 @@ class DeliveryManager:
         self._lock = threading.Lock()
         self._current_task: Optional[DeliveryTask] = None
         self._current_map: Optional[str] = None
+        # goal 世代握手：狀態推進後、導航目標實際發送前為 True。
+        # monitor loop 在此期間不得依 is_task_complete() 推進狀態機
+        # （否則會拿上一段航程的完成結果誤判「已到達」）。
+        self._awaiting_goal = False
 
     @property
     def current_task(self) -> Optional[DeliveryTask]:
+        """回傳當前任務的深拷貝快照，避免呼叫端在鎖外讀寫共享的 mutable 物件"""
         with self._lock:
-            return self._current_task
+            if self._current_task is None:
+                return None
+            return self._current_task.model_copy(deep=True)
+
+    @property
+    def awaiting_goal(self) -> bool:
+        with self._lock:
+            return self._awaiting_goal
+
+    def goal_dispatched(self):
+        """導航目標已成功發送，解除等待狀態"""
+        with self._lock:
+            self._awaiting_goal = False
 
     def start_delivery(self, map_name: str, table_ids: List[str], start_position: Position) -> DeliveryTask:
         """開始送餐任務"""
@@ -1688,8 +1710,10 @@ class DeliveryManager:
 
             self._current_task = task
             self._current_map = map_name
+            # 第一個導航目標尚未發送
+            self._awaiting_goal = True
 
-            return task
+            return task.model_copy(deep=True)
 
     def get_current_stop_table(self) -> Optional[Table]:
         """取得當前站點的桌位資訊"""
@@ -1712,24 +1736,26 @@ class DeliveryManager:
             if self._current_task is None:
                 return None
             if self._current_task.status not in [DeliveryTaskStatus.DELIVERING, DeliveryTaskStatus.RETURNING]:
-                return self._current_task
+                return self._current_task.model_copy(deep=True)
 
             self._current_task.status = DeliveryTaskStatus.STUCK
-            return self._current_task
+            self._awaiting_goal = False
+            return self._current_task.model_copy(deep=True)
 
     def mark_arrived(self) -> Optional[DeliveryTask]:
         """標記已到達當前桌位"""
         with self._lock:
             if self._current_task is None:
                 return None
-            if self._current_task.status != DeliveryTaskStatus.DELIVERING:
-                return self._current_task
+            # awaiting_goal 期間的「完成」是上一段航程的結果，不得推進狀態機
+            if self._current_task.status != DeliveryTaskStatus.DELIVERING or self._awaiting_goal:
+                return self._current_task.model_copy(deep=True)
 
             stop = self._current_task.stops[self._current_task.currentStopIndex]
             stop.status = DeliveryStopStatus.ARRIVED
             self._current_task.status = DeliveryTaskStatus.AT_TABLE
 
-            return self._current_task
+            return self._current_task.model_copy(deep=True)
 
     def confirm_arrival(self) -> Optional[DeliveryTask]:
         """確認到達並前往下一桌"""
@@ -1737,7 +1763,7 @@ class DeliveryManager:
             if self._current_task is None:
                 return None
             if self._current_task.status != DeliveryTaskStatus.AT_TABLE:
-                return self._current_task
+                return self._current_task.model_copy(deep=True)
 
             # 標記當前站點完成
             stop = self._current_task.stops[self._current_task.currentStopIndex]
@@ -1752,7 +1778,7 @@ class DeliveryManager:
             if self._current_task is None:
                 return None
             if self._current_task.status != DeliveryTaskStatus.AT_TABLE:
-                return self._current_task
+                return self._current_task.model_copy(deep=True)
 
             # 標記當前站點跳過
             stop = self._current_task.stops[self._current_task.currentStopIndex]
@@ -1775,18 +1801,24 @@ class DeliveryManager:
             # 所有站點完成，返回出發點
             self._current_task.status = DeliveryTaskStatus.RETURNING
 
-        return self._current_task
+        # 新的導航目標尚未發送
+        self._awaiting_goal = True
+        return self._current_task.model_copy(deep=True)
 
     def complete_return(self) -> Optional[DeliveryTask]:
         """完成返回"""
         with self._lock:
             if self._current_task is None:
                 return None
+            # 只有「返程 goal 已發送且完成」才算返回；awaiting_goal 期間的完成是舊結果
+            if self._current_task.status != DeliveryTaskStatus.RETURNING or self._awaiting_goal:
+                return self._current_task.model_copy(deep=True)
 
             self._current_task.status = DeliveryTaskStatus.IDLE
             task = self._current_task
             self._current_task = None
             self._current_map = None
+            self._awaiting_goal = False
 
             return task
 
@@ -1795,6 +1827,7 @@ class DeliveryManager:
         with self._lock:
             self._current_task = None
             self._current_map = None
+            self._awaiting_goal = False
 
 
 # 全局送餐管理器
@@ -1802,6 +1835,42 @@ delivery_manager = DeliveryManager()
 
 
 # --- Delivery API ---
+async def _dispatch_delivery_goal(task: Optional[DeliveryTask]) -> None:
+    """依任務快照發送當前導航目標；成功後透過 goal_dispatched() 解除 awaiting 狀態。
+
+    只有在 awaiting_goal 為 True（狀態剛推進、目標尚未發送）時才會發送，
+    避免重複對同一目標下 goal。
+    """
+    if task is None:
+        return
+    if not delivery_manager.awaiting_goal:
+        return
+    try:
+        if task.status == DeliveryTaskStatus.DELIVERING:
+            target = delivery_manager.get_current_stop_table()
+            if target is None:
+                logger.error("Current stop table not found; delivery goal not dispatched")
+                return
+            x, y, yaw_deg = target.x, target.y, target.yaw_deg
+            description = f"table {target.number}"
+        elif task.status == DeliveryTaskStatus.RETURNING:
+            x, y = task.startPosition.x, task.startPosition.y
+            yaw_deg = math.degrees(task.startPosition.yaw)  # Position.yaw 為弧度
+            description = "start position"
+        else:
+            return
+
+        is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
+        if not is_ready:
+            logger.warning("Nav2 not ready, delivery goal not dispatched")
+            return
+        await asyncio.to_thread(nav_manager.send_goal, x, y, yaw_deg)
+        delivery_manager.goal_dispatched()
+        logger.info(f"Delivery goal dispatched: {description}")
+    except Exception as e:
+        logger.error(f"Failed to dispatch delivery goal: {e}")
+
+
 @app.post("/delivery/start", response_model=DeliveryTask)
 async def start_delivery(request: DeliveryStartRequest):
     """Start a delivery task."""
@@ -1874,20 +1943,7 @@ async def start_delivery(request: DeliveryStartRequest):
     task = delivery_manager.start_delivery(map_name, request.tableIds, request.startPosition)
 
     # 非阻塞地導航到第一個桌位（避免 ensure_nav2_ready 掛住阻塞 HTTP 回應）
-    async def _send_first_goal():
-        try:
-            first_table = delivery_manager.get_current_stop_table()
-            if first_table:
-                is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
-                if is_ready:
-                    await asyncio.to_thread(nav_manager.send_goal, first_table.x, first_table.y, first_table.yaw_deg)
-                    logger.info(f"Starting delivery to table {first_table.number}")
-                else:
-                    logger.warning("Nav2 not ready, delivery goal not sent")
-        except Exception as e:
-            logger.error(f"Failed to send first delivery goal: {e}")
-
-    asyncio.create_task(_send_first_goal())
+    asyncio.create_task(_dispatch_delivery_goal(task))
 
     return task
 
@@ -1899,20 +1955,8 @@ async def confirm_delivery_arrival():
     if task is None:
         raise HTTPException(status_code=400, detail="No active delivery task.")
 
-    # 導航到下一個桌位或返回出發點
-    if task.status == DeliveryTaskStatus.DELIVERING:
-        next_table = delivery_manager.get_current_stop_table()
-        if next_table:
-            is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
-            if is_ready:
-                await asyncio.to_thread(nav_manager.send_goal, next_table.x, next_table.y, next_table.yaw_deg)
-                logger.info(f"Proceeding to table {next_table.number}")
-    elif task.status == DeliveryTaskStatus.RETURNING:
-        # 返回出發點
-        is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
-        if is_ready:
-            await asyncio.to_thread(nav_manager.send_goal, task.startPosition.x, task.startPosition.y, math.degrees(task.startPosition.yaw))
-            logger.info("Returning to start position")
+    # 導航到下一個桌位或返回出發點（依快照決策；只有 awaiting 時才會實際發送）
+    await _dispatch_delivery_goal(task)
 
     return task
 
@@ -1924,20 +1968,8 @@ async def skip_delivery_table():
     if task is None:
         raise HTTPException(status_code=400, detail="No active delivery task.")
 
-    # 導航到下一個桌位或返回出發點
-    if task.status == DeliveryTaskStatus.DELIVERING:
-        next_table = delivery_manager.get_current_stop_table()
-        if next_table:
-            is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
-            if is_ready:
-                await asyncio.to_thread(nav_manager.send_goal, next_table.x, next_table.y, next_table.yaw_deg)
-                logger.info(f"Proceeding to table {next_table.number}")
-    elif task.status == DeliveryTaskStatus.RETURNING:
-        # 返回出發點
-        is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
-        if is_ready:
-            await asyncio.to_thread(nav_manager.send_goal, task.startPosition.x, task.startPosition.y, math.degrees(task.startPosition.yaw))
-            logger.info("Returning to start position")
+    # 導航到下一個桌位或返回出發點（依快照決策；只有 awaiting 時才會實際發送）
+    await _dispatch_delivery_goal(task)
 
     return task
 

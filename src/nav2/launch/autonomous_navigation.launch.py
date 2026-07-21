@@ -54,6 +54,35 @@ def get_default_map_path():
     return default_path
 
 
+def get_default_keepout_mask(map_yaml_file: str) -> str:
+    """由地圖路徑推導預設 keepout mask 路徑：<map 同目錄>/<map>.keepout.yaml"""
+    map_dir = os.path.dirname(os.path.abspath(map_yaml_file))
+    map_name = os.path.splitext(os.path.basename(map_yaml_file))[0]
+    return os.path.join(map_dir, f'{map_name}.keepout.yaml')
+
+
+def ensure_keepout_mask(mask_yaml_file: str) -> bool:
+    """確認 keepout mask 存在；不存在時嘗試由虛擬牆重新產生。
+
+    回傳 mask 是否可用；不可用時呼叫端應跳過 costmap filter 節點。
+    """
+    if os.path.isfile(mask_yaml_file):
+        return True
+
+    map_dir = os.path.dirname(mask_yaml_file)
+    map_name = os.path.basename(mask_yaml_file)[:-len('.keepout.yaml')]
+    try:
+        from nav2.keepout import regenerate_keepout
+        if regenerate_keepout(map_name, map_dir):
+            print(f'[INFO] 已產生 keepout mask: {mask_yaml_file}')
+            return True
+    except Exception as exc:  # noqa: BLE001
+        print(f'[WARN] 產生 keepout mask 失敗: {exc}')
+
+    print(f'[WARN] 找不到 keepout mask ({mask_yaml_file})，虛擬牆功能停用')
+    return False
+
+
 def launch_setup(context, *args, **kwargs):
     """動態生成啟動配置（支持運行時參數解析）"""
     # 解析運行時參數
@@ -63,6 +92,9 @@ def launch_setup(context, *args, **kwargs):
     use_sim_time = use_sim_time_str.lower() == 'true'
     map_yaml_file = LaunchConfiguration('map').perform(context)
     params_file = LaunchConfiguration('params_file').perform(context)
+    keepout_mask_file = LaunchConfiguration('keepout_mask').perform(context)
+    if not keepout_mask_file:
+        keepout_mask_file = get_default_keepout_mask(map_yaml_file)
 
     cpu_prefix = get_cpu_prefix(cpu_affinity_enabled)
     nodes = []
@@ -116,6 +148,42 @@ def launch_setup(context, *args, **kwargs):
         prefix=cpu_prefix
     ))
 
+    # ===== Costmap Filters：虛擬牆 keepout =====
+    # filter_mask_server 發布 mask（OccupancyGrid），
+    # costmap_filter_info_server 發布對應的 CostmapFilterInfo。
+    # mask 不存在（例如尚未建立虛擬牆或仍在建圖）時整組跳過，不影響一般導航。
+    lifecycle_nodes = ['map_server', 'amcl']
+
+    if ensure_keepout_mask(keepout_mask_file):
+        nodes.append(LogInfo(msg=f'=== keepout mask: {keepout_mask_file} ==='))
+        nodes.append(Node(
+            package='nav2_map_server',
+            executable='map_server',
+            name='filter_mask_server',
+            output='screen',
+            parameters=[
+                params_file,
+                {
+                    'use_sim_time': use_sim_time,
+                    'yaml_filename': keepout_mask_file,
+                },
+            ],
+            prefix=cpu_prefix
+        ))
+        nodes.append(Node(
+            package='nav2_map_server',
+            executable='costmap_filter_info_server',
+            name='costmap_filter_info_server',
+            output='screen',
+            parameters=[
+                params_file,
+                {'use_sim_time': use_sim_time},
+            ],
+            prefix=cpu_prefix
+        ))
+        # 順序重要：mask 要先 active，info server 才有意義
+        lifecycle_nodes += ['filter_mask_server', 'costmap_filter_info_server']
+
     # Lifecycle Manager for map_server and amcl (延遲 2 秒)
     lifecycle_manager = Node(
         package='nav2_lifecycle_manager',
@@ -125,7 +193,7 @@ def launch_setup(context, *args, **kwargs):
         parameters=[{
             'use_sim_time': use_sim_time,
             'autostart': True,
-            'node_names': ['map_server', 'amcl']
+            'node_names': lifecycle_nodes
         }],
         prefix=cpu_prefix
     )
@@ -177,6 +245,11 @@ def generate_launch_description():
             'params_file',
             default_value=os.path.join(nav2_dir, 'config', 'nav2_params.yaml'),
             description='Full path to the ROS2 parameters file'
+        ),
+        DeclareLaunchArgument(
+            'keepout_mask',
+            default_value='',
+            description='虛擬牆 keepout mask yaml（留空則用 <map 同目錄>/<map>.keepout.yaml）'
         ),
         DeclareLaunchArgument(
             'cpu_affinity',

@@ -556,6 +556,19 @@ class RobotStateManager:
                 self._slam_status = SlamStatus.IDLE
         return {"message": "Mapping stopped.", "status": SlamStatus.IDLE}
 
+    def begin_map_save(self):
+        """原子性地從 MAPPING 進入 SAVING；未在建圖時直接拒絕，避免污染狀態機"""
+        with self._lock:
+            if self._slam_status != SlamStatus.MAPPING:
+                raise HTTPException(status_code=400, detail="Mapping is not running; cannot save map.")
+            self._slam_status = SlamStatus.SAVING
+
+    def end_map_save(self):
+        """存圖結束，恢復進入 SAVING 前的狀態（MAPPING）"""
+        with self._lock:
+            if self._slam_status == SlamStatus.SAVING:
+                self._slam_status = SlamStatus.MAPPING
+
     # --- Navigation ---
     @property
     def nav_status(self) -> NavStatus:
@@ -1333,28 +1346,27 @@ async def save_map(request: MapSaveRequest):
             timeout=30
         )
 
+    # 只有正在建圖時才允許存圖（原子性檢查 + 進入 SAVING）
+    state.begin_map_save()
     try:
-        state.slam_status = SlamStatus.SAVING
         result = await asyncio.to_thread(_save_map)
 
         if result.returncode != 0:
-            state.slam_status = SlamStatus.MAPPING
             raise HTTPException(status_code=500, detail=f"Map save failed: {result.stderr}")
 
-        state.slam_status = SlamStatus.MAPPING
         return {
             "message": "Map saved successfully.",
             "map_path": map_path,
             "files": [f"{map_path}.pgm", f"{map_path}.yaml"]
         }
     except subprocess.TimeoutExpired:
-        state.slam_status = SlamStatus.MAPPING
         raise HTTPException(status_code=500, detail="Map save timed out.")
     except HTTPException:
         raise
     except Exception as e:
-        state.slam_status = SlamStatus.MAPPING
         raise HTTPException(status_code=500, detail=f"Failed to save map: {str(e)}")
+    finally:
+        state.end_map_save()
 
 @app.get("/slam/status")
 async def get_slam_status():

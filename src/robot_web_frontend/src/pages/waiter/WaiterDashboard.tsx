@@ -11,7 +11,13 @@ export function WaiterDashboard() {
   const [selectedMap, setSelectedMap] = useState<string>('');
   const [maps, setMaps] = useState<string[]>([]);
   const [isLoadingMaps, setIsLoadingMaps] = useState(true);
-  const { status, setMapName } = useDeliveryStore();
+  const { status, setMapName, refreshStatus } = useDeliveryStore();
+
+  // 掛載時無條件同步一次後端狀態：
+  // 頁面重新整理後若後端仍有進行中的任務，才能還原 UI（否則會停在 idle 讓人再開新任務）
+  useEffect(() => {
+    refreshStatus();
+  }, [refreshStatus]);
 
   useEffect(() => {
     const loadMaps = async () => {

@@ -35,6 +35,7 @@ interface DeliveryState {
   confirmArrival: () => Promise<void>;
   skipTable: () => Promise<void>;
   cancelDelivery: () => Promise<void>;
+  retryDelivery: () => Promise<void>;
 
   refreshStatus: () => Promise<void>;
   resetState: () => void;
@@ -50,6 +51,14 @@ const initialState = {
   currentTask: null,
   error: null,
   isLoading: false,
+};
+
+// 輪詢世代序號：mutation（confirm/skip/cancel/start/retry）開始與完成時遞增，
+// 使較早發出、較晚返回的 /delivery/status 輪詢回應被丟棄，
+// 避免 out-of-order 回應把新狀態蓋回舊狀態（如已確認到達卻閃回確認彈窗）
+let statusEpoch = 0;
+const invalidateStatusPolls = () => {
+  statusEpoch++;
 };
 
 export const useDeliveryStore = create<DeliveryState>((set, get) => ({
@@ -125,6 +134,7 @@ export const useDeliveryStore = create<DeliveryState>((set, get) => ({
       return;
     }
 
+    invalidateStatusPolls();
     set({ isLoading: true, error: null });
 
     try {
@@ -143,6 +153,7 @@ export const useDeliveryStore = create<DeliveryState>((set, get) => ({
         mapName: mapName || undefined,
       });
 
+      invalidateStatusPolls();
       set({
         status: 'delivering',
         currentTask: task,
@@ -165,11 +176,13 @@ export const useDeliveryStore = create<DeliveryState>((set, get) => ({
       return;
     }
 
+    invalidateStatusPolls();
     set({ isLoading: true, error: null });
 
     try {
       const task = await apiService.confirmArrival();
 
+      invalidateStatusPolls();
       set({
         currentTask: task,
         status: task.status,
@@ -196,11 +209,13 @@ export const useDeliveryStore = create<DeliveryState>((set, get) => ({
       return;
     }
 
+    invalidateStatusPolls();
     set({ isLoading: true, error: null });
 
     try {
       const task = await apiService.skipTable();
 
+      invalidateStatusPolls();
       set({
         currentTask: task,
         status: task.status,
@@ -227,10 +242,12 @@ export const useDeliveryStore = create<DeliveryState>((set, get) => ({
       return;
     }
 
+    invalidateStatusPolls();
     set({ isLoading: true, error: null });
 
     try {
       await apiService.cancelDelivery();
+      invalidateStatusPolls();
       get().resetState();
     } catch (error) {
       const message = error instanceof Error ? error.message : '取消送餐失敗';
@@ -239,9 +256,47 @@ export const useDeliveryStore = create<DeliveryState>((set, get) => ({
     }
   },
 
+  retryDelivery: async () => {
+    const { status } = get();
+
+    // 僅在卡住時允許重試
+    if (status !== 'stuck') {
+      return;
+    }
+
+    invalidateStatusPolls();
+    set({ isLoading: true, error: null });
+
+    try {
+      const task = await apiService.retryDelivery();
+
+      invalidateStatusPolls();
+      set({
+        currentTask: task,
+        status: task.status,
+        currentStopIndex: task.currentStopIndex,
+        stops: task.stops,
+        isLoading: false,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '重試導航失敗';
+      set({ error: message, isLoading: false });
+      throw error;
+    }
+  },
+
   refreshStatus: async () => {
+    // 記錄發出請求時的世代；回應返回時若世代已變（期間有 mutation），此回應視為過期
+    const epoch = statusEpoch;
     try {
       const response = await apiService.getDeliveryStatus();
+
+      if (epoch !== statusEpoch) {
+        return; // 過期回應，丟棄
+      }
+      if (get().isLoading) {
+        return; // mutation 進行中，不套用輪詢結果
+      }
 
       if (response.task) {
         set({
@@ -265,8 +320,11 @@ export const useDeliveryStore = create<DeliveryState>((set, get) => ({
   },
 
   resetState: () => {
+    // 保留 mapName：它來自頁面選擇，任務完成後仍需沿用，
+    // 否則下一趟任務會以 undefined mapName 落到後端預設地圖
     set({
       ...initialState,
+      mapName: get().mapName,
     });
   },
 }));

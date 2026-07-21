@@ -22,6 +22,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from geometry_msgs.msg import Twist, Quaternion, Point, Vector3
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Float32, Int32, Bool
+from std_srvs.srv import Trigger
 
 from motor_control.odom_constants import POSE_COVARIANCE, TWIST_COVARIANCE
 
@@ -45,6 +46,9 @@ class HSMotorController(Node):
 
     # 低於此馬達 RPM 的命令視為零命令（吸收運動學計算的浮點殘差）
     ZERO_RPM_EPSILON = 1.0
+
+    # 嚴重故障碼：短路 (1, 2)、霍爾感測器錯誤 (7, 8) → 立即停止馬達
+    SEVERE_FAULT_CODES = frozenset({1, 2, 7, 8})
 
     def __init__(self):
         super().__init__('hs_motor_controller')
@@ -111,6 +115,11 @@ class HSMotorController(Node):
         self.e_stop_sub = self.create_subscription(
             Bool, '/e_stop', self.e_stop_callback, e_stop_qos)
         self.e_stop_active = False
+
+        # 故障清除 service（呼叫後下一包帶 clear_fault=1）
+        self.pending_clear_fault = False
+        self.clear_fault_srv = self.create_service(
+            Trigger, '~/clear_fault', self.clear_fault_callback)
 
         # 馬達狀態
         self.target_rpm_a = 0
@@ -470,10 +479,24 @@ class HSMotorController(Node):
                 f'Serial reconnection failed, next attempt in {self.reconnect_cooldown:.0f}s'
             )
 
+    def clear_fault_callback(self, request, response):
+        """故障清除 service 回調 - 下一包命令帶 clear_fault=1"""
+        with self.state_lock:
+            self.pending_clear_fault = True
+        response.success = True
+        response.message = 'Fault clear scheduled for next command packet'
+        self.get_logger().info('Fault clear requested via service')
+        return response
+
     def control_loop(self) -> None:
         """控制循環 - 發送命令並更新里程計"""
+        # 取出待處理的故障清除旗標（協議為 01→00 復位，僅送一包）
+        with self.state_lock:
+            clear_fault = 1 if self.pending_clear_fault else 0
+            self.pending_clear_fault = False
+
         # 發送命令並接收回應
-        success = self.send_and_receive()
+        success = self.send_and_receive(clear_fault)
 
         if success:
             # 更新里程計
@@ -501,6 +524,14 @@ class HSMotorController(Node):
             # 檢查故障
             if self.fault_code > 0:
                 self.get_logger().warning(f'Motor fault code {self.fault_code}: {self.get_fault_description(self.fault_code)}')
+                # 嚴重故障（短路/霍爾錯誤）：立即歸零目標轉速
+                if self.fault_code in self.SEVERE_FAULT_CODES:
+                    with self.state_lock:
+                        self.target_rpm_a = 0
+                        self.target_rpm_b = 0
+                    self.get_logger().error(
+                        f'Severe fault {self.fault_code}, target RPM zeroed'
+                    )
         else:
             self.get_logger().warning('No response from motor driver')
 

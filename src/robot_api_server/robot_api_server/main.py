@@ -1328,56 +1328,78 @@ async def stop_navigation():
     await asyncio.to_thread(_handle_navigation_down)
     return result
 
+def _publish_initial_pose(x: float, y: float, yaw: float,
+                          cov_xy: float = 0.25,
+                          cov_yaw: float = 0.06853891945200942,
+                          timeout: float = 10.0) -> bool:
+    """發布 /initialpose 給 AMCL（在工作執行緒中呼叫，yaw 為弧度）。
+
+    以 get_subscription_count() 輪詢確認 AMCL 已訂閱後才發布，
+    避免 DDS discovery 未完成導致訊息遺失。回傳是否確認有訂閱者。
+    """
+    ensure_rclpy_initialized()
+    # node 名稱加亂數後綴，避免併發請求建立同名 node
+    node = rclpy.create_node(f'initial_pose_pub_{uuid4().hex[:8]}')
+    try:
+        publisher = node.create_publisher(PoseWithCovarianceStamped, '/initialpose', 10)
+
+        # 等待訂閱者（AMCL）出現
+        deadline = time.time() + timeout
+        while publisher.get_subscription_count() == 0 and time.time() < deadline:
+            time.sleep(0.1)
+        has_subscriber = publisher.get_subscription_count() > 0
+        if not has_subscriber:
+            logger.warning(f"No subscriber on /initialpose after {timeout:.1f}s")
+
+        msg = PoseWithCovarianceStamped()
+        msg.header.frame_id = 'map'
+        msg.header.stamp = node.get_clock().now().to_msg()
+        msg.pose.pose.position.x = x
+        msg.pose.pose.position.y = y
+        msg.pose.pose.position.z = 0.0
+
+        # 從 yaw 計算四元數
+        msg.pose.pose.orientation.x = 0.0
+        msg.pose.pose.orientation.y = 0.0
+        msg.pose.pose.orientation.z = math.sin(yaw / 2.0)
+        msg.pose.pose.orientation.w = math.cos(yaw / 2.0)
+
+        # 設置協方差（對角線元素）
+        msg.pose.covariance[0] = cov_xy   # x
+        msg.pose.covariance[7] = cov_xy   # y
+        msg.pose.covariance[35] = cov_yaw  # yaw
+
+        publisher.publish(msg)
+        time.sleep(0.3)  # 給 DDS 傳輸時間
+        logger.info(f"Published initial pose: x={x}, y={y}, yaw={yaw}")
+        return has_subscriber
+    finally:
+        node.destroy_node()
+
+
 @app.post("/navigation/set_initial_pose")
 async def set_initial_pose(request: InitialPoseRequest):
     """Set the initial pose for AMCL localization."""
-    def _set_pose():
-        try:
-            ensure_rclpy_initialized()
-            node = rclpy.create_node('initial_pose_publisher')
-            publisher = node.create_publisher(
-                PoseWithCovarianceStamped,
-                '/initialpose',
-                10
-            )
-
-            # 等待訂閱者
-            time.sleep(0.5)
-
-            msg = PoseWithCovarianceStamped()
-            msg.header.frame_id = 'map'
-            msg.header.stamp = node.get_clock().now().to_msg()
-            msg.pose.pose.position.x = request.x
-            msg.pose.pose.position.y = request.y
-            msg.pose.pose.position.z = 0.0
-
-            # 從 yaw 計算四元數
-            msg.pose.pose.orientation.x = 0.0
-            msg.pose.pose.orientation.y = 0.0
-            msg.pose.pose.orientation.z = math.sin(request.yaw / 2.0)
-            msg.pose.pose.orientation.w = math.cos(request.yaw / 2.0)
-
-            # 設置協方差（對角線元素）
-            msg.pose.covariance[0] = 0.25  # x
-            msg.pose.covariance[7] = 0.25  # y
-            msg.pose.covariance[35] = 0.06853891945200942  # yaw
-
-            publisher.publish(msg)
-            logger.info(f"Published initial pose: x={request.x}, y={request.y}, yaw={request.yaw}")
-
-            # 等待消息發送
-            time.sleep(0.5)
-
-            node.destroy_node()
-            return {"message": "Initial pose set successfully", "x": request.x, "y": request.y, "yaw": request.yaw}
-        except Exception as e:
-            logger.error(f"Failed to set initial pose: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to set initial pose: {str(e)}")
-
     if state.nav_status != NavStatus.RUNNING:
         raise HTTPException(status_code=400, detail="Navigation is not running. Start navigation first.")
 
-    return await asyncio.to_thread(_set_pose)
+    try:
+        has_subscriber = await asyncio.to_thread(
+            _publish_initial_pose, request.x, request.y, request.yaw
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to set initial pose: {e}")
+        raise HTTPException(status_code=500, detail="Failed to set initial pose.")
+
+    if not has_subscriber:
+        raise HTTPException(
+            status_code=503,
+            detail="AMCL is not subscribed to /initialpose yet; try again later."
+        )
+
+    return {"message": "Initial pose set successfully", "x": request.x, "y": request.y, "yaw": request.yaw}
 
 
 # --- SLAM Endpoints ---
@@ -1941,47 +1963,41 @@ async def start_delivery(request: DeliveryStartRequest):
         logger.info(f"Navigation not running, auto-starting with map: {map_name}")
         try:
             await asyncio.to_thread(state.start_navigation, map_name)
-            # 等待導航系統完全啟動
-            logger.info("Waiting for navigation system to initialize...")
-            await asyncio.sleep(5)  # 給 Nav2 一些啟動時間
             nav_just_started = True
         except HTTPException as e:
             raise HTTPException(status_code=500, detail=f"Failed to auto-start navigation: {e.detail}")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to auto-start navigation: {str(e)}")
 
-    # 如果導航剛啟動，使用前端傳來的起點位置設定初始位置
+    # 如果導航剛啟動：先等 Nav2 完全就緒（waitUntilNav2Active 已包含 AMCL active），
+    # 再用前端傳來的起點位置設定初始定位；失敗直接回錯，不帶著錯誤定位開始送餐
     if nav_just_started:
+        is_ready = await asyncio.to_thread(nav_manager.ensure_nav2_ready)
+        if not is_ready:
+            raise HTTPException(status_code=503, detail="Nav2 failed to become active after auto-start.")
+
         logger.info(f"Setting initial pose to start position: x={request.startPosition.x}, y={request.startPosition.y}, yaw={request.startPosition.yaw}")
         try:
-            def _set_initial_pose():
-                ensure_rclpy_initialized()
-                node = rclpy.create_node('delivery_initial_pose_publisher')
-                publisher = node.create_publisher(PoseWithCovarianceStamped, '/initialpose', 10)
-                time.sleep(0.5)
-
-                msg = PoseWithCovarianceStamped()
-                msg.header.frame_id = 'map'
-                msg.header.stamp = node.get_clock().now().to_msg()
-                msg.pose.pose.position.x = request.startPosition.x
-                msg.pose.pose.position.y = request.startPosition.y
-                msg.pose.pose.position.z = 0.0
-                msg.pose.pose.orientation.z = math.sin(request.startPosition.yaw / 2.0)
-                msg.pose.pose.orientation.w = math.cos(request.startPosition.yaw / 2.0)
-                # 較小的協方差 = 更確定的位置
-                msg.pose.covariance[0] = 0.1   # x
-                msg.pose.covariance[7] = 0.1   # y
-                msg.pose.covariance[35] = 0.05  # yaw
-
-                publisher.publish(msg)
-                time.sleep(0.3)
-                node.destroy_node()
-
-            await asyncio.to_thread(_set_initial_pose)
-            logger.info("Initial pose set successfully")
-            await asyncio.sleep(1)  # 給 AMCL 時間處理
+            has_subscriber = await asyncio.to_thread(
+                _publish_initial_pose,
+                request.startPosition.x,
+                request.startPosition.y,
+                request.startPosition.yaw,
+                0.1,   # 較小的協方差 = 更確定的位置
+                0.05,
+            )
         except Exception as e:
-            logger.warning(f"Failed to set initial pose: {e}")
+            logger.error(f"Failed to set initial pose: {e}")
+            raise HTTPException(status_code=500, detail="Failed to set initial pose for delivery.")
+
+        if not has_subscriber:
+            raise HTTPException(
+                status_code=503,
+                detail="AMCL is not subscribed to /initialpose; cannot set start position."
+            )
+
+        logger.info("Initial pose set successfully")
+        await asyncio.sleep(1)  # 給 AMCL 時間處理
 
     task = delivery_manager.start_delivery(map_name, request.tableIds, request.startPosition)
 

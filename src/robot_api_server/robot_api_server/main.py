@@ -353,6 +353,8 @@ class RobotStateManager:
         self._health_thread: Optional[threading.Thread] = None
         self._health_stop_event = threading.Event()
         self._crash_info: dict = {}  # 記錄 crash 資訊
+        # 導航停止/崩潰時的善後 callback（在鎖外呼叫；模組載入後由外部注入）
+        self.on_navigation_down = None
 
     # --- E-Stop ---
     @property
@@ -737,11 +739,18 @@ class RobotStateManager:
     def _health_check_loop(self):
         """健康檢查迴圈"""
         while not self._health_stop_event.is_set():
-            self._check_processes()
+            crashed = self._check_processes()
+            # 善後 callback 必須在鎖外執行（可能觸碰 navigator / delivery 的鎖）
+            if 'navigation' in crashed and self.on_navigation_down is not None:
+                try:
+                    self.on_navigation_down()
+                except Exception as e:
+                    logger.error(f"Navigation-down handler failed: {e}")
             self._health_stop_event.wait(self.HEALTH_CHECK_INTERVAL)
 
-    def _check_processes(self):
-        """檢查所有子程序是否存活"""
+    def _check_processes(self) -> list:
+        """檢查所有子程序是否存活，回傳本輪偵測到 crash 的服務名稱"""
+        crashed = []
         with self._lock:
             # 檢查 SLAM 程序
             if self._slam_process and self._slam_status == SlamStatus.MAPPING:
@@ -753,6 +762,7 @@ class RobotStateManager:
                     }
                     self._slam_process = None
                     self._slam_status = SlamStatus.IDLE
+                    crashed.append('slam')
 
             # 檢查 Navigation 程序
             if self._nav_process and self._nav_status == NavStatus.RUNNING:
@@ -764,6 +774,7 @@ class RobotStateManager:
                     }
                     self._nav_process = None
                     self._nav_status = NavStatus.IDLE
+                    crashed.append('navigation')
 
             # 檢查 Robot Core 程序
             if self._robot_core_process and self._robot_core_running:
@@ -775,6 +786,9 @@ class RobotStateManager:
                     }
                     self._robot_core_process = None
                     self._robot_core_running = False
+                    crashed.append('robot_core')
+
+        return crashed
 
     def _get_timestamp(self) -> str:
         """取得時間戳記"""
@@ -1260,7 +1274,10 @@ async def start_navigation(request: NavigationStartRequest = None):
 @app.post("/navigation/stop")
 async def stop_navigation():
     """Stop autonomous navigation."""
-    return await asyncio.to_thread(state.stop_navigation)
+    result = await asyncio.to_thread(state.stop_navigation)
+    # 導航進程已停止：重置 navigator、將進行中送餐標記為卡住
+    await asyncio.to_thread(_handle_navigation_down)
+    return result
 
 @app.post("/navigation/set_initial_pose")
 async def set_initial_pose(request: InitialPoseRequest):
@@ -1981,15 +1998,21 @@ class NavigatorManager:
             return False
 
     def reset(self):
-        """重置 navigator"""
+        """重置 navigator（導航進程停止或崩潰後呼叫）
+
+        注意：不使用 lifecycleShutdown()——它會對 nav2 lifecycle 服務發請求，
+        在 nav2 已死亡時可能無限期阻塞；進程本身由 RobotStateManager 負責終止，
+        這裡只需銷毀本地 node。
+        """
         with self._lock:
             self._nav2_ready = False
-            if self.navigator is not None:
-                try:
-                    self.navigator.lifecycleShutdown()
-                except RuntimeError as e:
-                    logger.warning(f"Error during navigator shutdown: {e}")
-                self.navigator = None
+            nav = self.navigator
+            self.navigator = None
+        if nav is not None:
+            try:
+                nav.destroy_node()
+            except Exception as e:
+                logger.warning(f"Error destroying navigator node: {e}")
 
     def send_goal(self, x: float, y: float, yaw_deg: float):
         """發送導航目標（非阻塞，線程安全）"""
@@ -2019,8 +2042,9 @@ class NavigatorManager:
             try:
                 return self.navigator.isTaskComplete()
             except RuntimeError as e:
-                logger.debug(f"Task complete check failed: {e}")
-                return True
+                # 無法判定時回 False，避免被誤判為「已完成」而錯誤推進狀態機
+                logger.warning(f"Task complete check failed: {e}")
+                return False
 
     def get_feedback(self):
         """獲取導航反饋（線程安全）"""
@@ -2062,6 +2086,21 @@ class NavigatorManager:
 
 # Global navigator manager
 nav_manager = NavigatorManager()
+
+
+def _handle_navigation_down():
+    """導航停止或崩潰後的共用善後：重置 navigator、將進行中的送餐任務標記為卡住"""
+    try:
+        nav_manager.reset()
+    except Exception as e:
+        logger.warning(f"Navigator reset failed: {e}")
+    task = delivery_manager.mark_stuck()
+    if task is not None and task.status == DeliveryTaskStatus.STUCK:
+        logger.warning("Delivery task marked STUCK because navigation went down")
+
+
+# 健康監控偵測到導航進程崩潰時的善後（在監控執行緒的鎖外呼叫）
+state.on_navigation_down = _handle_navigation_down
 
 
 def main():

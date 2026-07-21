@@ -77,94 +77,62 @@ export function MapView({
     setOffset(fitOffset);
   }, [calculateFitView]);
 
-  // Subscribe to map and odom with retry mechanism
+  // Subscribe to map and robot pose
+  // service 端有訂閱登記表：連線前登記也會在連線（或斷線重連）後自動建立，無需輪詢重試
   useEffect(() => {
-    let retryInterval: number | null = null;
-    let subscribed = false;
-
-    const trySubscribe = () => {
-      if (!rosbridgeService.isConnected()) {
-        return; // 等待下次重試
+    rosbridgeService.subscribeToMap((map) => {
+      setMapData(map);
+      // 首次收到地圖時自動適配
+      if (!hasAutoFitted.current) {
+        hasAutoFitted.current = true;
+        fitMapToView(map);
       }
+    });
 
-      if (!subscribed) {
-        rosbridgeService.subscribeToMap((map) => {
-          setMapData(map);
-          // 首次收到地圖時自動適配
-          if (!hasAutoFitted.current) {
-            hasAutoFitted.current = true;
-            fitMapToView(map);
-          }
-        });
-
-        // 訂閱 odom 獲取機器人位置
-        rosbridgeService.subscribeToOdom((odom) => {
-          const { position, orientation } = odom.pose.pose;
-          const yaw = Math.atan2(
-            2.0 * (orientation.w * orientation.z + orientation.x * orientation.y),
-            1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z)
-          );
-          setRobotPose({ x: position.x, y: position.y, yaw });
-        });
-
-        subscribed = true;
-        // 訂閱成功後停止重試
-        if (retryInterval) {
-          clearInterval(retryInterval);
-          retryInterval = null;
+    // 透過 TF (map->odom->base_footprint) 取得 map frame 下的機器人位姿，
+    // 避免 SLAM 迴環修正 / AMCL 校正後，odom frame 位姿與地圖錯位
+    rosbridgeService.subscribeToRobotPoseInMap((pose) => {
+      setRobotPose((prev) => {
+        // 變化小於 1cm / 0.5 度時不更新 state，避免高頻 TF 觸發整張畫布重繪
+        const dYaw = Math.abs(
+          Math.atan2(Math.sin(pose.yaw - prev.yaw), Math.cos(pose.yaw - prev.yaw))
+        );
+        if (
+          Math.abs(pose.x - prev.x) < 0.01 &&
+          Math.abs(pose.y - prev.y) < 0.01 &&
+          dYaw < 0.0087
+        ) {
+          return prev;
         }
-      }
-    };
-
-    // 立即嘗試訂閱
-    trySubscribe();
-    // 每秒重試直到成功
-    retryInterval = window.setInterval(trySubscribe, 1000);
+        return { x: pose.x, y: pose.y, yaw: pose.yaw };
+      });
+    });
 
     return () => {
-      if (retryInterval) {
-        clearInterval(retryInterval);
-      }
       rosbridgeService.unsubscribeFromMap();
-      rosbridgeService.unsubscribeFromOdom();
+      rosbridgeService.unsubscribeFromRobotPoseInMap();
     };
   }, [fitMapToView]);
 
-  // Convert map coordinates to canvas coordinates
-  const mapToCanvas = useCallback((mapX: number, mapY: number) => {
-    if (!mapData) return { x: 0, y: 0 };
-    const { resolution, origin, height } = mapData.info;
-    const canvasX = (mapX - origin.position.x) / resolution * scale + offset.x;
-    const canvasY = (height - (mapY - origin.position.y) / resolution) * scale + offset.y;
-    return { x: canvasX, y: canvasY };
-  }, [mapData, scale, offset]);
-
-  // Convert canvas coordinates to map coordinates
-  const canvasToMap = useCallback((canvasX: number, canvasY: number) => {
-    if (!mapData) return { x: 0, y: 0 };
-    const { resolution, origin, height } = mapData.info;
-    const mapX = (canvasX - offset.x) / scale * resolution + origin.position.x;
-    const mapY = (height - (canvasY - offset.y) / scale) * resolution + origin.position.y;
-    return { x: mapX, y: mapY };
-  }, [mapData, scale, offset]);
-
-  // Draw map
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !mapData) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  // OccupancyGrid -> offscreen canvas 快取，只在 mapData 變更時重建（約 2Hz），
+  // 讓 draw() 只需 drawImage 而不用每次重跑 O(W*H) 的像素迴圈
+  const mapCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  useEffect(() => {
+    if (!mapData) {
+      mapCanvasRef.current = null;
+      return;
+    }
 
     const { width, height } = mapData.info;
     const data = mapData.data;
 
-    // Clear canvas
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const offscreen = document.createElement('canvas');
+    offscreen.width = width;
+    offscreen.height = height;
+    const offCtx = offscreen.getContext('2d');
+    if (!offCtx) return;
 
-    // Draw map
-    const imageData = ctx.createImageData(width, height);
+    const imageData = offCtx.createImageData(width, height);
     for (let i = 0; i < data.length; i++) {
       const value = data[i];
       const idx = i * 4;
@@ -187,15 +155,44 @@ export function MapView({
       }
       imageData.data[idx + 3] = 255;
     }
+    offCtx.putImageData(imageData, 0, 0);
+    mapCanvasRef.current = offscreen;
+  }, [mapData]);
 
-    // Create temp canvas for map
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = width;
-    tempCanvas.height = height;
-    const tempCtx = tempCanvas.getContext('2d')!;
-    tempCtx.putImageData(imageData, 0, 0);
+  // Convert map coordinates to canvas coordinates
+  const mapToCanvas = useCallback((mapX: number, mapY: number) => {
+    if (!mapData) return { x: 0, y: 0 };
+    const { resolution, origin, height } = mapData.info;
+    const canvasX = (mapX - origin.position.x) / resolution * scale + offset.x;
+    const canvasY = (height - (mapY - origin.position.y) / resolution) * scale + offset.y;
+    return { x: canvasX, y: canvasY };
+  }, [mapData, scale, offset]);
 
-    // Draw map with scale and offset
+  // Convert canvas coordinates to map coordinates
+  const canvasToMap = useCallback((canvasX: number, canvasY: number) => {
+    if (!mapData) return { x: 0, y: 0 };
+    const { resolution, origin, height } = mapData.info;
+    const mapX = (canvasX - offset.x) / scale * resolution + origin.position.x;
+    const mapY = (height - (canvasY - offset.y) / scale) * resolution + origin.position.y;
+    return { x: mapX, y: mapY };
+  }, [mapData, scale, offset]);
+
+  // Draw map
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    const mapCanvas = mapCanvasRef.current;
+    if (!canvas || !mapData || !mapCanvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const { height } = mapData.info;
+
+    // Clear canvas
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw cached map with scale and offset
     ctx.save();
     ctx.translate(offset.x, offset.y);
     ctx.scale(scale, scale);
@@ -204,7 +201,7 @@ export function MapView({
     // Flip Y axis for ROS coordinate system
     ctx.translate(0, height);
     ctx.scale(1, -1);
-    ctx.drawImage(tempCanvas, 0, 0);
+    ctx.drawImage(mapCanvas, 0, 0);
     ctx.restore();
 
     // Draw robot
@@ -342,11 +339,20 @@ export function MapView({
     draw();
   }, [draw]);
 
-  // Zoom handler
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setScale((s) => Math.max(0.5, Math.min(20, s * delta)));
+  // 滾輪縮放 - 使用原生 non-passive listener
+  // (React 的 onWheel 是 passive，preventDefault 無效，縮放時整頁會跟著捲動)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      setScale((s) => Math.max(0.5, Math.min(20, s * delta)));
+    };
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheel);
   }, []);
 
   // Pan handlers
@@ -426,7 +432,6 @@ export function MapView({
         width={CANVAS_WIDTH}
         height={CANVAS_HEIGHT}
         className={styles.canvas}
-        onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}

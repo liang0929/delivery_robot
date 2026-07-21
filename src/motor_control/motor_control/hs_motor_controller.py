@@ -3,8 +3,10 @@ HS 協議馬達控制器 - 使用 AGV-BLD-2S 自定義 HS 協議
 直接通過 RS-232 連接馬達驅動器
 
 HS 協議封包格式：
-詢問封包 (Master -> Slave): AA + 地址 + 數據類型 + 故障清除 + 保留 + A控制 + A方向 + A轉速(2B) + B控制 + B方向 + B轉速(2B) + 55 + CRC16
-應答封包 (Slave -> Master): 55 + 地址 + A電流(2B) + A轉速(2B) + B電流(2B) + B轉速(2B) + 電壓(2B) + 故障 + AA + CRC16
+詢問封包 (Master -> Slave): AA + 地址 + 數據類型 + 故障清除 + 保留 + A控制 + B控制 + A方向 + B方向 + A轉速(2B) + B轉速(2B) + 55 + CRC16
+應答封包 (Slave -> Master): 55 + 地址 + A電流(2B) + B電流(2B) + A轉速(2B) + B轉速(2B) + 電壓(2B) + 故障 + AA + CRC16
+
+注意：欄位順序以實測硬體行為為準，如與手冊不符請先驗證再修改。
 """
 
 import math
@@ -272,6 +274,8 @@ class HSMotorController(Node):
         """
         建立 HS 協議命令封包 (16 bytes)
         格式: AA + 地址 + 返回類型 + 故障清除 + 保留 + A控制 + B控制 + A方向 + B方向 + A轉速(2B) + B轉速(2B) + 55 + CRC16
+
+        注意：欄位順序以實測硬體行為為準，如與手冊不符請先驗證再修改。
         """
         # 使用鎖保護讀取共享狀態，獲取快照
         with self.state_lock:
@@ -343,6 +347,8 @@ class HSMotorController(Node):
         """
         解析 HS 協議回應封包 (16 bytes)
         格式: 55 + 地址 + A電流(2B) + B電流(2B) + A轉速(2B) + B轉速(2B) + 電壓(2B) + 故障 + AA + CRC16
+
+        注意：欄位順序以實測硬體行為為準，如與手冊不符請先驗證再修改。
         """
         if len(data) < 16:
             return False

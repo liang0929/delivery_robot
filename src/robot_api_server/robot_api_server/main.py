@@ -1139,20 +1139,14 @@ async def get_map_metadata(map_name: str):
         with open(yaml_path, 'r') as f:
             map_yaml = yaml.safe_load(f)
 
-        # 解析 PGM 檔案獲取尺寸
+        # 使用 PIL 解析 PGM 尺寸（正確處理註解、分行尺寸等合法格式）
         width, height = 0, 0
         if os.path.exists(pgm_path):
-            with open(pgm_path, 'rb') as f:
-                # 讀取 PGM header
-                magic = f.readline().decode().strip()
-                if magic in ['P5', 'P2']:
-                    # 跳過註解
-                    line = f.readline().decode().strip()
-                    while line.startswith('#'):
-                        line = f.readline().decode().strip()
-                    # 讀取尺寸
-                    parts = line.split()
-                    width, height = int(parts[0]), int(parts[1])
+            try:
+                with Image.open(pgm_path) as img:
+                    width, height = img.size
+            except Exception as e:
+                logger.error(f"Failed to read PGM size for '{safe_name}': {e}")
 
         return {
             "resolution": map_yaml.get("resolution", 0.05),
@@ -1164,8 +1158,9 @@ async def get_map_metadata(map_name: str):
             "free_thresh": map_yaml.get("free_thresh", 0.196),
         }
     except Exception as e:
-        logger.error(f"Failed to read map metadata: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to read map metadata: {str(e)}")
+        # 細節只留在 log，不把內部錯誤資訊回傳給 client
+        logger.error(f"Failed to read map metadata for '{safe_name}': {e}")
+        raise HTTPException(status_code=500, detail="Failed to read map metadata.")
 
 @app.post("/navigation/start")
 async def start_navigation(request: NavigationStartRequest = None):

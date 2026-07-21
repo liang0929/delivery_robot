@@ -75,12 +75,16 @@
   </link>
 
   <!-- ========== 驅動輪（差動驅動） ========== -->
+  <!-- 輪子 joint 使用 fixed 而非 continuous：
+       系統沒有 encoder joint_states 來源也未啟動 joint_state_publisher，
+       continuous joint 會使 base_link -> wheel_link 的 TF 永遠缺失。
+       改為 fixed 讓 robot_state_publisher 直接發布靜態 TF（輪子不轉動
+       僅影響視覺化，不影響運動學/導航）。 -->
   <!-- 左輪 -->
-  <joint name="left_wheel_joint" type="continuous">
+  <joint name="left_wheel_joint" type="fixed">
     <parent link="base_link"/>
     <child link="left_wheel_link"/>
     <origin xyz="0 ${wheel_separation/2} ${-base_height + wheel_radius}" rpy="${-pi/2} 0 0"/>
-    <axis xyz="0 0 1"/>
   </joint>
 
   <link name="left_wheel_link">
@@ -106,12 +110,11 @@
     </inertial>
   </link>
 
-  <!-- 右輪 -->
-  <joint name="right_wheel_joint" type="continuous">
+  <!-- 右輪（同左輪，fixed 原因見上方註解） -->
+  <joint name="right_wheel_joint" type="fixed">
     <parent link="base_link"/>
     <child link="right_wheel_link"/>
     <origin xyz="0 ${-wheel_separation/2} ${-base_height + wheel_radius}" rpy="${-pi/2} 0 0"/>
-    <axis xyz="0 0 1"/>
   </joint>
 
   <link name="right_wheel_link">

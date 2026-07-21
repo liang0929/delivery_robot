@@ -3,52 +3,125 @@ import { ROBOT_CONFIG } from '../config/robot.config';
 
 type ConnectionCallback = (connected: boolean) => void;
 
+const RECONNECT_DELAY_MS = 3000;
+
+interface TFTransform {
+  translation: { x: number; y: number; z: number };
+  rotation: { x: number; y: number; z: number; w: number };
+}
+
 class RosbridgeService {
   private ros: ROSLIB.Ros | null = null;
+  private connectPromise: Promise<void> | null = null;
+  private reconnectTimer: number | null = null;
+  private intentionalDisconnect = false;
+
   private cmdVelPublisher: ROSLIB.Topic | null = null;
   private mapSubscriber: ROSLIB.Topic | null = null;
   private odomSubscriber: ROSLIB.Topic | null = null;
   private voltageSubscriber: ROSLIB.Topic | null = null;
   private currentASubscriber: ROSLIB.Topic | null = null;
   private currentBSubscriber: ROSLIB.Topic | null = null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private tfClient: any = null;
   private tfSubscriber: ROSLIB.Topic | null = null;
+
+  // 訂閱登記表：記錄「想要訂閱」的 callback。
+  // 連線尚未建立時先登記，連線（或斷線重連）成功後由 restoreSubscriptions() 統一重建。
+  private mapCallback: ((map: OccupancyGridData) => void) | null = null;
+  private odomCallback: ((odom: OdomData) => void) | null = null;
+  private voltageCallback: ((voltage: number) => void) | null = null;
+  private currentsCallback: ((currentA: number, currentB: number) => void) | null = null;
   private robotPoseCallback: ((pose: RobotPoseInMap) => void) | null = null;
+
   // TF 累積資料 (用於計算 map->base_footprint)
-  private tfData: { [key: string]: { translation: {x: number, y: number, z: number}, rotation: {x: number, y: number, z: number, w: number} } } = {};
+  private tfData: { [key: string]: TFTransform } = {};
   private connected = false;
   private connectionCallbacks: Set<ConnectionCallback> = new Set();
 
   connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.ros = new ROSLIB.Ros({ url: ROBOT_CONFIG.ROSBRIDGE_URL });
+    // 冪等：已連線直接成功，連線中回傳既有 Promise
+    if (this.connected) {
+      return Promise.resolve();
+    }
+    if (this.connectPromise) {
+      return this.connectPromise;
+    }
 
-      this.ros.on('connection', () => {
+    this.intentionalDisconnect = false;
+
+    // 清除殘留的舊連線，避免 WebSocket 洩漏
+    if (this.ros) {
+      try {
+        this.ros.close();
+      } catch {
+        // ignore
+      }
+      this.ros = null;
+    }
+
+    this.connectPromise = new Promise((resolve, reject) => {
+      const ros = new ROSLIB.Ros({ url: ROBOT_CONFIG.ROSBRIDGE_URL });
+      this.ros = ros;
+      let settled = false;
+
+      ros.on('connection', () => {
+        if (this.ros !== ros) return; // 已被更新的連線取代
         console.log('Connected to rosbridge');
-        this.setConnected(true);
+        this.connectPromise = null;
         this.setupTopics();
-        resolve();
+        this.setConnected(true);
+        this.restoreSubscriptions();
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
       });
 
-      this.ros.on('error', (error) => {
+      ros.on('error', (error) => {
+        if (this.ros !== ros) return;
         console.error('Rosbridge error:', error);
-        reject(error);
+        if (!settled) {
+          settled = true;
+          this.connectPromise = null;
+          reject(error ?? new Error('rosbridge connection error'));
+        }
       });
 
-      this.ros.on('close', () => {
+      ros.on('close', () => {
+        if (this.ros !== ros) return; // 被孤立的舊連線關閉，忽略
         console.log('Rosbridge connection closed');
+        this.connectPromise = null;
         this.setConnected(false);
+        this.clearTopicHandles();
+        if (!settled) {
+          settled = true;
+          reject(new Error('rosbridge connection closed'));
+        }
+        if (!this.intentionalDisconnect) {
+          this.scheduleReconnect();
+        }
       });
     });
+
+    return this.connectPromise;
   }
 
   disconnect(): void {
-    if (this.ros) {
-      this.ros.close();
-      this.ros = null;
-      this.setConnected(false);
+    this.intentionalDisconnect = true;
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
+    if (this.ros) {
+      try {
+        this.ros.close();
+      } catch {
+        // ignore
+      }
+      this.ros = null;
+    }
+    this.connectPromise = null;
+    this.clearTopicHandles();
+    this.setConnected(false);
   }
 
   isConnected(): boolean {
@@ -61,11 +134,32 @@ class RosbridgeService {
     return () => this.connectionCallbacks.delete(callback);
   }
 
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer !== null) return;
+    this.reconnectTimer = window.setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect().catch(() => {
+        // 連線失敗時由 close handler 再度排程重連
+      });
+    }, RECONNECT_DELAY_MS);
+  }
+
   private setConnected(value: boolean): void {
     if (this.connected !== value) {
       this.connected = value;
       this.connectionCallbacks.forEach((cb) => cb(value));
     }
+  }
+
+  // 連線斷開後，舊的 Topic 物件已失效，清除引用（登記表保留，重連後重建）
+  private clearTopicHandles(): void {
+    this.cmdVelPublisher = null;
+    this.mapSubscriber = null;
+    this.odomSubscriber = null;
+    this.voltageSubscriber = null;
+    this.currentASubscriber = null;
+    this.currentBSubscriber = null;
+    this.tfSubscriber = null;
   }
 
   private setupTopics(): void {
@@ -77,6 +171,15 @@ class RosbridgeService {
       name: ROBOT_CONFIG.TOPICS.CMD_VEL,
       messageType: 'geometry_msgs/msg/Twist',
     });
+  }
+
+  // 依登記表重建所有訂閱（連線建立與斷線重連時呼叫）
+  private restoreSubscriptions(): void {
+    if (this.mapCallback) this.doSubscribeMap();
+    if (this.odomCallback) this.doSubscribeOdom();
+    if (this.voltageCallback) this.doSubscribeVoltage();
+    if (this.currentsCallback) this.doSubscribeCurrents();
+    if (this.robotPoseCallback) this.doSubscribeRobotPoseInMap();
   }
 
   // Publish velocity command
@@ -93,9 +196,16 @@ class RosbridgeService {
 
   // Subscribe to map with throttling for performance
   subscribeToMap(callback: (map: OccupancyGridData) => void): void {
-    if (!this.ros || !this.connected) return;
+    this.mapCallback = callback;
+    if (this.ros && this.connected) {
+      this.doSubscribeMap();
+    }
+  }
 
-    // 取消現有訂閱
+  private doSubscribeMap(): void {
+    if (!this.ros || !this.mapCallback) return;
+
+    // 取消現有訂閱，避免重複
     if (this.mapSubscriber) {
       this.mapSubscriber.unsubscribe();
     }
@@ -109,11 +219,12 @@ class RosbridgeService {
     } as any);
 
     this.mapSubscriber.subscribe((message: unknown) => {
-      callback(message as OccupancyGridData);
+      this.mapCallback?.(message as OccupancyGridData);
     });
   }
 
   unsubscribeFromMap(): void {
+    this.mapCallback = null;
     if (this.mapSubscriber) {
       this.mapSubscriber.unsubscribe();
       this.mapSubscriber = null;
@@ -122,7 +233,18 @@ class RosbridgeService {
 
   // Subscribe to odometry
   subscribeToOdom(callback: (odom: OdomData) => void): void {
-    if (!this.ros) return;
+    this.odomCallback = callback;
+    if (this.ros && this.connected) {
+      this.doSubscribeOdom();
+    }
+  }
+
+  private doSubscribeOdom(): void {
+    if (!this.ros || !this.odomCallback) return;
+
+    if (this.odomSubscriber) {
+      this.odomSubscriber.unsubscribe();
+    }
 
     this.odomSubscriber = new ROSLIB.Topic({
       ros: this.ros,
@@ -131,11 +253,12 @@ class RosbridgeService {
     });
 
     this.odomSubscriber.subscribe((message: unknown) => {
-      callback(message as OdomData);
+      this.odomCallback?.(message as OdomData);
     });
   }
 
   unsubscribeFromOdom(): void {
+    this.odomCallback = null;
     if (this.odomSubscriber) {
       this.odomSubscriber.unsubscribe();
       this.odomSubscriber = null;
@@ -145,17 +268,20 @@ class RosbridgeService {
   // Subscribe to robot pose in map frame via TF
   // Directly subscribe to /tf topic and compute map->base_footprint transform
   subscribeToRobotPoseInMap(callback: (pose: RobotPoseInMap) => void): void {
-    if (!this.ros || !this.connected) {
-      console.warn('[TF] Cannot subscribe: ros not connected');
-      return;
-    }
-
     this.robotPoseCallback = callback;
+    if (this.ros && this.connected) {
+      this.doSubscribeRobotPoseInMap();
+    }
+  }
+
+  private doSubscribeRobotPoseInMap(): void {
+    if (!this.ros || !this.robotPoseCallback) return;
+
+    if (this.tfSubscriber) {
+      this.tfSubscriber.unsubscribe();
+    }
     this.tfData = {};
 
-    console.log('[TF] Subscribing to /tf topic directly');
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.tfSubscriber = new ROSLIB.Topic({
       ros: this.ros,
       name: '/tf',
@@ -174,28 +300,39 @@ class RosbridgeService {
       }
 
       // 計算 map->base_footprint (通過 map->odom->base_footprint)
+      // hs_motor_controller 發布 odom->base_footprint (base_link_frame: base_footprint)
+      // slam_toolbox / AMCL 發布 map->odom
       const mapToOdom = this.tfData['map->odom'];
       const odomToBase = this.tfData['odom->base_footprint'];
 
-      if (mapToOdom && odomToBase && this.robotPoseCallback) {
-        // 組合兩個變換
-        const pose = this.composeTF(mapToOdom, odomToBase);
-        this.robotPoseCallback(pose);
+      if (!odomToBase || !this.robotPoseCallback) return;
+
+      if (mapToOdom) {
+        this.robotPoseCallback(this.composeTF(mapToOdom, odomToBase));
+      } else {
+        // map->odom 尚未發布時（如僅遙控、SLAM 未啟動）視為 identity，退化為 odom 位姿
+        this.robotPoseCallback(this.tfToPose(odomToBase));
       }
     });
   }
 
-  // 組合兩個 TF 變換
-  private composeTF(
-    tf1: { translation: {x: number, y: number, z: number}, rotation: {x: number, y: number, z: number, w: number} },
-    tf2: { translation: {x: number, y: number, z: number}, rotation: {x: number, y: number, z: number, w: number} }
-  ): RobotPoseInMap {
-    // 簡化計算：假設只有 yaw 旋轉 (2D 導航)
-    const q1 = tf1.rotation;
-    const yaw1 = Math.atan2(2.0 * (q1.w * q1.z + q1.x * q1.y), 1.0 - 2.0 * (q1.y * q1.y + q1.z * q1.z));
+  private quatToYaw(q: { x: number; y: number; z: number; w: number }): number {
+    return Math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+  }
 
-    const q2 = tf2.rotation;
-    const yaw2 = Math.atan2(2.0 * (q2.w * q2.z + q2.x * q2.y), 1.0 - 2.0 * (q2.y * q2.y + q2.z * q2.z));
+  private tfToPose(tf: TFTransform): RobotPoseInMap {
+    return {
+      x: tf.translation.x,
+      y: tf.translation.y,
+      yaw: this.quatToYaw(tf.rotation),
+    };
+  }
+
+  // 組合兩個 TF 變換
+  private composeTF(tf1: TFTransform, tf2: TFTransform): RobotPoseInMap {
+    // 簡化計算：假設只有 yaw 旋轉 (2D 導航)
+    const yaw1 = this.quatToYaw(tf1.rotation);
+    const yaw2 = this.quatToYaw(tf2.rotation);
 
     // 旋轉 tf2 的 translation
     const cos1 = Math.cos(yaw1);
@@ -211,21 +348,28 @@ class RosbridgeService {
   }
 
   unsubscribeFromRobotPoseInMap(): void {
+    this.robotPoseCallback = null;
     if (this.tfSubscriber) {
       this.tfSubscriber.unsubscribe();
       this.tfSubscriber = null;
     }
-    if (this.tfClient) {
-      this.tfClient.unsubscribe('base_footprint');
-      this.tfClient = null;
-    }
-    this.robotPoseCallback = null;
     this.tfData = {};
   }
 
   // Subscribe to motor voltage
   subscribeToVoltage(callback: (voltage: number) => void): void {
-    if (!this.ros) return;
+    this.voltageCallback = callback;
+    if (this.ros && this.connected) {
+      this.doSubscribeVoltage();
+    }
+  }
+
+  private doSubscribeVoltage(): void {
+    if (!this.ros || !this.voltageCallback) return;
+
+    if (this.voltageSubscriber) {
+      this.voltageSubscriber.unsubscribe();
+    }
 
     this.voltageSubscriber = new ROSLIB.Topic({
       ros: this.ros,
@@ -235,11 +379,12 @@ class RosbridgeService {
 
     this.voltageSubscriber.subscribe((message: unknown) => {
       const msg = message as { data: number };
-      callback(msg.data);
+      this.voltageCallback?.(msg.data);
     });
   }
 
   unsubscribeFromVoltage(): void {
+    this.voltageCallback = null;
     if (this.voltageSubscriber) {
       this.voltageSubscriber.unsubscribe();
       this.voltageSubscriber = null;
@@ -248,7 +393,21 @@ class RosbridgeService {
 
   // Subscribe to motor currents
   subscribeToCurrents(callback: (currentA: number, currentB: number) => void): void {
-    if (!this.ros) return;
+    this.currentsCallback = callback;
+    if (this.ros && this.connected) {
+      this.doSubscribeCurrents();
+    }
+  }
+
+  private doSubscribeCurrents(): void {
+    if (!this.ros || !this.currentsCallback) return;
+
+    if (this.currentASubscriber) {
+      this.currentASubscriber.unsubscribe();
+    }
+    if (this.currentBSubscriber) {
+      this.currentBSubscriber.unsubscribe();
+    }
 
     let currentA = 0;
     let currentB = 0;
@@ -268,17 +427,18 @@ class RosbridgeService {
     this.currentASubscriber.subscribe((message: unknown) => {
       const msg = message as { data: number };
       currentA = msg.data;
-      callback(currentA, currentB);
+      this.currentsCallback?.(currentA, currentB);
     });
 
     this.currentBSubscriber.subscribe((message: unknown) => {
       const msg = message as { data: number };
       currentB = msg.data;
-      callback(currentA, currentB);
+      this.currentsCallback?.(currentA, currentB);
     });
   }
 
   unsubscribeFromCurrents(): void {
+    this.currentsCallback = null;
     if (this.currentASubscriber) {
       this.currentASubscriber.unsubscribe();
       this.currentASubscriber = null;

@@ -1,0 +1,52 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  padding: 12px;
+  min-height: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.brand {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #e6eefb;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.tab {
+  border: 1px solid #232d3c;
+  background: #131a23;
+  color: #93a3ba;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: #dbe6f5;
+}
+
+.tabActive {
+  background: #1f6feb;
+  border-color: #4d9bff;
+  color: #fff;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+}

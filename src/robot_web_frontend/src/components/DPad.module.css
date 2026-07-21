@@ -1,0 +1,57 @@
+.pad {
+  display: grid;
+  grid-template-columns: repeat(3, 64px);
+  grid-template-rows: repeat(3, 64px);
+  gap: 8px;
+  justify-content: center;
+  user-select: none;
+  touch-action: none;
+}
+
+.btn {
+  border: 1px solid #2c3648;
+  background: #182029;
+  color: #dbe6f5;
+  border-radius: 10px;
+  font-size: 1.35rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn.active {
+  background: #1f6feb;
+  border-color: #4d9bff;
+  color: #fff;
+}
+
+.stop {
+  background: #3a1d20;
+  border-color: #6b2b30;
+  color: #ff9a9a;
+  font-size: 0.85rem;
+}
+
+.up { grid-area: 1 / 2; }
+.left { grid-area: 2 / 1; }
+.center { grid-area: 2 / 2; }
+.right { grid-area: 2 / 3; }
+.down { grid-area: 3 / 2; }
+
+.caption {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 0.78rem;
+  color: #7d8ba1;
+}

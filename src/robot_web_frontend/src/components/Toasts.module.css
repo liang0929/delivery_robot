@@ -1,0 +1,38 @@
+.stack {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 50;
+  max-width: min(360px, calc(100vw - 32px));
+}
+
+.toast {
+  background: #161d26;
+  border: 1px solid #2c3648;
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #dbe6f5;
+  font-size: 0.85rem;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.info { border-left-color: #4d9bff; }
+.success { border-left-color: #3ddc84; }
+.error { border-left-color: #ff5f6d; }
+
+.title {
+  font-weight: 600;
+}
+
+.detail {
+  margin-top: 2px;
+  color: #93a3ba;
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+  word-break: break-word;
+}

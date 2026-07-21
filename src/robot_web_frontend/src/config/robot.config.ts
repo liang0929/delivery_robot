@@ -1,45 +1,30 @@
-// Robot configuration
-// ROBOT_IP 優先使用環境變數，否則使用當前頁面的 hostname
-const getDefaultRobotIP = (): string => {
-  // Vite 環境變數 (build 時設定: VITE_ROBOT_IP=x.x.x.x npm run build)
+// 連線設定
+// ROBOT_IP 優先使用環境變數 VITE_ROBOT_IP，其次為當前頁面 hostname，最後 localhost。
+const resolveRobotIp = (): string => {
   if (import.meta.env.VITE_ROBOT_IP) {
     return import.meta.env.VITE_ROBOT_IP;
   }
-  // 開發環境或未設定時，使用當前頁面的 hostname
   if (typeof window !== 'undefined' && window.location.hostname) {
     return window.location.hostname;
   }
-  // 最後回退到 localhost
   return 'localhost';
 };
 
+const ROBOT_IP = resolveRobotIp();
+
+/** Winstec Robot API v1.1：HTTP 5000 / WebSocket 5001 */
 export const ROBOT_CONFIG = {
-  // Network
-  ROBOT_IP: getDefaultRobotIP(),
-  API_PORT: 8000,
-  ROSBRIDGE_PORT: 9090,
+  ROBOT_IP,
+  HTTP_PORT: 5000,
+  WS_PORT: 5001,
 
-  // API URLs
-  get API_BASE_URL() {
-    return `http://${this.ROBOT_IP}:${this.API_PORT}`;
-  },
-  get ROSBRIDGE_URL() {
-    return `ws://${this.ROBOT_IP}:${this.ROSBRIDGE_PORT}`;
-  },
+  /** REST 前綴，例如 http://192.168.1.10:5000/v1/robot */
+  API_BASE_URL: `http://${ROBOT_IP}:5000/v1/robot`,
+  /** WebSocket 位址 */
+  WS_URL: `ws://${ROBOT_IP}:5001`,
 
-  // Topics
-  TOPICS: {
-    CMD_VEL: '/cmd_vel',
-    MAP: '/map_relay',  // 使用 relay 節點解決 QoS 不相容
-    SCAN: '/scan',
-    ODOM: '/odometry/filtered',
-    ROBOT_POSE: '/amcl_pose',
-  },
-
-  // Velocity limits (from nav2_params.yaml)
-  MAX_LINEAR_VEL: 0.05,  // m/s
-  MAX_ANGULAR_VEL: 0.4,  // rad/s
-
-  // Update rates
-  CMD_VEL_RATE: 50, // Hz (20ms interval) - 提升響應速度
-};
+  /** 建圖時 live map 輪詢間隔（ms）→ 1.25 Hz */
+  LIVE_MAP_POLL_MS: 800,
+  /** WebSocket 斷線重連 backoff（ms） */
+  WS_RECONNECT_MS: 3000,
+} as const;

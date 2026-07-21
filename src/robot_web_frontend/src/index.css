@@ -1,14 +1,215 @@
+:root {
+  --bg: #0b0f14;
+  --panel: #131a23;
+  --panel-2: #182029;
+  --line: #232d3c;
+  --text: #dbe6f5;
+  --muted: #7d8ba1;
+  --accent: #1f6feb;
+  --danger: #ff5f6d;
+  --ok: #3ddc84;
+
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, 'Noto Sans TC', sans-serif;
+}
+
 * {
   box-sizing: border-box;
 }
 
-body {
+html,
+body,
+#root {
+  height: 100%;
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-  background: #0a0a0a;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ------------------------------------------------------------------ 共用元件 */
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.panelTitle {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hintText {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  border-radius: 7px;
+  padding: 7px 12px;
+  font-size: 0.83rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: #3c4a60;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: #4d9bff;
   color: #fff;
 }
 
-#root {
-  min-height: 100vh;
+.btn.danger {
+  background: #3a1d20;
+  border-color: #6b2b30;
+  color: #ff9a9a;
+}
+
+.btn.active {
+  background: var(--accent);
+  border-color: #4d9bff;
+  color: #fff;
+}
+
+.btn.small {
+  padding: 4px 8px;
+  font-size: 0.75rem;
+}
+
+.input,
+.select {
+  background: #0f151d;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  padding: 7px 9px;
+  font-size: 0.83rem;
+  min-width: 0;
+}
+
+.input:focus,
+.select:focus {
+  outline: none;
+  border-color: #3c6ea8;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fieldLabel {
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.listItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  background: var(--panel-2);
+  border: 1px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.listItem.selected {
+  border-color: #4d9bff;
+}
+
+.listItemMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.listItemName {
+  font-size: 0.83rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listItemMeta {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+}
+
+.tag {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.tag.charge {
+  color: #ffc14d;
+  border-color: #6a5424;
+}
+
+.dirtyBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: #2a2213;
+  border: 1px solid #6a5424;
+  color: #ffd98a;
+  font-size: 0.82rem;
+}
+
+.cleanBanner {
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: #131a23;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.82rem;
 }

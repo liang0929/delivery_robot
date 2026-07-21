@@ -107,13 +107,16 @@ controller_server:
       rotate_to_heading_angular_vel: 0.4
       transform_tolerance: 0.1
       use_velocity_scaled_lookahead_dist: false
-      min_approach_linear_velocity: 0.02
+      # 0.035 = 馬達最低可實現輪速 (min_rpm 100 / gear 20 @ r=0.065)
+      # 低於此值馬達層會 clamp 到 min_rpm，控制器模型需與實際一致
+      min_approach_linear_velocity: 0.035
       use_approach_linear_velocity_scaling: true
       max_allowed_time_to_collision: 1.0
       use_regulated_linear_velocity_scaling: true
       use_cost_regulated_linear_velocity_scaling: false
-      regulated_linear_velocity_scaling_min_radius: 0.9
-      regulated_linear_velocity_scaling_min_speed: 0.02
+      # 修正參數名：Humble 為 regulated_linear_scaling_*（舊名會被靜默忽略）
+      regulated_linear_scaling_min_radius: 0.9
+      regulated_linear_scaling_min_speed: 0.035
       use_rotate_to_heading: false       # 關閉終點旋轉對齊，減少搖擺
       rotate_to_heading_min_angle: 0.785
       max_angular_accel: 3.2
@@ -148,7 +151,8 @@ behavior_server:
     transform_timeout: 0.1
     simulate_ahead_time: 2.0
     max_rotational_vel: 0.4
-    min_rotational_vel: 0.1
+    # 0.26 rad/s 以上輪速才超過馬達 min_rpm 死區 (0.034 m/s / 半輪距 0.135m)
+    min_rotational_vel: 0.26
     rotational_acc_lim: 3.2
 
 local_costmap:

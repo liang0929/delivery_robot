@@ -1,7 +1,7 @@
 // Winstec Robot API v1.1 端點封裝（docs/winstec_api_v1.1.md §5、§7）
 // 所有座標皆為 API 單位（公分整數 + 度）；換算請走 lib/coords.ts。
 
-import { absoluteUrl, request, requestBlobUrl } from './client';
+import { absoluteUrl, LONG_TIMEOUT_MS, request, requestBlobUrl } from './client';
 import type {
   ApiLocation,
   ApiPosition,
@@ -143,11 +143,13 @@ export const discardEdits = (o: Sig = {}) =>
 
 // ------------------------------------------------------- 擴充端點：模式與地圖
 
+/** 切換模式要拉起整個 Nav2 或 SLAM，正常就需要數十秒，故用長逾時 */
 export const switchMode = (mode: OpMode, map?: string, o: Sig = {}) =>
   request<void>('/mode', {
     method: 'POST',
     body: map ? { mode, map } : { mode },
     signal: o.signal,
+    timeoutMs: LONG_TIMEOUT_MS,
   });
 
 /** 後端可能回 `{maps:[...]}`、字串陣列或物件陣列，統一成字串陣列 */

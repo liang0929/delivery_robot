@@ -266,10 +266,11 @@ export function NavigationPage({
             >
               前往選取點位
             </button>
+            {/* 停止是安全控制項，任何情況下都不得停用——包含其他請求進行中、
+                或模式尚未切換完成。使用者必須永遠能夠中止機器人。 */}
             <button
               type="button"
               className="btn danger"
-              disabled={busy !== null}
               onClick={handleStop}
             >
               停止

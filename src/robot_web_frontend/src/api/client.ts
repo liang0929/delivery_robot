@@ -29,11 +29,57 @@ export function isAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === 'AbortError';
 }
 
+/**
+ * 預設請求逾時（毫秒）。
+ *
+ * 沒有逾時的話，後端若卡在等待（例如 Nav2 遲遲無法就緒），請求會無限期
+ * 掛著，UI 的 busy 狀態也就永遠不會解除，按鈕全部卡在停用。
+ */
+const DEFAULT_TIMEOUT_MS = 15_000;
+
+/** 模式切換要啟動整個 Nav2 或 SLAM，正常就需要數十秒 */
+export const LONG_TIMEOUT_MS = 60_000;
+
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   query?: Record<string, string | number | undefined>;
   signal?: AbortSignal;
+  /** 覆寫預設逾時；傳 0 表示不設逾時 */
+  timeoutMs?: number;
+}
+
+/**
+ * 把呼叫端的 signal 與逾時合併成單一 signal。
+ * 回傳的 cleanup 必須在請求結束後呼叫，以免計時器洩漏。
+ */
+function withTimeout(
+  signal: AbortSignal | undefined,
+  timeoutMs: number,
+): { signal: AbortSignal | undefined; cleanup: () => void; didTimeout: () => boolean } {
+  if (!timeoutMs) return { signal, cleanup: () => {}, didTimeout: () => false };
+
+  const ctrl = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    ctrl.abort();
+  }, timeoutMs);
+
+  const onOuterAbort = () => ctrl.abort();
+  if (signal) {
+    if (signal.aborted) ctrl.abort();
+    else signal.addEventListener('abort', onOuterAbort);
+  }
+
+  return {
+    signal: ctrl.signal,
+    cleanup: () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onOuterAbort);
+    },
+    didTimeout: () => timedOut,
+  };
 }
 
 function buildUrl(path: string, query?: RequestOptions['query']): string {
@@ -61,14 +107,26 @@ export async function request<T>(
   path: string,
   opts: RequestOptions = {},
 ): Promise<T> {
-  const { method = 'GET', body, query, signal } = opts;
+  const { method = 'GET', body, query, signal, timeoutMs = DEFAULT_TIMEOUT_MS } = opts;
+  const t = withTimeout(signal, timeoutMs);
 
-  const res = await fetch(buildUrl(path, query), {
-    method,
-    signal,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(buildUrl(path, query), {
+      method,
+      signal: t.signal,
+      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (err) {
+    // 逾時要能與「呼叫端主動取消」區分：後者不該顯示錯誤，前者必須顯示
+    if (t.didTimeout()) {
+      throw new ApiError(0, `REQUEST_TIMEOUT (${timeoutMs / 1000}s)`);
+    }
+    throw err;
+  } finally {
+    t.cleanup();
+  }
 
   if (!res.ok) throw await toApiError(res);
 

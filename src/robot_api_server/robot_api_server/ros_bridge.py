@@ -69,6 +69,11 @@ except Exception as e:  # pragma: no cover
     NAV2_AVAILABLE = False
     logger.error(f"nav2_simple_commander unavailable: {e}")
 
+# 等待 Nav2 就緒的上限。waitUntilNav2Active() 本身沒有時限，
+# AMCL 未定位時會永遠不返回，故由呼叫端設限。
+# 冷啟動時 Nav2 全部節點 active 約需 10-20 秒，留足餘裕。
+NAV2_READY_TIMEOUT_SEC = float(os.environ.get('ROBOT_NAV2_READY_TIMEOUT', '40'))
+
 try:
     from PIL import Image
     PIL_AVAILABLE = True
@@ -627,18 +632,43 @@ class NavigatorManager:
                 nav = self.navigator
 
             # 等待 Nav2 就緒（不持有狀態鎖）
-            try:
-                logger.info("Waiting for Nav2 to become active...")
-                nav.waitUntilNav2Active()
-                with self._lock:
-                    if self.navigator is not nav:
-                        return False  # 等待期間被 reset
-                    self._nav2_ready = True
-                logger.info("Nav2 is active.")
-                return True
-            except Exception as e:
-                logger.error(f"Failed to connect to Nav2: {e}")
+            #
+            # waitUntilNav2Active() 會無限期阻塞：它內部等待 AMCL 的初始位姿，
+            # 若 AMCL 未定位（未收到 initialpose、或地圖與掃描對不上）就永遠不返回。
+            # 這會讓 HTTP 請求整個掛住，前端的忙碌狀態也永遠不解除。
+            # 因此在獨立執行緒中執行並設定時限。
+            result: dict = {}
+
+            def _wait():
+                try:
+                    nav.waitUntilNav2Active()
+                    result['ok'] = True
+                except Exception as e:  # noqa: BLE001 - 要記錄任何失敗原因
+                    result['error'] = e
+
+            logger.info("Waiting for Nav2 to become active...")
+            waiter = threading.Thread(target=_wait, daemon=True)
+            waiter.start()
+            waiter.join(timeout=NAV2_READY_TIMEOUT_SEC)
+
+            if waiter.is_alive():
+                # 執行緒會繼續掛著（無法安全中止），但不再阻塞請求。
+                # 下次呼叫會因 _ready_lock 仍被持有而快速失敗，屬預期行為。
+                logger.error(
+                    f"Nav2 未在 {NAV2_READY_TIMEOUT_SEC:.0f} 秒內就緒，"
+                    f"最可能的原因是 AMCL 尚未定位（未設定初始位姿）"
+                )
                 return False
+            if 'error' in result:
+                logger.error(f"Failed to connect to Nav2: {result['error']}")
+                return False
+
+            with self._lock:
+                if self.navigator is not nav:
+                    return False  # 等待期間被 reset
+                self._nav2_ready = True
+            logger.info("Nav2 is active.")
+            return True
 
     def reset(self):
         """導航進程停止或崩潰後呼叫。
@@ -783,6 +813,7 @@ class RosBridge:
         self._voltage: Optional[float] = None
         self._e_stop = False
         self._latest_map = None
+        self._scan_count = 0  # 就緒探測用：確認 /scan 確實在發布
         self._latest_pose: Optional[Tuple[float, float, float]] = None  # (x_m, y_m, yaw_rad)
 
         self._cmd_vel_pub = None
@@ -847,6 +878,17 @@ class RosBridge:
                     PoseWithCovarianceStamped, '/amcl_pose', self._on_amcl_pose, 10
                 )
 
+            # /scan 只用來確認雷射確實在發布（就緒探測用），不保留內容。
+            # 感測器資料是 BEST_EFFORT，QoS 必須相容否則收不到。
+            try:
+                from sensor_msgs.msg import LaserScan
+                from rclpy.qos import qos_profile_sensor_data
+                node.create_subscription(
+                    LaserScan, '/scan', self._on_scan, qos_profile_sensor_data
+                )
+            except Exception as e:  # pragma: no cover
+                logger.warning(f"無法訂閱 /scan（就緒探測將略過此項）: {e}")
+
             period = 1.0 / max(1.0, MANUAL_PUBLISH_HZ)
             node.create_timer(period, self._publish_manual_twist)
 
@@ -881,6 +923,11 @@ class RosBridge:
     def _on_map(self, msg) -> None:
         with self._lock:
             self._latest_map = msg
+
+    def _on_scan(self, msg) -> None:
+        # 只計數，不保留內容——就緒探測只需要知道雷射有沒有在發布
+        with self._lock:
+            self._scan_count += 1
 
     def _on_amcl_pose(self, msg) -> None:
         q = msg.pose.pose.orientation
@@ -961,6 +1008,82 @@ class RosBridge:
                 pass
         with self._lock:
             return self._latest_pose
+
+    # --- 導航就緒探測 ---
+    def is_localized(self) -> bool:
+        """AMCL 是否已完成定位（以 map→odom 是否存在為準）。
+
+        這是唯一可靠的判準：AMCL 會在收到初始位姿後記錄 "Setting pose"，
+        但那只代表訊息被收下，不代表粒子濾波器已更新並開始發布轉換。
+        """
+        buffer_ = self._tf_buffer
+        if buffer_ is None:
+            return False
+        try:
+            from rclpy.time import Time
+            return buffer_.can_transform('map', 'odom', Time())
+        except Exception:
+            return False
+
+    def scan_is_flowing(self, min_hz: float = 3.0, window: float = 2.0) -> bool:
+        """/scan 是否穩定在發布。AMCL 沒有掃描就不會更新濾波器。"""
+        with self._lock:
+            count0 = self._scan_count
+        time.sleep(window)
+        with self._lock:
+            count1 = self._scan_count
+        return (count1 - count0) / window >= min_hz
+
+    def wait_for_navigation_ready(
+        self,
+        settle_sec: float = 2.0,
+        probe_timeout: float = NAV2_READY_TIMEOUT_SEC,
+    ) -> Tuple[bool, str]:
+        """啟動導航後的就緒探測，回傳 (是否就緒, 說明)。
+
+        用 ROS 狀態當判準而非固定 sleep——固定 sleep 在 Jetson 上不可靠，
+        且失敗時無法分辨卡在哪一步。順序刻意與 Nav2 的相依關係一致：
+
+          1. /map 已收到          （AMCL 沒有地圖不會處理掃描）
+          2. /scan 穩定發布       （沒有掃描濾波器不會更新）
+          3. TF buffer 沉澱       （剛啟動時 buffer 是空的，查詢會失敗）
+          4. 發布初始位姿          （此時 AMCL 的訂閱必然已建立）
+          5. 等待 map→odom 出現   （唯一能證明定位真的成功的訊號）
+        """
+        deadline = time.time() + probe_timeout
+
+        # 1. 地圖
+        while time.time() < deadline:
+            with self._lock:
+                if self._latest_map is not None:
+                    break
+            time.sleep(0.3)
+        else:
+            return False, "逾時：未收到 /map，map_server 可能未啟動或地圖檔無效"
+
+        # 2. 掃描
+        if not self.scan_is_flowing():
+            return False, "逾時：/scan 未穩定發布，LiDAR 可能未連線"
+
+        # 3. 讓 TF buffer 累積足夠歷史，否則 AMCL 的 odom 查詢會失敗
+        time.sleep(settle_sec)
+
+        # 4. 已經定位就不必再送（例如重複呼叫）
+        if self.is_localized():
+            return True, "已完成定位"
+
+        # 5. 發布初始位姿並等待定位生效
+        self.publish_initial_pose(0.0, 0.0, 0.0)
+        while time.time() < deadline:
+            if self.is_localized():
+                return True, "定位完成（初始位姿設於地圖原點）"
+            time.sleep(0.5)
+
+        return False, (
+            "逾時：已送出初始位姿但 AMCL 未發布 map→odom。"
+            "最可能的原因是機器人目前的實際位置與地圖原點差距過大，"
+            "掃描無法與地圖匹配——請在前端手動指定機器人在地圖上的實際位置。"
+        )
 
     def location(self) -> Optional[Location]:
         """回傳 API 單位的 Location（公分整數 + 度）"""
@@ -1131,12 +1254,19 @@ def current_map() -> Optional[str]:
     return state.current_map
 
 
+class Nav2NotReadyError(RuntimeError):
+    """Nav2 未就緒（通常是 AMCL 尚未定位）。與其他導航失敗區分，
+    讓端點能回傳語意正確的錯誤碼而非 ROBOT_BUSY。"""
+
+
 def navigate_to(location: Location, kind: str = 'point') -> int:
     """送出導航目標（阻塞，須以 asyncio.to_thread 包裝）。回傳 mission 世代。"""
     generation = mission.begin(kind)
     if not nav_manager.ensure_nav2_ready():
         mission.abort(generation)
-        raise RuntimeError("Nav2 is not ready")
+        raise Nav2NotReadyError(
+            "Nav2 未就緒；請先設定初始位姿（relocate）讓 AMCL 完成定位"
+        )
     try:
         nav_manager.send_goal(
             cm_to_m(location.x), cm_to_m(location.y), deg_to_yaw(location.orientation)

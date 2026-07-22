@@ -66,6 +66,10 @@ async def move_to_location(request: MoveRequest) -> MoveRequest:
     kind = 'charging' if request.type == PointType.CHARGE else 'point'
     try:
         await asyncio.to_thread(ros_bridge.navigate_to, request.location, kind)
+    except ros_bridge.Nav2NotReadyError as e:
+        # 未定位不是「忙碌」——回報語意正確的碼，讓前端能提示使用者先重定位
+        logger.error(f"Navigation not ready: {e}")
+        raise errors.ApiError(errors.NOT_IN_NAVIGATION_MODE)
     except RuntimeError as e:
         logger.error(f"Failed to send goal: {e}")
         raise errors.ApiError(errors.ROBOT_BUSY)
@@ -84,6 +88,10 @@ async def move_to_point(point_id: str) -> Point:
     kind = 'charging' if point.type == PointType.CHARGE else 'point'
     try:
         await asyncio.to_thread(ros_bridge.navigate_to, point.location, kind)
+    except ros_bridge.Nav2NotReadyError as e:
+        # 未定位不是「忙碌」——回報語意正確的碼，讓前端能提示使用者先重定位
+        logger.error(f"Navigation not ready: {e}")
+        raise errors.ApiError(errors.NOT_IN_NAVIGATION_MODE)
     except RuntimeError as e:
         logger.error(f"Failed to send goal: {e}")
         raise errors.ApiError(errors.ROBOT_BUSY)

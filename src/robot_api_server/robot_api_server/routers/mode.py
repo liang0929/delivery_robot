@@ -11,7 +11,9 @@ from fastapi import APIRouter
 from .. import errors
 from ..logging_config import get_logger
 from ..models import EventCode, ModeRequest, OpMode, WsEvent
-from ..ros_bridge import NavStatus, ProcessError, SlamStatus, handle_navigation_down, state
+from ..ros_bridge import (
+    NavStatus, ProcessError, SlamStatus, bridge, handle_navigation_down, state,
+)
 from ..store import map_exists, sanitize_map_name
 from ..ws_server import hub
 
@@ -57,6 +59,28 @@ async def switch_mode(request: ModeRequest) -> dict:
     if request.mode == OpMode.EXPLORE:
         # 導航已被停止，重置 navigator
         await asyncio.to_thread(handle_navigation_down)
+        await hub.emit_event_async(WsEvent.SWITCH_MODE, EventCode.COMPLETE)
+        return {"mode": request.mode.value, "map": map_name}
 
+    # 導航模式：程序起來不等於可以導航。用 ROS 狀態逐項探測直到真的就緒，
+    # 並在此階段設定初始位姿（地圖原點），避免使用者按了「前往」才發現不能動。
+    ready, detail = await asyncio.to_thread(bridge.wait_for_navigation_ready)
+    if not ready:
+        logger.error(f"Navigation not ready after mode switch: {detail}")
+        await hub.emit_event_async(WsEvent.SWITCH_MODE, EventCode.ABORT)
+        # 程序仍在執行，使用者可在前端手動指定實際位置後重試
+        return {
+            "mode": request.mode.value,
+            "map": map_name,
+            "localized": False,
+            "detail": detail,
+        }
+
+    logger.info(f"Navigation ready: {detail}")
     await hub.emit_event_async(WsEvent.SWITCH_MODE, EventCode.COMPLETE)
-    return {"mode": request.mode.value, "map": map_name}
+    return {
+        "mode": request.mode.value,
+        "map": map_name,
+        "localized": True,
+        "detail": detail,
+    }

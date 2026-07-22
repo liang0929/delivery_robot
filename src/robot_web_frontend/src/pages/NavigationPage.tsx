@@ -15,7 +15,7 @@ import {
   stop as stopRobot,
   switchMode,
 } from '../api/robot.api';
-import { useRobotStore } from '../store/useRobotStore';
+import { pushToast, useRobotStore } from '../store/useRobotStore';
 import { pixelToApiLocation, type PixelPoint } from '../lib/coords';
 import type { RobotPoint, VirtualWall } from '../api/types';
 import page from './Page.module.css';
@@ -54,6 +54,12 @@ export function NavigationPage({
   const [entitiesError, setEntitiesError] = useState<string | null>(null);
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
   const [tool, setTool] = useState<Tool>('none');
+  /**
+   * 切到導航模式後 AMCL 是否已定位。
+   * null = 尚未嘗試切換；false = 自動定位失敗，需要手動指定位置。
+   */
+  const [localized, setLocalized] = useState<boolean | null>(null);
+  const [localizeDetail, setLocalizeDetail] = useState<string | null>(null);
 
   const requestId = useRef(0);
 
@@ -107,6 +113,9 @@ export function NavigationPage({
           async () => {
             await relocateToLocation(location);
             setTool('none');
+            // 手動指定後視為已定位，清掉自動定位失敗的提示
+            setLocalized(true);
+            setLocalizeDetail(null);
           },
           '已送出重定位',
         );
@@ -126,18 +135,34 @@ export function NavigationPage({
 
   const handleSwitchMode = () => {
     if (!selectedMap) return;
-    void run(
-      '切換導航模式',
-      () => switchMode('navigate', selectedMap),
-      `已切換到導航模式（${selectedMap}）`,
-    );
+    void run('切換導航模式', async () => {
+      const res = await switchMode('navigate', selectedMap);
+      // 後端會先嘗試以地圖原點自動定位；成功與否決定使用者要不要手動指定
+      const ok = res.localized !== false;
+      setLocalized(ok);
+      setLocalizeDetail(ok ? null : (res.detail ?? null));
+      if (ok) {
+        pushToast('success', `已切換到導航模式（${selectedMap}）`);
+      } else {
+        pushToast(
+          'error',
+          '導航模式已啟動，但尚未完成定位',
+          '請在下方「重定位」指定機器人在地圖上的實際位置',
+        );
+      }
+    });
   };
 
   const handleRelocateToPoint = () => {
     if (!selectedPoint) return;
     void run(
       '以點位重定位',
-      () => relocateToPoint(selectedPoint.id).then(() => undefined),
+      async () => {
+        await relocateToPoint(selectedPoint.id);
+        // 手動指定後視為已定位，清掉自動定位失敗的提示
+        setLocalized(true);
+        setLocalizeDetail(null);
+      },
       `已以「${selectedPoint.name}」重定位`,
     );
   };
@@ -220,6 +245,16 @@ export function NavigationPage({
 
         <section className="panel">
           <h2 className="panelTitle">2. 重定位</h2>
+          {localized === false && (
+            <div className={page.warnBanner}>
+              <strong>尚未完成定位，導航無法執行</strong>
+              <p>
+                系統已嘗試以地圖原點（建圖起點）自動定位但未成功。
+                請用下方任一方式指定機器人在地圖上的<b>實際位置</b>。
+              </p>
+              {localizeDetail && <p className={page.warnDetail}>{localizeDetail}</p>}
+            </div>
+          )}
           <div className="row">
             <button
               type="button"

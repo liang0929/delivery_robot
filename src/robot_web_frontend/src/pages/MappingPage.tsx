@@ -30,8 +30,13 @@ export function MappingPage({ active, onMapSaved }: MappingPageProps) {
   const live = useLiveMap(active && isExplore);
   const drive = useManualDrive(active && isExplore);
 
+  // explore 模式沒有定位問題，回應的 localized 欄位不適用，直接捨棄
   const handleSwitch = () =>
-    void run('切換建圖模式', () => switchMode('explore'), '已切換到建圖模式');
+    void run(
+      '切換建圖模式',
+      () => switchMode('explore').then(() => undefined),
+      '已切換到建圖模式',
+    );
 
   const handleSave = () => {
     const name = mapName.trim();

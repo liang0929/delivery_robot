@@ -143,9 +143,18 @@ export const discardEdits = (o: Sig = {}) =>
 
 // ------------------------------------------------------- 擴充端點：模式與地圖
 
+export interface ModeResult {
+  mode: string;
+  map: string | null;
+  /** 切到 navigate 時才有：AMCL 是否已完成定位。undefined 代表 explore 模式 */
+  localized?: boolean;
+  /** 未定位時的具體原因，可直接顯示給使用者 */
+  detail?: string;
+}
+
 /** 切換模式要拉起整個 Nav2 或 SLAM，正常就需要數十秒，故用長逾時 */
 export const switchMode = (mode: OpMode, map?: string, o: Sig = {}) =>
-  request<void>('/mode', {
+  request<ModeResult>('/mode', {
     method: 'POST',
     body: map ? { mode, map } : { mode },
     signal: o.signal,

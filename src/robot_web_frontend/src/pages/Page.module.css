@@ -38,3 +38,31 @@
     overflow: visible;
   }
 }
+
+/* 定位失敗警示：導航無法執行時必須明顯，否則使用者只會看到按鈕沒反應 */
+.warnBanner {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 95, 109, 0.45);
+  border-left: 3px solid var(--danger);
+  border-radius: 6px;
+  background: rgba(255, 95, 109, 0.08);
+}
+
+.warnBanner strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #ff9a9a;
+}
+
+.warnBanner p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim, #a9b6c8);
+}
+
+.warnDetail {
+  font-size: 12px;
+  opacity: 0.8;
+}

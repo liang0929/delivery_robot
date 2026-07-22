@@ -14,15 +14,45 @@ import os
 
 
 # ========== Jetson Orin NX CPU 親和性配置 ==========
-# 導航相關節點使用核心 4-5（定位層）
+# 導航相關節點使用核心 4-5（定位層）。實際綁定範圍會與
+# /sys/devices/system/cpu/online 取交集，因為 nvpmodel 低功耗模式
+# （15W 只保留 0-3）會讓部分核心離線，此時 taskset 會直接失敗。
 CPU_AFFINITY_LOCALIZATION = '4-5'
+
+
+def parse_cpu_list(spec: str) -> list:
+    """解析 '4-5'、'0,2-4' 這類 CPU 清單字串"""
+    cpus = set()
+    for part in spec.split(','):
+        part = part.strip()
+        if not part:
+            continue
+        if '-' in part:
+            start, end = part.split('-', 1)
+            cpus.update(range(int(start), int(end) + 1))
+        else:
+            cpus.add(int(part))
+    return sorted(cpus)
+
+
+def get_online_cpus() -> list:
+    """讀取目前線上的 CPU 核心；讀取失敗回傳空清單"""
+    try:
+        with open('/sys/devices/system/cpu/online') as f:
+            return parse_cpu_list(f.read().strip())
+    except (OSError, ValueError):
+        return []
 
 
 def get_cpu_prefix(enabled: bool) -> str:
     """獲取 CPU 親和性 prefix（返回字符串格式，用於 Node 的 prefix 參數）"""
-    if enabled:
-        return f'taskset -c {CPU_AFFINITY_LOCALIZATION}'
-    return ''
+    if not enabled:
+        return ''
+    online = get_online_cpus()
+    usable = [c for c in parse_cpu_list(CPU_AFFINITY_LOCALIZATION) if c in online]
+    if not usable:
+        return ''
+    return f'taskset -c {",".join(str(c) for c in usable)}'
 
 
 def get_default_map_path():

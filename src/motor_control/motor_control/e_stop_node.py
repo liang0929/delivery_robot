@@ -87,11 +87,24 @@ class EStopNode(Node):
         )
 
     def _setup_gpio(self):
-        """設定 GPIO（BOARD 模式 + 內部上拉）"""
+        """設定 GPIO（BOARD 模式）
+
+        警告：Jetson.GPIO 會忽略 pull_up_down 參數（呼叫時會發出 UserWarning），
+        Jetson 的上下拉必須在 device tree / pinmux 設定，無法於執行期指定。
+        因此本節點依賴**外部上拉電阻**：按鈕未按下時腳位必須為 HIGH。
+
+        若未接按鈕又無外部上拉，腳位浮接通常讀到 LOW，在 active_low 下會被
+        判定為「急停觸發」，導致馬達永久拒絕所有速度指令。未接按鈕時請改用
+        bringup.launch.py 的 enable_estop:=false 旁路。
+        """
         try:
             GPIO.setmode(GPIO.BOARD)
+            # 保留 PUD_UP 以表達意圖，實際是否生效取決於 pinmux
             GPIO.setup(self.gpio_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            self.get_logger().info(f'GPIO {self.gpio_pin} configured (BOARD, PUD_UP)')
+            self.get_logger().info(
+                f'GPIO {self.gpio_pin} configured (BOARD)；'
+                f'注意 Jetson.GPIO 忽略內部上拉，需外部上拉電阻'
+            )
         except Exception as e:
             self.get_logger().error(f'Failed to setup GPIO: {e}, falling back to simulation')
             self.simulation = True

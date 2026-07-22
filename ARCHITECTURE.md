@@ -93,9 +93,17 @@ map
  └── odom (由 AMCL 或 slam_toolbox 發布)
       └── base_footprint
            └── base_link
-                ├── laser (LiDAR)
+                ├── laser (LiDAR，yaw 180°)
                 └── imu_link (IMU)
 ```
+
+> **LiDAR 為反裝**：A2M12 的接線端朝向車體後方，其 0° 亦指向後方，
+> 因此 `base_link → laser` 帶有 180° 的 yaw（定義於
+> `robot_description/urdf/properties.xacro` 的 `laser_yaw`，
+> 並與 `motor_control/config/tf_config.yaml` 的 fallback 同步）。
+>
+> 漏掉這個旋轉不會有任何錯誤訊息，只會讓 SLAM 與 AMCL 的航向估計
+> 整整差 180°：前端圖示前後顛倒、實際後退顯示為前進，且建出的地圖無效。
 
 ### 2.3 資料流
 
@@ -145,32 +153,41 @@ base_dev/
 │   │
 │   ├── nav2/                    # 導航套件
 │   │   ├── config/
-│   │   │   └── nav2_params.yaml        # Nav2 參數
-│   │   └── launch/
-│   │       ├── mapping.launch.py       # SLAM 建圖
-│   │       └── autonomous_navigation.launch.py  # 自主導航
+│   │   │   ├── nav2_params.yaml        # Nav2 參數
+│   │   │   └── slam_toolbox_params.yaml # SLAM 參數
+│   │   ├── launch/
+│   │   │   ├── mapping.launch.py       # SLAM 建圖
+│   │   │   └── autonomous_navigation.launch.py  # 自主導航
+│   │   └── nav2/
+│   │       └── keepout.py              # 虛擬牆 keepout mask 產生與重載
 │   │
-│   ├── robot_api_server/        # REST API 伺服器
+│   ├── robot_description/       # 機器人 URDF 模型
+│   │   └── urdf/                       # robot.urdf.xacro 等
+│   │
+│   ├── robot_api_server/        # Winstec Robot API v1.1 伺服器
 │   │   └── robot_api_server/
-│   │       └── main.py                 # FastAPI 應用
+│   │       ├── main.py                 # FastAPI app 組裝
+│   │       ├── routers/                # 依資源分檔的端點
+│   │       ├── ros_bridge.py           # rclpy 橋接層
+│   │       └── store.py、models.py、ws_server.py 等
 │   │
 │   ├── robot_web_frontend/      # React 網頁前端
 │   │   ├── src/
+│   │   │   ├── api/                    # REST 端點封裝
+│   │   │   ├── ws/                     # WebSocket client
 │   │   │   ├── components/             # React 元件
-│   │   │   ├── services/               # API/WebSocket 服務
 │   │   │   └── pages/                  # 頁面
 │   │   └── package.json
 │   │
 │   ├── ros-imu-bno055/          # IMU 驅動 (submodule)
-│   ├── sllidar_ros2/            # LiDAR 驅動 (submodule)
-│   └── map/                     # 儲存的地圖檔案
+│   └── sllidar_ros2/            # LiDAR 驅動 (submodule)
 │
+├── map/                         # 地圖與 points/walls/groups JSON、keepout mask
 ├── install/                     # colcon build 輸出
 ├── build/                       # 建置暫存
 ├── log/                         # 日誌
 ├── README.md                    # 使用說明
-├── ARCHITECTURE.md              # 本文件
-└── 99-robot-usb.rules          # udev 規則
+└── ARCHITECTURE.md              # 本文件
 ```
 
 ---
@@ -211,8 +228,8 @@ AA + 地址 + 回傳類型 + 故障清除 + 保留 + A控制 + B控制 + A方向
 **設定檔：** `hs_motor_config.yaml` 中的 `ekf_filter_node` 區段
 
 **輸入：**
-- `/odom_raw` - 輪子里程計 (x, y, yaw)
-- `/imu/data` - IMU 角速度和方向
+- `/odom_raw` - 輪子里程計（velocity-only：只融合 vx 與 vyaw，不融合絕對位姿）
+- `/imu/data` - IMU 角速度和方向（絕對姿態由 IMU 提供）
 
 **輸出：**
 - `/odometry/filtered` - 融合後的里程計
@@ -231,7 +248,7 @@ AA + 地址 + 回傳類型 + 故障清除 + 保留 + A控制 + B控制 + A方向
 
 **關鍵參數 (`nav2_params.yaml`)：**
 - `desired_linear_vel`: 0.05 m/s
-- `max_angular_vel`: 0.4 rad/s
+- 角速度上限 0.4 rad/s（`velocity_smoother.max_velocity` 與 `rotate_to_heading_angular_vel`）
 - footprint: 0.5m × 0.5m 方形（`inflation_radius`: 0.35m）
 
 ### 4.4 Web Frontend

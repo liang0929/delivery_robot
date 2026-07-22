@@ -643,8 +643,15 @@ class NavigatorManager:
             # 存在（後者是 AMCL 完成定位的唯一可靠證據）。
             deadline = time.time() + NAV2_READY_TIMEOUT_SEC
 
-            if not self._wait_node_active('bt_navigator', deadline):
-                logger.error("bt_navigator 未在時限內進入 active")
+            # 直接等待 NavigateToPose action server——這正是送目標需要的東西，
+            # 比輪詢 lifecycle 狀態更直接，也不必反覆 spawn ros2 CLI。
+            if not nav.nav_to_pose_client.wait_for_server(
+                timeout_sec=max(1.0, deadline - time.time())
+            ):
+                logger.error(
+                    "NavigateToPose action server 未就緒；"
+                    "bt_navigator 可能未進入 active（常見原因是行為樹載入失敗）"
+                )
                 return False
 
             while time.time() < deadline:
@@ -664,26 +671,6 @@ class NavigatorManager:
                 self._nav2_ready = True
             logger.info("Nav2 已就緒")
             return True
-
-    @staticmethod
-    def _wait_node_active(node_name: str, deadline: float) -> bool:
-        """輪詢 lifecycle 狀態直到 active 或逾時。
-
-        用 ros2 CLI 而非直接建 service client，避免與 BasicNavigator 的
-        executor 競用同一個 node。
-        """
-        while time.time() < deadline:
-            try:
-                out = subprocess.run(
-                    ["ros2", "lifecycle", "get", f"/{node_name}"],
-                    capture_output=True, text=True, timeout=5,
-                )
-                if 'active' in out.stdout:
-                    return True
-            except Exception:
-                pass
-            time.sleep(1.0)
-        return False
 
     def reset(self):
         """導航進程停止或崩潰後呼叫。
@@ -714,7 +701,14 @@ class NavigatorManager:
             goal_pose.pose.orientation.z = qz
             goal_pose.pose.orientation.w = qw
             logger.info(f"Sending goal: x={x_m:.3f}, y={y_m:.3f}, yaw={math.degrees(yaw_rad):.1f}")
-            self.navigator.goToPose(goal_pose)
+            # goToPose 在目標被 action server 拒絕時回傳 False（例如 bt_navigator
+            # 尚未 activate）。忽略回傳值的話，isTaskComplete() 會因為沒有
+            # result_future 而立刻回 True，任務被誤判成 STUCK——錯誤訊息會指向
+            # 導航失敗，而真正的原因是目標從未被接受。
+            if self.navigator.goToPose(goal_pose) is False:
+                raise RuntimeError(
+                    "導航目標被拒絕；bt_navigator 可能未進入 active 狀態"
+                )
 
     def is_task_complete(self) -> bool:
         with self._lock:

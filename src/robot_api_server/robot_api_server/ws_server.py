@@ -4,7 +4,8 @@
 
 事件：
 
-- ``robot_info`` — 每 1 秒推播 ``{event, op_mode, status, battery, location}``
+- ``robot_info`` — 每 1 秒推播 ``{event, op_mode, status, battery, voltage, location}``
+  （``voltage`` 為 🟡 本專案擴充欄位）
 - ``go_point`` / ``go_charging`` / ``switch_mode`` / ``relocate`` / ``power``
   — 事件式 ``{event, code}``，code 取自 §7.6（一律大寫）
 """
@@ -137,6 +138,7 @@ class EventHub:
             "op_mode": info.op_mode.value,
             "status": info.status.value,
             "battery": info.battery,
+            "voltage": info.voltage,
             "location": info.location.model_dump(),
         }
 

@@ -38,6 +38,7 @@ def build_robot_info() -> RobotInfo:
         op_mode=state.op_mode(),
         status=ros_bridge.robot_status(),
         battery=bridge.battery(),
+        voltage=bridge.voltage(),
         location=location,
     )
 

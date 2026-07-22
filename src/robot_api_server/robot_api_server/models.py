@@ -177,6 +177,9 @@ class RobotInfo(BaseModel):
     op_mode: OpMode
     status: RobotStatus
     battery: int
+    #: 🟡 本專案擴充：電池母線電壓（V）。取不到 /motor/voltage 時為 None，
+    #: 前端以此區分「真的沒電」與「還沒有資料」。
+    voltage: Optional[float] = None
     location: Location
 
 

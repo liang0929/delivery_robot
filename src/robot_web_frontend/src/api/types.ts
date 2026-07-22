@@ -41,6 +41,8 @@ export interface RobotInfo {
   op_mode: OpMode;
   status: RobotStatus;
   battery: number;
+  /** 電池母線電壓（V）。後端取不到 /motor/voltage 時為 null */
+  voltage: number | null;
   location: ApiLocation;
 }
 

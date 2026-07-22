@@ -37,7 +37,10 @@ export function StatusBar() {
         ? styles.dotConnecting
         : styles.dotClosed;
 
-  const battery = info?.battery ?? null;
+  // voltage 為 null 代表後端還沒收到 /motor/voltage。此時 battery 會是 0，
+  // 直接畫成空電量條會被誤讀成沒電，因此一律顯示「—」。
+  const voltage = info?.voltage ?? null;
+  const battery = voltage !== null ? (info?.battery ?? null) : null;
 
   return (
     <div className={styles.bar}>
@@ -74,7 +77,9 @@ export function StatusBar() {
           />
         </div>
         <span className={styles.value}>
-          {battery !== null ? `${battery}%` : '—'}
+          {battery !== null && voltage !== null
+            ? `${battery}% · ${voltage.toFixed(1)}V`
+            : '—'}
         </span>
       </div>
 

@@ -61,6 +61,7 @@ function sameInfo(a: RobotInfo | null, b: RobotInfo): boolean {
     a.op_mode === b.op_mode &&
     a.status === b.status &&
     a.battery === b.battery &&
+    a.voltage === b.voltage &&
     a.location.x === b.location.x &&
     a.location.y === b.location.y &&
     a.location.orientation === b.location.orientation
@@ -80,8 +81,14 @@ export const useRobotStore = create<RobotState>((set, get) => ({
       onStateChange: (connection) => set({ connection }),
       onMessage: (msg: RobotSocketMessage) => {
         if (isRobotInfoMessage(msg)) {
-          const { op_mode, status, battery, location } = msg;
-          const next: RobotInfo = { op_mode, status, battery, location };
+          const { op_mode, status, battery, voltage, location } = msg;
+          const next: RobotInfo = {
+            op_mode,
+            status,
+            battery,
+            voltage: voltage ?? null,
+            location,
+          };
           // 內容沒變就沿用舊物件：機器人靜止時不會每秒觸發一次重繪
           if (sameInfo(get().info, next)) {
             set({ infoAt: Date.now() });

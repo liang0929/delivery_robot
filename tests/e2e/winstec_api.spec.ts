@@ -114,6 +114,9 @@ test.describe('Robot Information (§5)', () => {
     expect(body.battery).toBeGreaterThanOrEqual(0);
     expect(body.battery).toBeLessThanOrEqual(100);
 
+    // voltage 🟡 擴充欄位：原始母線電壓，取不到時為 null
+    expect(body.voltage === null || typeof body.voltage === 'number').toBe(true);
+
     // Location Object：x/y 整數、orientation 浮點
     expect(Number.isInteger(body.location.x)).toBe(true);
     expect(Number.isInteger(body.location.y)).toBe(true);

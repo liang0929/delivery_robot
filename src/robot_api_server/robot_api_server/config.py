@@ -34,8 +34,11 @@ WS_PORT = int(os.environ.get('ROBOT_API_WS_PORT', '5001'))
 BIND_HOST = os.environ.get('ROBOT_API_HOST', '0.0.0.0')
 
 # --- 電池換算（文件 §9）---
+# 24V 30Ah 18650 電池組為 7S：滿充 7 × 4.2V = 29.4V，放空 7 × 3.0V = 21.0V。
+# 電壓來源是 /motor/voltage（馬達驅動器回報的母線電壓），負載時會下垂，
+# 因此百分比只能當粗略指示，不是庫倫計。
 BATTERY_MIN_V = float(os.environ.get('ROBOT_BATTERY_MIN_V', '21.0'))
-BATTERY_MAX_V = float(os.environ.get('ROBOT_BATTERY_MAX_V', '25.2'))
+BATTERY_MAX_V = float(os.environ.get('ROBOT_BATTERY_MAX_V', '29.4'))
 
 # --- 手動移動速度 ---
 MANUAL_LINEAR_SPEED = float(os.environ.get('ROBOT_MANUAL_LINEAR', '0.15'))

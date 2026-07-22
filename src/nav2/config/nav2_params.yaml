@@ -153,7 +153,11 @@ controller_server:
       # 修正參數名：Humble 為 regulated_linear_scaling_*（舊名會被靜默忽略）
       regulated_linear_scaling_min_radius: 0.9
       regulated_linear_scaling_min_speed: 0.035
-      use_rotate_to_heading: false       # 關閉終點旋轉對齊，減少搖擺
+      # 必須為 true，否則 RPP 只能「前進並轉向」，目標在後方時會往前繞大弧掉頭，
+      # 在窄空間更會因為繞不出去而卡死。終點搖擺改由 yaw_goal_tolerance 控制。
+      # 註：此參數與 allow_reversing 互斥，兩者同時為 true 會啟動失敗。
+      use_rotate_to_heading: true
+      # 路徑航向與車頭夾角超過此值（45°）才原地轉，避免小角度也停下來轉
       rotate_to_heading_min_angle: 0.785
       max_angular_accel: 3.2
       max_robot_pose_search_dist: 10.0

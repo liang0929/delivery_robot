@@ -27,7 +27,9 @@ tf_transforms:
     rotation:
       roll: 0.0
       pitch: 0.0
-      yaw: 0.0
+      # LiDAR 實體反裝：其 0° 指向車體後方，故需 180° (pi)。
+      # 與 robot_description/urdf/properties.xacro 的 laser_yaw 必須一致。
+      yaw: 3.14159265
 
   # base_link -> imu_link
   base_link_to_imu:

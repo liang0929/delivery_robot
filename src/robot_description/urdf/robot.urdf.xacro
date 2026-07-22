@@ -174,7 +174,9 @@
   <joint name="laser_joint" type="fixed">
     <parent link="base_link"/>
     <child link="laser"/>
-    <origin xyz="${laser_x} ${laser_y} ${laser_z}" rpy="0 0 0"/>
+    <!-- LiDAR 實體反裝：其 0° 指向車體後方，故需繞 z 軸旋轉 180°。
+         漏掉這個旋轉會讓 SLAM/AMCL 的航向估計整整差 180 度。 -->
+    <origin xyz="${laser_x} ${laser_y} ${laser_z}" rpy="0 0 ${laser_yaw}"/>
   </joint>
 
   <link name="laser">

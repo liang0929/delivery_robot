@@ -36,7 +36,10 @@
   <!-- 來源: motor_control/launch/bringup.launch.py (tf_config) -->
   <xacro:property name="laser_x" value="0.0"/>             <!-- 前方 0cm -->
   <xacro:property name="laser_y" value="0.0"/>             <!-- 中心 -->
-  <xacro:property name="laser_z" value="0.336"/>            <!-- 高度 40cm -->
+  <xacro:property name="laser_z" value="0.336"/>            <!-- 高度 33.6cm -->
+  <!-- LiDAR 安裝朝向（繞 z 軸，弧度）。實體反裝故為 pi；
+       若日後改為正裝請改回 0，並同步 motor_control/config/tf_config.yaml -->
+  <xacro:property name="laser_yaw" value="${pi}"/>
 
   <!-- ========== IMU 感測器位置 ========== -->
   <!-- 相對於 base_link -->

@@ -1,0 +1,3 @@
+# 保留此目錄供 URDF 的 visual mesh 使用。
+# CMakeLists.txt 會安裝 meshes/，目錄不存在會導致建置失敗；
+# git 不追蹤空目錄，故以此檔案佔位。

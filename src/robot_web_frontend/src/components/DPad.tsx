@@ -31,6 +31,14 @@ export function DPad({ drive, keyboard = true }: DPadProps) {
     if (!keyboard || !enabled) return;
     const onKeyDown = (ev: KeyboardEvent) => {
       if (ev.repeat) return;
+      // 焦點在輸入元件時不啟動遙控——否則在文字欄打 w/a/s/d 或按方向鍵會讓機器人移動。
+      // 注意：這個防護只擋「啟動」；onKeyUp 不做同樣過濾，停止路徑永遠不能被擋。
+      if (
+        ev.target instanceof HTMLElement &&
+        ev.target.closest('input, textarea, select, [contenteditable]')
+      ) {
+        return;
+      }
       const dir = KEY_MAP[ev.key];
       if (!dir) return;
       ev.preventDefault();

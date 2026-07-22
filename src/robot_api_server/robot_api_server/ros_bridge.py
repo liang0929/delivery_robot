@@ -4,7 +4,7 @@
 
 - rclpy 只初始化一次，執行緒安全
 - 狀態鎖內只做「狀態檢查 + 過渡狀態轉移」，spawn/清理/等待等慢操作在鎖外
-- 阻塞呼叫（waitUntilNav2Active、goToPose、cancelTask…）由呼叫端以
+- 阻塞呼叫（goToPose、cancelTask…）由呼叫端以
   ``asyncio.to_thread`` 包裝，不得在事件迴圈上直接執行
 - goal 世代握手：狀態推進後、goal 實際送出前不得用 ``isTaskComplete()`` 判斷完成
 - ``/initialpose`` 發布前先輪詢 ``get_subscription_count()`` 確認 AMCL 已訂閱
@@ -69,9 +69,7 @@ except Exception as e:  # pragma: no cover
     NAV2_AVAILABLE = False
     logger.error(f"nav2_simple_commander unavailable: {e}")
 
-# 等待 Nav2 就緒的上限。waitUntilNav2Active() 本身沒有時限，
-# AMCL 未定位時會永遠不返回，故由呼叫端設限。
-# 冷啟動時 Nav2 全部節點 active 約需 10-20 秒，留足餘裕。
+# 等待 Nav2 就緒的上限。冷啟動時全部節點 active 約需 10-20 秒，留足餘裕。
 NAV2_READY_TIMEOUT_SEC = float(os.environ.get('ROBOT_NAV2_READY_TIMEOUT', '40'))
 
 try:
@@ -599,7 +597,7 @@ class NavigatorManager:
         self.navigator = None
         self._nav2_ready = False
         self._lock = threading.Lock()
-        # 序列化 waitUntilNav2Active：避免多個執行緒同時對同一個 node spin
+        # 序列化就緒檢查：避免多個執行緒同時對同一個 navigator node spin
         self._ready_lock = threading.Lock()
 
     @property
@@ -631,44 +629,61 @@ class NavigatorManager:
                         return False
                 nav = self.navigator
 
-            # 等待 Nav2 就緒（不持有狀態鎖）
+            # 就緒判定：刻意「不」使用 BasicNavigator.waitUntilNav2Active()。
             #
-            # waitUntilNav2Active() 會無限期阻塞：它內部等待 AMCL 的初始位姿，
-            # 若 AMCL 未定位（未收到 initialpose、或地圖與掃描對不上）就永遠不返回。
-            # 這會讓 HTTP 請求整個掛住，前端的忙碌狀態也永遠不解除。
-            # 因此在獨立執行緒中執行並設定時限。
-            result: dict = {}
+            # 該函式的 _waitForInitialPose() 有兩個會直接毀掉定位的行為：
+            #   1. 迴圈中不斷呼叫 _setInitialPose()，發布的是 BasicNavigator 自己
+            #      的 initial_pose——未經 setInitialPose() 設定時是全零、frame_id
+            #      為空字串的訊息，會把使用者手動指定的位姿覆蓋掉。
+            #   2. 它等待 /amcl_pose，而 AMCL 只在濾波器更新時才發布，更新又需要
+            #      機器人移動超過 update_min_d（0.25 m）。靜止的機器人永遠等不到，
+            #      於是無限迴圈。
+            #
+            # 改為直接檢查真正的就緒條件：bt_navigator 已 active、且 map→odom
+            # 存在（後者是 AMCL 完成定位的唯一可靠證據）。
+            deadline = time.time() + NAV2_READY_TIMEOUT_SEC
 
-            def _wait():
-                try:
-                    nav.waitUntilNav2Active()
-                    result['ok'] = True
-                except Exception as e:  # noqa: BLE001 - 要記錄任何失敗原因
-                    result['error'] = e
-
-            logger.info("Waiting for Nav2 to become active...")
-            waiter = threading.Thread(target=_wait, daemon=True)
-            waiter.start()
-            waiter.join(timeout=NAV2_READY_TIMEOUT_SEC)
-
-            if waiter.is_alive():
-                # 執行緒會繼續掛著（無法安全中止），但不再阻塞請求。
-                # 下次呼叫會因 _ready_lock 仍被持有而快速失敗，屬預期行為。
-                logger.error(
-                    f"Nav2 未在 {NAV2_READY_TIMEOUT_SEC:.0f} 秒內就緒，"
-                    f"最可能的原因是 AMCL 尚未定位（未設定初始位姿）"
-                )
+            if not self._wait_node_active('bt_navigator', deadline):
+                logger.error("bt_navigator 未在時限內進入 active")
                 return False
-            if 'error' in result:
-                logger.error(f"Failed to connect to Nav2: {result['error']}")
+
+            while time.time() < deadline:
+                if bridge.is_localized():
+                    break
+                time.sleep(0.3)
+            else:
+                logger.error(
+                    "Nav2 已啟動但 AMCL 未定位（map→odom 不存在）；"
+                    "請先在前端指定機器人在地圖上的實際位置"
+                )
                 return False
 
             with self._lock:
                 if self.navigator is not nav:
                     return False  # 等待期間被 reset
                 self._nav2_ready = True
-            logger.info("Nav2 is active.")
+            logger.info("Nav2 已就緒")
             return True
+
+    @staticmethod
+    def _wait_node_active(node_name: str, deadline: float) -> bool:
+        """輪詢 lifecycle 狀態直到 active 或逾時。
+
+        用 ros2 CLI 而非直接建 service client，避免與 BasicNavigator 的
+        executor 競用同一個 node。
+        """
+        while time.time() < deadline:
+            try:
+                out = subprocess.run(
+                    ["ros2", "lifecycle", "get", f"/{node_name}"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                if 'active' in out.stdout:
+                    return True
+            except Exception:
+                pass
+            time.sleep(1.0)
+        return False
 
     def reset(self):
         """導航進程停止或崩潰後呼叫。
@@ -725,7 +740,7 @@ class NavigatorManager:
     def cancel_task(self):
         with self._lock:
             # 未就緒時沒有可取消的目標；且此時可能有執行緒正在
-            # waitUntilNav2Active spin 同一個 node，不可併發 spin
+            # 就緒檢查與 cancel 會 spin 同一個 node，不可併發
             if self.navigator is not None and self._nav2_ready:
                 try:
                     self.navigator.cancelTask()

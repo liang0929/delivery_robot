@@ -17,8 +17,6 @@ from typing import Optional
 import serial
 import rclpy
 from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from geometry_msgs.msg import Twist, Quaternion, Point, Vector3
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Float32, Int32, Bool
@@ -26,10 +24,11 @@ from std_srvs.srv import Trigger
 
 from motor_control.odom_constants import POSE_COVARIANCE, TWIST_COVARIANCE
 from motor_control import hs_protocol
+from motor_control.base_motor_node import BaseMotorNode
 from motor_control.kinematics import DifferentialDriveKinematics
 
 
-class HSMotorController(Node):
+class HSMotorController(BaseMotorNode):
     """HS 協議馬達控制節點"""
 
     # HS 協議常量
@@ -80,8 +79,23 @@ class HSMotorController(Node):
     def __init__(self):
         super().__init__('hs_motor_controller')
 
-        # 宣告參數並取值（資料驅動：見類別頂部 PARAMS，
-        # 參數名稱/預設值/型別與屬性名皆與抽取前完全一致）
+        # 建構子只剩流程骨架：三段拆分後的呼叫順序與抽取前
+        # __init__ 內對應程式碼的執行順序完全相同（含 serial 連線時機、
+        # pub/sub 建立順序）。
+        self._declare_and_load_params()
+        self._setup_ros_interfaces()
+        self._init_runtime_state()
+
+        self.get_logger().info(
+            f'HS Motor Controller initialized on {self.serial_port}'
+        )
+
+    def _declare_and_load_params(self) -> None:
+        """宣告並載入參數、驗證，再建立運動學計算物件。
+
+        資料驅動：見類別頂部 PARAMS，參數名稱/預設值/型別與屬性名
+        皆與抽取前完全一致。
+        """
         for name, default in self.PARAMS.items():
             self.declare_parameter(name, default)
             setattr(self, name, self.get_parameter(name).value)
@@ -99,16 +113,18 @@ class HSMotorController(Node):
             zero_rpm_epsilon=self.ZERO_RPM_EPSILON,
         )
 
+    def _setup_ros_interfaces(self) -> None:
+        """建立串口連線與所有 ROS2 pub/sub/service/qos/timer。
+
+        串口連線時機（在任何 pub/sub 之前）與各 pub/sub/service 的
+        建立順序皆與抽取前完全相同。
+        """
         # 串口連接
         self.serial_conn: Optional[serial.Serial] = None
         self.connect_serial()
 
         # ROS2 發布者和訂閱者
-        qos = QoSProfile(
-            depth=10,
-            reliability=ReliabilityPolicy.RELIABLE,
-            durability=DurabilityPolicy.VOLATILE
-        )
+        qos = self._make_reliable_qos()
         self.cmd_vel_sub = self.create_subscription(
             Twist, 'cmd_vel', self.cmd_vel_callback, qos)
         self.odom_pub = self.create_publisher(Odometry, 'odom_raw', qos)
@@ -117,21 +133,28 @@ class HSMotorController(Node):
         self.current_b_pub = self.create_publisher(Float32, 'motor/current_b', qos)
         self.fault_pub = self.create_publisher(Int32, 'motor/fault', qos)
 
-        # E-Stop 訂閱 (TRANSIENT_LOCAL 確保收到 latched 狀態)
-        e_stop_qos = QoSProfile(
-            depth=1,
-            reliability=ReliabilityPolicy.RELIABLE,
-            durability=DurabilityPolicy.TRANSIENT_LOCAL
-        )
-        self.e_stop_sub = self.create_subscription(
-            Bool, '/e_stop', self.e_stop_callback, e_stop_qos)
-        self.e_stop_active = False
+        # E-Stop 訂閱 (TRANSIENT_LOCAL 確保收到 latched 狀態；含 e_stop_active 初始化)
+        self._setup_e_stop_subscription()
 
         # 故障清除 service（呼叫後下一包帶 clear_fault=1）
         self.pending_clear_fault = False
         self.clear_fault_srv = self.create_service(
             Trigger, '~/clear_fault', self.clear_fault_callback)
 
+        # 控制定時器
+        control_period = 1.0 / self.control_frequency
+        self.control_timer = self.create_timer(control_period, self.control_loop)
+
+        # 安全定時器
+        self.safety_timer = self.create_timer(0.1, self.safety_check)
+
+    def _init_runtime_state(self) -> None:
+        """初始化馬達/回饋/里程計/安全控制等執行期狀態變數。
+
+        定時器已在 _setup_ros_interfaces 建立但 executor 尚未開始 spin，
+        不會在這些狀態變數就緒前被觸發，因此與抽取前「timer 建立在最後」
+        相比不影響任何可觀察行為。
+        """
         # 馬達狀態
         self.target_rpm_a = 0
         self.target_rpm_b = 0
@@ -168,17 +191,6 @@ class HSMotorController(Node):
 
         # 狀態鎖 - 保護馬達狀態和里程計狀態的並發訪問
         self.state_lock = threading.Lock()
-
-        # 控制定時器
-        control_period = 1.0 / self.control_frequency
-        self.control_timer = self.create_timer(control_period, self.control_loop)
-
-        # 安全定時器
-        self.safety_timer = self.create_timer(0.1, self.safety_check)
-
-        self.get_logger().info(
-            f'HS Motor Controller initialized on {self.serial_port}'
-        )
 
     def _validate_parameters(self) -> None:
         """驗證參數有效性"""
@@ -557,12 +569,8 @@ class HSMotorController(Node):
             if self.e_stop_active:
                 return
 
-        # 驗證輸入值（防止 NaN 或無窮大）
-        if math.isnan(msg.linear.x) or math.isinf(msg.linear.x):
-            self.get_logger().warning('Invalid linear.x value (NaN/Inf), ignoring command')
-            return
-        if math.isnan(msg.angular.z) or math.isinf(msg.angular.z):
-            self.get_logger().warning('Invalid angular.z value (NaN/Inf), ignoring command')
+        # 驗證輸入值（防止 NaN 或無窮大；共用基底的驗證，訊息與行為與抽取前相同）
+        if not self._validate_cmd_vel(msg):
             return
 
         # 驗證通過後才更新 watchdog 時間，避免無效命令流打穿逾時保護
@@ -675,9 +683,8 @@ class HSMotorController(Node):
         return fault_descriptions.get(fault_code, f"未知故障({fault_code})")
 
     def safety_check(self) -> None:
-        """安全檢查"""
-        time_since_cmd = (self.get_clock().now() - self.last_cmd_time).nanoseconds / 1e9
-        if time_since_cmd > 1.0:
+        """安全檢查（逾時判斷共用基底，歸零動作與加鎖為真機特有，不共用）"""
+        if self._is_cmd_vel_stale():
             with self.state_lock:
                 self.target_rpm_a = 0
                 self.target_rpm_b = 0

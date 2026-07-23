@@ -52,12 +52,77 @@ logger = logging.getLogger(__name__)
 FREE_VALUE = 0
 #: mask 中代表「禁止進入」的像素值
 KEEPOUT_VALUE = 254
-#: 線寬計算用的機器人半徑（footprint 0.5x0.5 的內切半徑，單位公尺）
-ROBOT_RADIUS_M = 0.25
+#: 線寬計算用的機器人半徑之退回值（單位公尺）。
+#: 與 nav2_params.yaml 的 costmap footprint 內切半徑比對過為同一數值
+#: （footprint 0.5x0.5 方形 → 內切半徑 0.25m），因此已改由
+#: _resolve_robot_radius_m() 在執行期從 nav2_params.yaml 讀取；
+#: 這個常數只在設定檔讀取/解析失敗時作為退回值，確保行為與抽取前一致。
+ROBOT_RADIUS_M_FALLBACK = 0.25
 #: API 整數公分 → ROS 公尺
 COORD_SCALE = 100.0
 
 _PGM_MAGIC = b'P5'
+
+
+# ---------------------------------------------------------------------------
+# 機器人半徑（單一來源：nav2_params.yaml 的 costmap footprint）
+# ---------------------------------------------------------------------------
+
+def _footprint_inscribed_radius_m(footprint: Sequence[Sequence[float]]) -> Optional[float]:
+    """由 footprint 頂點座標換算內切半徑（單位公尺）。
+
+    僅支援以原點為中心的矩形 footprint（目前 nav2_params.yaml 的
+    0.5x0.5 方形即為此形式）：內切半徑 = min(寬, 高) / 2。
+    非矩形或無法解析時回傳 None，由呼叫端退回 ROBOT_RADIUS_M_FALLBACK。
+    """
+    try:
+        xs = [float(p[0]) for p in footprint]
+        ys = [float(p[1]) for p in footprint]
+    except (TypeError, ValueError, IndexError):
+        return None
+    if not xs or not ys:
+        return None
+    width = max(xs) - min(xs)
+    height = max(ys) - min(ys)
+    if width <= 0 or height <= 0:
+        return None
+    return min(width, height) / 2.0
+
+
+def _resolve_robot_radius_m() -> float:
+    """從 nav2 套件的 nav2_params.yaml（global_costmap.footprint）
+    讀取機器人 footprint 並換算內切半徑，作為 keepout 線寬計算的單一來源。
+
+    找不到套件/設定檔、解析失敗、或 footprint 格式不符時，記警告並退回
+    ROBOT_RADIUS_M_FALLBACK（與抽取前寫死的 0.25 完全相同），確保任何
+    失敗情境下行為都與抽取前一致。
+    """
+    try:
+        from ament_index_python.packages import get_package_share_directory
+        nav2_share = get_package_share_directory('nav2')
+        params_path = os.path.join(nav2_share, 'config', 'nav2_params.yaml')
+        with open(params_path, 'r', encoding='utf-8') as fp:
+            params = yaml.safe_load(fp) or {}
+
+        footprint_str = (
+            params.get('global_costmap', {})
+            .get('global_costmap', {})
+            .get('ros__parameters', {})
+            .get('footprint')
+        )
+        if not footprint_str:
+            raise ValueError('global_costmap.footprint 未設定')
+
+        footprint = json.loads(footprint_str)
+        radius = _footprint_inscribed_radius_m(footprint)
+        if radius is None:
+            raise ValueError(f'無法由 footprint 換算內切半徑：{footprint_str}')
+        return radius
+    except Exception as exc:  # noqa: BLE001 - 任何失敗都不能擋住 keepout 產生
+        logger.warning(
+            '讀取 nav2_params.yaml footprint 失敗，退回預設半徑 %.3fm：%s',
+            ROBOT_RADIUS_M_FALLBACK, exc)
+        return ROBOT_RADIUS_M_FALLBACK
 
 
 # ---------------------------------------------------------------------------
@@ -277,7 +342,8 @@ def regenerate_keepout(map_name: str, map_dir: str) -> Optional[str]:
     walls = _load_json(os.path.join(map_dir, f'{map_name}.virtual_walls.json'), [])
     enabled_ids = collect_enabled_wall_ids(groups if isinstance(groups, list) else [])
 
-    line_width = max(1, math.ceil(ROBOT_RADIUS_M / resolution))
+    robot_radius_m = _resolve_robot_radius_m()
+    line_width = max(1, math.ceil(robot_radius_m / resolution))
     drawn = 0
 
     if enabled_ids and isinstance(walls, list):

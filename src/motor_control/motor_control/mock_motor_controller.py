@@ -8,17 +8,16 @@ Mock 馬達控制器 - 用於模擬測試
 import math
 import rclpy
 from rclpy.executors import ExternalShutdownException
-from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from geometry_msgs.msg import Twist, Quaternion, Point, Vector3
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Header, Bool
 
+from motor_control.base_motor_node import BaseMotorNode
 from motor_control.odom_constants import POSE_COVARIANCE_SIM, TWIST_COVARIANCE_SIM
 from motor_control.kinematics import DifferentialDriveKinematics
 
 
-class MockMotorController(Node):
+class MockMotorController(BaseMotorNode):
     """Mock 馬達控制器 - 模擬差動驅動
 
     行為對齊 HSMotorController：速度上限、min_rpm 死區 clamp、
@@ -66,24 +65,13 @@ class MockMotorController(Node):
         )
 
         # ROS2 發布者和訂閱者
-        qos = QoSProfile(
-            depth=10,
-            reliability=ReliabilityPolicy.RELIABLE,
-            durability=DurabilityPolicy.VOLATILE
-        )
+        qos = self._make_reliable_qos()
         self.cmd_vel_sub = self.create_subscription(
             Twist, 'cmd_vel', self.cmd_vel_callback, qos)
         self.odom_pub = self.create_publisher(Odometry, 'odom_raw', qos)
 
-        # E-Stop 訂閱 (TRANSIENT_LOCAL 確保收到 latched 狀態)
-        e_stop_qos = QoSProfile(
-            depth=1,
-            reliability=ReliabilityPolicy.RELIABLE,
-            durability=DurabilityPolicy.TRANSIENT_LOCAL
-        )
-        self.e_stop_sub = self.create_subscription(
-            Bool, '/e_stop', self.e_stop_callback, e_stop_qos)
-        self.e_stop_active = False
+        # E-Stop 訂閱 (TRANSIENT_LOCAL 確保收到 latched 狀態；含 e_stop_active 初始化)
+        self._setup_e_stop_subscription()
 
         # 里程計狀態
         self.odom_x = 0.0
@@ -133,12 +121,8 @@ class MockMotorController(Node):
         if self.e_stop_active:
             return
 
-        # 驗證輸入值（防止 NaN 或無窮大）
-        if math.isnan(msg.linear.x) or math.isinf(msg.linear.x):
-            self.get_logger().warning('Invalid linear.x value (NaN/Inf), ignoring command')
-            return
-        if math.isnan(msg.angular.z) or math.isinf(msg.angular.z):
-            self.get_logger().warning('Invalid angular.z value (NaN/Inf), ignoring command')
+        # 驗證輸入值（防止 NaN 或無窮大；共用基底的驗證，訊息與行為與抽取前相同）
+        if not self._validate_cmd_vel(msg):
             return
 
         # 驗證通過後才更新 watchdog 時間（與真機一致）
@@ -182,9 +166,9 @@ class MockMotorController(Node):
         return math.copysign(quantized, wheel_vel)
 
     def safety_check(self) -> None:
-        """cmd_vel watchdog - 1 秒未收到命令即歸零（與真機一致）"""
-        time_since_cmd = (self.get_clock().now() - self.last_cmd_time).nanoseconds / 1e9
-        if time_since_cmd > 1.0:
+        """cmd_vel watchdog - 1 秒未收到命令即歸零（逾時判斷共用基底，
+        歸零動作為 mock 特有的開迴路行為，不共用）"""
+        if self._is_cmd_vel_stale():
             self.current_linear_x = 0.0
             self.current_angular_z = 0.0
 

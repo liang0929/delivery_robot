@@ -144,60 +144,68 @@ def get_cpu_prefix_list(affinity_type: str, enabled: bool) -> list:
     return _shared_get_cpu_prefix_list(cpus)
 
 
-def launch_setup(context, *args, **kwargs):
-    """動態生成啟動配置（支持運行時參數解析）"""
-    # 解析運行時參數
-    cpu_affinity_enabled = LaunchConfiguration('cpu_affinity').perform(context).lower() == 'true'
-    global _RESOLVED_AFFINITY
-    _RESOLVED_AFFINITY, affinity_warnings = resolve_cpu_affinity()
-    enable_web = LaunchConfiguration('enable_web').perform(context).lower() == 'true'
-    use_sim_time_str = LaunchConfiguration('use_sim_time').perform(context)
-    use_sim_time = use_sim_time_str.lower() == 'true'
-    simulation = LaunchConfiguration('simulation').perform(context).lower() == 'true'
-    sim_scene = LaunchConfiguration('sim_scene').perform(context)
-    lidar_port = LaunchConfiguration('lidar_port').perform(context)
-    imu_device = LaunchConfiguration('imu_device').perform(context)
-    enable_imu = LaunchConfiguration('enable_imu').perform(context).lower() == 'true'
-    enable_estop = LaunchConfiguration('enable_estop').perform(context).lower() == 'true'
-    gpio_pin = int(LaunchConfiguration('gpio_pin').perform(context))
-    imu_address = int(LaunchConfiguration('imu_address').perform(context))
-    lidar_baudrate = int(LaunchConfiguration('lidar_baudrate').perform(context))
-    rosbridge_port = int(LaunchConfiguration('rosbridge_port').perform(context))
+class _BringupConfig:
+    """launch_setup 解析出的執行期設定，供 _build_* 函式共用（僅解析參數，
+    不建立任何 Node/Action，行為與抽取前 launch_setup 開頭逐行相同）。"""
 
-    # 套件路徑
-    motor_control_dir = get_package_share_directory('motor_control')
-    motor_config = os.path.join(motor_control_dir, 'config', 'hs_motor_config.yaml')
+    def __init__(self, context):
+        # 解析運行時參數
+        self.cpu_affinity_enabled = (
+            LaunchConfiguration('cpu_affinity').perform(context).lower() == 'true')
+        global _RESOLVED_AFFINITY
+        _RESOLVED_AFFINITY, self.affinity_warnings = resolve_cpu_affinity()
+        self.enable_web = LaunchConfiguration('enable_web').perform(context).lower() == 'true'
+        use_sim_time_str = LaunchConfiguration('use_sim_time').perform(context)
+        self.use_sim_time = use_sim_time_str.lower() == 'true'
+        self.simulation = LaunchConfiguration('simulation').perform(context).lower() == 'true'
+        self.sim_scene = LaunchConfiguration('sim_scene').perform(context)
+        self.lidar_port = LaunchConfiguration('lidar_port').perform(context)
+        self.imu_device = LaunchConfiguration('imu_device').perform(context)
+        self.enable_imu = LaunchConfiguration('enable_imu').perform(context).lower() == 'true'
+        self.enable_estop = LaunchConfiguration('enable_estop').perform(context).lower() == 'true'
+        self.gpio_pin = int(LaunchConfiguration('gpio_pin').perform(context))
+        self.imu_address = int(LaunchConfiguration('imu_address').perform(context))
+        self.lidar_baudrate = int(LaunchConfiguration('lidar_baudrate').perform(context))
+        self.rosbridge_port = int(LaunchConfiguration('rosbridge_port').perform(context))
 
-    # URDF 路徑
-    try:
-        robot_description_dir = get_package_share_directory('robot_description')
-        xacro_file = os.path.join(robot_description_dir, 'urdf', 'robot.urdf.xacro')
-        use_urdf = os.path.exists(xacro_file)
-    except Exception:
-        use_urdf = False
-        xacro_file = None
+        # 套件路徑
+        motor_control_dir = get_package_share_directory('motor_control')
+        self.motor_config = os.path.join(motor_control_dir, 'config', 'hs_motor_config.yaml')
 
-    # TF 配置（僅在沒有 URDF 時使用）
-    tf_config = load_tf_config()
+        # URDF 路徑
+        try:
+            robot_description_dir = get_package_share_directory('robot_description')
+            xacro_file = os.path.join(robot_description_dir, 'urdf', 'robot.urdf.xacro')
+            self.use_urdf = os.path.exists(xacro_file)
+        except Exception:
+            self.use_urdf = False
+            xacro_file = None
+        self.xacro_file = xacro_file
 
+        # TF 配置（僅在沒有 URDF 時使用）
+        self.tf_config = load_tf_config()
+
+
+def _build_description_nodes(cfg: _BringupConfig) -> list:
+    """模式/CPU 親和性提示 + 機器人描述 (URDF 或靜態 TF)。"""
     nodes = []
 
     # ========== 模式提示 ==========
-    if simulation:
+    if cfg.simulation:
         nodes.append(LogInfo(msg='=== 模擬模式啟動 (Simulation Mode) ==='))
     else:
         nodes.append(LogInfo(msg='=== 真實硬體模式啟動 (Hardware Mode) ==='))
 
-    if cpu_affinity_enabled:
+    if cfg.cpu_affinity_enabled:
         nodes.append(LogInfo(msg='=== CPU 親和性已啟用 (Jetson Orin NX 優化) ==='))
-        for warning in affinity_warnings:
+        for warning in cfg.affinity_warnings:
             nodes.append(LogInfo(msg=warning))
 
     # ========== 機器人描述 (URDF) 或靜態 TF ==========
-    if use_urdf:
+    if cfg.use_urdf:
         # 使用 robot_state_publisher 發布 URDF 和 TF
         nodes.append(LogInfo(msg='=== 使用 URDF 機器人模型 ==='))
-        robot_description = Command(['xacro ', xacro_file])
+        robot_description = Command(['xacro ', cfg.xacro_file])
         nodes.append(Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
@@ -205,7 +213,7 @@ def launch_setup(context, *args, **kwargs):
             output='screen',
             parameters=[{
                 'robot_description': robot_description,
-                'use_sim_time': use_sim_time,
+                'use_sim_time': cfg.use_sim_time,
                 'publish_frequency': 50.0,
             }]
         ))
@@ -214,204 +222,246 @@ def launch_setup(context, *args, **kwargs):
         nodes.append(LogInfo(msg='=== 使用靜態 TF（無 URDF）==='))
         nodes.append(create_static_tf_node(
             'base_footprint_to_base_link',
-            tf_config.get('base_footprint_to_base_link', {})
+            cfg.tf_config.get('base_footprint_to_base_link', {})
         ))
         nodes.append(create_static_tf_node(
             'base_link_to_laser',
-            tf_config.get('base_link_to_laser', {})
+            cfg.tf_config.get('base_link_to_laser', {})
         ))
         nodes.append(create_static_tf_node(
             'base_link_to_imu',
-            tf_config.get('base_link_to_imu', {})
+            cfg.tf_config.get('base_link_to_imu', {})
         ))
 
-    # ========== 真實硬體節點 ==========
-    if not simulation:
-        # HS 協議馬達控制器 (核心 0-1)
-        nodes.append(Node(
-            package='motor_control',
-            executable='hs_motor_controller',
-            name='hs_motor_controller',
-            output='screen',
-            parameters=[motor_config, {'use_sim_time': use_sim_time}],
-            prefix=get_cpu_prefix('motor', cpu_affinity_enabled),
-            respawn=True,
-            respawn_delay=2.0
-        ))
+    return nodes
 
-        # LiDAR 節點 (核心 2-3)
-        nodes.append(Node(
-            package='sllidar_ros2',
-            executable='sllidar_node',
-            name='sllidar_node',
-            output='screen',
-            parameters=[{
-                'serial_port': lidar_port,
-                'serial_baudrate': lidar_baudrate,
-                'frame_id': 'laser',
-                'inverted': False,
-                'angle_compensate': True,
-            }],
-            prefix=get_cpu_prefix('sensor', cpu_affinity_enabled),
-            respawn=True,
-            respawn_delay=2.0
-        ))
 
-        # IMU 節點 (核心 2-3, 50Hz - EKF 只需 30Hz)
-        if enable_imu:
-            nodes.append(Node(
-                package='imu_bno055',
-                executable='bno055_i2c_node',
-                name='bno055',
-                namespace='imu',
-                output='screen',
-                parameters=[{
-                    'device': imu_device,
-                    'address': imu_address,
-                    'frame_id': 'imu_link',
-                    'rate': 50.0,
-                }],
-                prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
-            ))
-        else:
-            nodes.append(IMU_DISABLED_NOTICE)
+def _build_hardware_nodes(cfg: _BringupConfig) -> list:
+    """真實硬體節點：HS 馬達控制器、LiDAR、IMU、E-Stop。"""
+    nodes = []
 
-        # E-Stop GPIO 監控節點 (核心 2-3)
-        # enable_estop:=false 時仍啟動節點但固定發布「未觸發」，
-        # 保留 /e_stop 的 topic 契約，訂閱端不需要區分兩種情況。
-        if not enable_estop:
-            nodes.append(ESTOP_BYPASSED_NOTICE)
+    # HS 協議馬達控制器 (核心 0-1)
+    nodes.append(Node(
+        package='motor_control',
+        executable='hs_motor_controller',
+        name='hs_motor_controller',
+        output='screen',
+        parameters=[cfg.motor_config, {'use_sim_time': cfg.use_sim_time}],
+        prefix=get_cpu_prefix('motor', cfg.cpu_affinity_enabled),
+        respawn=True,
+        respawn_delay=2.0
+    ))
+
+    # LiDAR 節點 (核心 2-3)
+    nodes.append(Node(
+        package='sllidar_ros2',
+        executable='sllidar_node',
+        name='sllidar_node',
+        output='screen',
+        parameters=[{
+            'serial_port': cfg.lidar_port,
+            'serial_baudrate': cfg.lidar_baudrate,
+            'frame_id': 'laser',
+            'inverted': False,
+            'angle_compensate': True,
+        }],
+        prefix=get_cpu_prefix('sensor', cfg.cpu_affinity_enabled),
+        respawn=True,
+        respawn_delay=2.0
+    ))
+
+    # IMU 節點 (核心 2-3, 50Hz - EKF 只需 30Hz)
+    if cfg.enable_imu:
         nodes.append(Node(
-            package='motor_control',
-            executable='e_stop_node',
-            name='e_stop_node',
+            package='imu_bno055',
+            executable='bno055_i2c_node',
+            name='bno055',
+            namespace='imu',
             output='screen',
             parameters=[{
-                'gpio_pin': gpio_pin,
-                'active_low': True,
-                'poll_rate': 100.0,
-                'debounce_ms': 50,
-                'simulation': not enable_estop,
+                'device': cfg.imu_device,
+                'address': cfg.imu_address,
+                'frame_id': 'imu_link',
+                'rate': 50.0,
             }],
-            prefix=get_cpu_prefix('sensor', cpu_affinity_enabled),
-            respawn=True,
-            respawn_delay=2.0
+            prefix=get_cpu_prefix('sensor', cfg.cpu_affinity_enabled)
         ))
+    else:
+        nodes.append(IMU_DISABLED_NOTICE)
 
-    # ========== 模擬節點 ==========
-    if simulation:
-        # Mock 馬達控制器 (核心 0-1)
-        # 參數與 hs_motor_config.yaml 真機設定一致，
-        # 模擬中才能重現速度上限與 min_rpm 死區行為
+    # E-Stop GPIO 監控節點 (核心 2-3)
+    # enable_estop:=false 時仍啟動節點但固定發布「未觸發」，
+    # 保留 /e_stop 的 topic 契約，訂閱端不需要區分兩種情況。
+    if not cfg.enable_estop:
+        nodes.append(ESTOP_BYPASSED_NOTICE)
+    nodes.append(Node(
+        package='motor_control',
+        executable='e_stop_node',
+        name='e_stop_node',
+        output='screen',
+        parameters=[{
+            'gpio_pin': cfg.gpio_pin,
+            'active_low': True,
+            'poll_rate': 100.0,
+            'debounce_ms': 50,
+            'simulation': not cfg.enable_estop,
+        }],
+        prefix=get_cpu_prefix('sensor', cfg.cpu_affinity_enabled),
+        respawn=True,
+        respawn_delay=2.0
+    ))
+
+    return nodes
+
+
+def _build_sim_nodes(cfg: _BringupConfig) -> list:
+    """模擬節點：Mock 馬達控制器、LiDAR、IMU、E-Stop。"""
+    nodes = []
+
+    # Mock 馬達控制器 (核心 0-1)
+    # 參數與 hs_motor_config.yaml 真機設定一致，
+    # 模擬中才能重現速度上限與 min_rpm 死區行為
+    nodes.append(Node(
+        package='motor_control',
+        executable='mock_motor_controller',
+        name='mock_motor_controller',
+        output='screen',
+        parameters=[{
+            'wheel_separation': 0.27,
+            'wheel_radius': 0.065,
+            'max_linear_vel': 0.05,
+            'max_angular_vel': 0.4,
+            'gear_ratio': 20.0,
+            'min_rpm': 100.0,
+            'max_rpm': 3000.0,
+            'odom_frequency': 50.0,
+            'use_sim_time': cfg.use_sim_time,
+        }],
+        prefix=get_cpu_prefix('motor', cfg.cpu_affinity_enabled)
+    ))
+
+    # Mock LiDAR (核心 2-3)
+    nodes.append(Node(
+        package='motor_control',
+        executable='mock_lidar',
+        name='mock_lidar',
+        output='screen',
+        parameters=[{
+            'frame_id': 'laser',
+            'scan_frequency': 10.0,
+            'range_min': 0.15,
+            'range_max': 12.0,
+            'scene': cfg.sim_scene,
+        }],
+        prefix=get_cpu_prefix('sensor', cfg.cpu_affinity_enabled)
+    ))
+
+    # Mock IMU (核心 2-3, 50Hz - EKF 只需 30Hz)
+    # 同樣受 enable_imu 控制，讓「無 IMU」路徑能在模擬中驗證
+    if cfg.enable_imu:
         nodes.append(Node(
             package='motor_control',
-            executable='mock_motor_controller',
-            name='mock_motor_controller',
+            executable='mock_imu',
+            name='mock_imu',
             output='screen',
             parameters=[{
-                'wheel_separation': 0.27,
-                'wheel_radius': 0.065,
-                'max_linear_vel': 0.05,
-                'max_angular_vel': 0.4,
-                'gear_ratio': 20.0,
-                'min_rpm': 100.0,
-                'max_rpm': 3000.0,
-                'odom_frequency': 50.0,
-                'use_sim_time': use_sim_time,
+                'frame_id': 'imu_link',
+                'publish_frequency': 50.0,
             }],
-            prefix=get_cpu_prefix('motor', cpu_affinity_enabled)
+            prefix=get_cpu_prefix('sensor', cfg.cpu_affinity_enabled)
         ))
+    else:
+        nodes.append(IMU_DISABLED_NOTICE)
 
-        # Mock LiDAR (核心 2-3)
-        nodes.append(Node(
-            package='motor_control',
-            executable='mock_lidar',
-            name='mock_lidar',
-            output='screen',
-            parameters=[{
-                'frame_id': 'laser',
-                'scan_frequency': 10.0,
-                'range_min': 0.15,
-                'range_max': 12.0,
-                'scene': sim_scene,
-            }],
-            prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
-        ))
+    # E-Stop 模擬節點 (核心 2-3, 永遠不觸發)
+    nodes.append(Node(
+        package='motor_control',
+        executable='e_stop_node',
+        name='e_stop_node',
+        output='screen',
+        parameters=[{
+            'simulation': True,
+        }],
+        prefix=get_cpu_prefix('sensor', cfg.cpu_affinity_enabled)
+    ))
 
-        # Mock IMU (核心 2-3, 50Hz - EKF 只需 30Hz)
-        # 同樣受 enable_imu 控制，讓「無 IMU」路徑能在模擬中驗證
-        if enable_imu:
-            nodes.append(Node(
-                package='motor_control',
-                executable='mock_imu',
-                name='mock_imu',
-                output='screen',
-                parameters=[{
-                    'frame_id': 'imu_link',
-                    'publish_frequency': 50.0,
-                }],
-                prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
-            ))
-        else:
-            nodes.append(IMU_DISABLED_NOTICE)
+    return nodes
 
-        # E-Stop 模擬節點 (核心 2-3, 永遠不觸發)
-        nodes.append(Node(
-            package='motor_control',
-            executable='e_stop_node',
-            name='e_stop_node',
-            output='screen',
-            parameters=[{
-                'simulation': True,
-            }],
-            prefix=get_cpu_prefix('sensor', cpu_affinity_enabled)
-        ))
 
-    # ========== EKF 定位融合 (延遲 2 秒，核心 4-5) ==========
+def _build_localization_nodes(cfg: _BringupConfig) -> list:
+    """EKF 定位融合 (延遲 2 秒，核心 4-5)。"""
     ekf_node = Node(
         package='robot_localization',
         executable='ekf_node',
         name='ekf_filter_node',
         output='screen',
-        parameters=[motor_config, {'use_sim_time': use_sim_time}],
-        prefix=get_cpu_prefix('localization', cpu_affinity_enabled),
+        parameters=[cfg.motor_config, {'use_sim_time': cfg.use_sim_time}],
+        prefix=get_cpu_prefix('localization', cfg.cpu_affinity_enabled),
         respawn=True,
         respawn_delay=2.0
     )
-    nodes.append(TimerAction(period=2.0, actions=[ekf_node]))
+    return [TimerAction(period=2.0, actions=[ekf_node])]
 
-    # ========== Web 服務 (延遲 3 秒，核心 6-7) ==========
-    if enable_web:
-        # rosbridge WebSocket
-        rosbridge_node = Node(
-            package='rosbridge_server',
-            executable='rosbridge_websocket',
-            name='rosbridge_websocket',
-            output='screen',
-            parameters=[{
-                'port': rosbridge_port,
-                'call_services_in_new_thread': True,
-                'send_action_goals_in_new_thread': True,
-                'default_call_service_timeout': 10.0,
-                'max_message_size': 10000000,
-                'unregister_timeout': 10.0,
-            }],
-            prefix=get_cpu_prefix('web', cpu_affinity_enabled)
-        )
 
-        # API Server
-        web_prefix_list = get_cpu_prefix_list('web', cpu_affinity_enabled)
-        api_cmd = web_prefix_list + ['ros2', 'run', 'robot_api_server', 'api_server']
-        # respawn: API server 被外部殺掉（如 cleanup_ros.sh）時自動復活，
-        # 否則 ExecuteProcess 結束後 launch 不會補起
-        api_server = ExecuteProcess(
-            cmd=api_cmd,
-            output='screen',
-            respawn=True,
-            respawn_delay=2.0
-        )
+def _build_web_nodes(cfg: _BringupConfig) -> list:
+    """Web 服務 (延遲 3 秒，核心 6-7)：rosbridge WebSocket + API Server。"""
+    # rosbridge WebSocket
+    rosbridge_node = Node(
+        package='rosbridge_server',
+        executable='rosbridge_websocket',
+        name='rosbridge_websocket',
+        output='screen',
+        parameters=[{
+            'port': cfg.rosbridge_port,
+            'call_services_in_new_thread': True,
+            'send_action_goals_in_new_thread': True,
+            'default_call_service_timeout': 10.0,
+            'max_message_size': 10000000,
+            'unregister_timeout': 10.0,
+        }],
+        prefix=get_cpu_prefix('web', cfg.cpu_affinity_enabled)
+    )
 
-        nodes.append(TimerAction(period=3.0, actions=[rosbridge_node, api_server]))
+    # API Server
+    web_prefix_list = get_cpu_prefix_list('web', cfg.cpu_affinity_enabled)
+    api_cmd = web_prefix_list + ['ros2', 'run', 'robot_api_server', 'api_server']
+    # respawn: API server 被外部殺掉（如 cleanup_ros.sh）時自動復活，
+    # 否則 ExecuteProcess 結束後 launch 不會補起
+    api_server = ExecuteProcess(
+        cmd=api_cmd,
+        output='screen',
+        respawn=True,
+        respawn_delay=2.0
+    )
+
+    return [TimerAction(period=3.0, actions=[rosbridge_node, api_server])]
+
+
+def launch_setup(context, *args, **kwargs):
+    """動態生成啟動配置（支持運行時參數解析）
+
+    只負責把參數解析成 _BringupConfig，再依序串起各 _build_* 函式產生的
+    節點集合；節點集合與參數與拆分前完全等價。
+    """
+    cfg = _BringupConfig(context)
+
+    nodes = []
+    nodes.extend(_build_description_nodes(cfg))
+
+    # ========== 真實硬體節點 ==========
+    if not cfg.simulation:
+        nodes.extend(_build_hardware_nodes(cfg))
+
+    # ========== 模擬節點 ==========
+    if cfg.simulation:
+        nodes.extend(_build_sim_nodes(cfg))
+
+    # ========== EKF 定位融合 ==========
+    nodes.extend(_build_localization_nodes(cfg))
+
+    # ========== Web 服務 ==========
+    if cfg.enable_web:
+        nodes.extend(_build_web_nodes(cfg))
 
     return nodes
 

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FastDDS transport 設定：只用 UDPv4，停用 shared memory (SHM) transport。
+
+  原因：process_manager 以 SIGTERM/SIGKILL 收掉 nav2/SLAM 子進程時，
+  若對方持有 SHM port mutex 死去，mutex 不會被釋放；之後任何節點對同一
+  topic（如 /cmd_vel）publish 會永久卡在 futex，且 Humble 版 rclpy 的
+  publish() 持 GIL 進 C 層，等同凍結整個 api_server（2026-07-23 事故）。
+
+  所有節點都在同一台 Jetson，UDPv4 走 loopback 效能足夠。
+-->
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+    <transport_descriptors>
+        <transport_descriptor>
+            <transport_id>udp_only</transport_id>
+            <type>UDPv4</type>
+        </transport_descriptor>
+    </transport_descriptors>
+    <participant profile_name="udp_only_participant" is_default_profile="true">
+        <rtps>
+            <userTransports>
+                <transport_id>udp_only</transport_id>
+            </userTransports>
+            <useBuiltinTransports>false</useBuiltinTransports>
+        </rtps>
+    </participant>
+</profiles>

@@ -27,6 +27,14 @@ source "$HOME/base_dev/install/setup.bash"
 export ROS_DOMAIN_ID=0
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 
+# 停用 FastDDS shared memory transport（只走 UDPv4）。
+# 子進程被強制收掉時 SHM mutex 可能毒鎖，導致 publish 永久卡死並凍結
+# api_server（見 fastdds_udp_only.xml 內說明）。
+export FASTRTPS_DEFAULT_PROFILES_FILE="$HOME/base_dev/scripts/fastdds_udp_only.xml"
+
+# 清除上次殘留的 FastDDS SHM 區段（服務啟動時不會有其他 DDS 進程在跑）
+rm -f /dev/shm/fastrtps_* 2>/dev/null
+
 # 硬體選項：預設關閉 IMU 與實體急停，因為目前皆未接線。
 #   - IMU 未接：BNO055 節點會在 init 拋例外崩潰
 #   - 急停未接：GPIO 腳位浮接會被判定為「按下」，馬達永久拒收 cmd_vel

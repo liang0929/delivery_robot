@@ -27,5 +27,14 @@ source "$HOME/base_dev/install/setup.bash"
 export ROS_DOMAIN_ID=0
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 
+# 硬體選項：預設關閉 IMU 與實體急停，因為目前皆未接線。
+#   - IMU 未接：BNO055 節點會在 init 拋例外崩潰
+#   - 急停未接：GPIO 腳位浮接會被判定為「按下」，馬達永久拒收 cmd_vel
+# 接上硬體後，於 .env 設 ENABLE_IMU=true / ENABLE_ESTOP=true 即可，不必改此腳本。
+ENABLE_IMU="${ENABLE_IMU:-false}"
+ENABLE_ESTOP="${ENABLE_ESTOP:-false}"
+
 # 啟動機器人核心
-exec ros2 launch motor_control bringup.launch.py
+exec ros2 launch motor_control bringup.launch.py \
+    enable_imu:="${ENABLE_IMU}" \
+    enable_estop:="${ENABLE_ESTOP}"

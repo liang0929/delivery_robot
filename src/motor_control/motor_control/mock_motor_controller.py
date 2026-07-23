@@ -37,8 +37,8 @@ class MockMotorController(BaseMotorNode):
     PARAMS = {
         'wheel_separation': 0.27,
         'wheel_radius': 0.065,
-        'max_linear_vel': 0.05,
-        'max_angular_vel': 0.4,
+        'max_linear_vel': 0.075,
+        'max_angular_vel': 0.6,
         'odom_frequency': 50.0,
         'gear_ratio': 20.0,
         'min_rpm': 100.0,

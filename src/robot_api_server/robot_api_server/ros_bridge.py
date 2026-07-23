@@ -19,6 +19,7 @@ import signal
 import subprocess
 import threading
 import time
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Awaitable, Callable, Dict, Optional, Tuple
 from uuid import uuid4
@@ -124,8 +125,74 @@ class ProcessError(RuntimeError):
     """子程序生命週期操作失敗"""
 
 
+@dataclass
+class ManagedProcess:
+    """單一子程序（SLAM / Navigation / Robot Core）的 Popen 控制代碼容器。
+
+    純值物件、不持有自己的鎖：``process`` 欄位的所有讀寫仍完全由
+    ``RobotStateManager.self._lock`` 保護，時機與重構前逐字相同，這裡
+    只是把「三份 Popen 控制代碼」搬到各自的容器裡，取代原本
+    ``self._slam_process`` / ``self._nav_process`` / ``self._robot_core_process``
+    三個平行欄位。
+
+    ``terminate_safely`` / ``verify_started`` 是從原本
+    ``RobotStateManager._terminate_process_safely`` /
+    ``._verify_process_started`` 逐字搬移過來的無鎖工具方法：操作對象是
+    呼叫端傳入、尚未寫回 ``self.process`` 的本地 Popen 變數，鎖語意不變。
+    """
+
+    name: str
+    process: Optional[subprocess.Popen] = None
+
+    def terminate_safely(self, process: subprocess.Popen, timeout: int = 5) -> bool:
+        if process is None:
+            return True
+        try:
+            pgid = os.getpgid(process.pid)
+            logger.info(f"Sending SIGTERM to {self.name} (pgid={pgid})")
+            os.killpg(pgid, signal.SIGTERM)
+            try:
+                process.wait(timeout=timeout)
+                logger.info(f"{self.name} terminated gracefully")
+                return True
+            except subprocess.TimeoutExpired:
+                pass
+            logger.warning(f"{self.name} did not terminate, sending SIGKILL")
+            os.killpg(pgid, signal.SIGKILL)
+            try:
+                process.wait(timeout=3)
+                return True
+            except subprocess.TimeoutExpired:
+                logger.error(f"Failed to kill {self.name}")
+                return False
+        except ProcessLookupError:
+            return True
+        except Exception as e:
+            logger.error(f"Error terminating {self.name}: {e}")
+            return False
+
+    def verify_started(self, process: subprocess.Popen, wait_time: float = 0.5) -> bool:
+        try:
+            time.sleep(wait_time)
+            exit_code = process.poll()
+            if exit_code is not None:
+                logger.error(f"{self.name} process exited immediately with code {exit_code}")
+                return False
+            return True
+        except Exception as e:
+            logger.error(f"Error verifying {self.name} process: {e}")
+            return False
+
+
 class RobotStateManager:
-    """SLAM / Navigation / Robot core 子程序的執行緒安全管理器。"""
+    """SLAM / Navigation / Robot core 子程序的執行緒安全管理器。
+
+    對外可觀察行為（狀態轉移、e_stop、health monitor、crash info、
+    current_map…）與鎖語意（鎖內只做狀態轉移、spawn/terminate 等慢操作
+    一律在鎖外）與重構前完全相同；三個子程序各自的 ``Popen`` 控制代碼
+    現在委由 ``ManagedProcess`` 值物件持有，``RobotStateManager`` 扮演
+    協調三個 ``ManagedProcess`` 實例的 orchestrator。
+    """
 
     HEALTH_CHECK_INTERVAL = 2.0
 
@@ -157,12 +224,12 @@ class RobotStateManager:
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._slam_process: Optional[subprocess.Popen] = None
+        self._slam = ManagedProcess(name="SLAM")
         self._slam_status = SlamStatus.IDLE
-        self._nav_process: Optional[subprocess.Popen] = None
+        self._nav = ManagedProcess(name="Navigation")
         self._nav_status = NavStatus.IDLE
         self._current_map: Optional[str] = None
-        self._robot_core_process: Optional[subprocess.Popen] = None
+        self._robot_core = ManagedProcess(name="Robot Core")
         self._robot_core_running = False
         self._robot_core_transition = False
         self._e_stop_active = False
@@ -247,61 +314,68 @@ class RobotStateManager:
         if not self._wait_for_process_cleanup(patterns, timeout=3.0):
             logger.warning(f"Some {label} processes may still be running after cleanup")
 
-    def _terminate_process_safely(
-        self, process: subprocess.Popen, name: str, timeout: int = 5
-    ) -> bool:
-        if process is None:
-            return True
-        try:
-            pgid = os.getpgid(process.pid)
-            logger.info(f"Sending SIGTERM to {name} (pgid={pgid})")
-            os.killpg(pgid, signal.SIGTERM)
-            try:
-                process.wait(timeout=timeout)
-                logger.info(f"{name} terminated gracefully")
-                return True
-            except subprocess.TimeoutExpired:
-                pass
-            logger.warning(f"{name} did not terminate, sending SIGKILL")
-            os.killpg(pgid, signal.SIGKILL)
-            try:
-                process.wait(timeout=3)
-                return True
-            except subprocess.TimeoutExpired:
-                logger.error(f"Failed to kill {name}")
-                return False
-        except ProcessLookupError:
-            return True
-        except Exception as e:
-            logger.error(f"Error terminating {name}: {e}")
-            return False
+    def _spawn_managed(
+        self,
+        managed: "ManagedProcess",
+        *,
+        precheck_and_transition: Callable[[], Any],
+        prepare: Callable[[Any], list],
+        verify_failed_message: str,
+        on_rollback: Callable[[], None],
+        start_failed_prefix: str,
+        on_commit: Callable[[subprocess.Popen], Any],
+    ) -> Any:
+        """三個 start_* 共用骨架：鎖內檢查/過渡 → 鎖外 spawn/verify →
+        失敗鎖內回滾並重丟例外 → 成功鎖內提交狀態。
 
-    def _verify_process_started(
-        self, process: subprocess.Popen, name: str, wait_time: float = 0.5
-    ) -> bool:
+        鎖的邊界與原本逐字相同：只有 ``precheck_and_transition``、
+        ``on_rollback``、``on_commit`` 在 ``self._lock`` 保護下執行；
+        ``prepare``（跨子系統呼叫、cleanup_processes、map 檢查等）與
+        ``subprocess.Popen`` / ``verify_started`` 一律在鎖外執行，順序
+        與重構前完全一致。
+        """
+        with self._lock:
+            context = precheck_and_transition()
+
+        process: Optional[subprocess.Popen] = None
         try:
-            time.sleep(wait_time)
-            exit_code = process.poll()
-            if exit_code is not None:
-                logger.error(f"{name} process exited immediately with code {exit_code}")
-                return False
-            return True
+            argv = prepare(context)
+            process = subprocess.Popen(
+                argv,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                preexec_fn=os.setsid,
+            )
+            if not managed.verify_started(process):
+                raise ProcessError(verify_failed_message)
+        except ProcessError:
+            if process is not None:
+                managed.terminate_safely(process, timeout=3)
+            with self._lock:
+                on_rollback()
+            raise
         except Exception as e:
-            logger.error(f"Error verifying {name} process: {e}")
-            return False
+            if process is not None:
+                managed.terminate_safely(process, timeout=3)
+            with self._lock:
+                on_rollback()
+            raise ProcessError(f"{start_failed_prefix}: {e}")
+
+        with self._lock:
+            return on_commit(process)
 
     # --- SLAM ---
     def start_slam(self) -> None:
-        with self._lock:
+        def precheck_and_transition():
             if self._slam_status != SlamStatus.IDLE:
                 raise ProcessError("Mapping is already running or busy")
             if self._nav_status in (NavStatus.STARTING, NavStatus.STOPPING):
                 raise ProcessError("Navigation is busy")
             nav_running = self._nav_status == NavStatus.RUNNING
             self._slam_status = SlamStatus.STARTING
+            return nav_running
 
-        process: Optional[subprocess.Popen] = None
-        try:
+        def prepare(nav_running: bool) -> list:
             # 導航運行中：先走正常停止路徑（以自己持有的 pgid 終止），而非直接 pkill
             if nav_running:
                 logger.info("Navigation is running; stopping it before starting SLAM")
@@ -316,42 +390,35 @@ class RobotStateManager:
                         logger.warning(f"Navigation-down handler failed: {e}")
 
             self._cleanup_processes(self.NAV_CLEANUP_PATTERNS, "navigation")
+            return ["ros2", "launch", "nav2", "mapping.launch.py"]
 
-            process = subprocess.Popen(
-                ["ros2", "launch", "nav2", "mapping.launch.py"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                preexec_fn=os.setsid,
-            )
-            if not self._verify_process_started(process, "SLAM"):
-                raise ProcessError("SLAM process failed to start")
-        except ProcessError:
-            if process is not None:
-                self._terminate_process_safely(process, "SLAM", timeout=3)
-            with self._lock:
-                self._slam_status = SlamStatus.IDLE
-            raise
-        except Exception as e:
-            if process is not None:
-                self._terminate_process_safely(process, "SLAM", timeout=3)
-            with self._lock:
-                self._slam_status = SlamStatus.IDLE
-            raise ProcessError(f"Failed to start mapping: {e}")
+        def on_rollback():
+            self._slam_status = SlamStatus.IDLE
 
-        with self._lock:
-            self._slam_process = process
+        def on_commit(process: subprocess.Popen):
+            self._slam.process = process
             self._slam_status = SlamStatus.MAPPING
             self._crash_info.pop('slam', None)
+
+        self._spawn_managed(
+            self._slam,
+            precheck_and_transition=precheck_and_transition,
+            prepare=prepare,
+            verify_failed_message="SLAM process failed to start",
+            on_rollback=on_rollback,
+            start_failed_prefix="Failed to start mapping",
+            on_commit=on_commit,
+        )
 
     def stop_slam(self) -> None:
         with self._lock:
             if self._slam_status not in (SlamStatus.MAPPING, SlamStatus.SAVING):
                 raise ProcessError("Mapping is not running")
-            process = self._slam_process
-            self._slam_process = None
+            process = self._slam.process
+            self._slam.process = None
             self._slam_status = SlamStatus.STOPPING
         try:
-            if process and not self._terminate_process_safely(process, "SLAM"):
+            if process and not self._slam.terminate_safely(process):
                 logger.error("SLAM process may still be running")
         finally:
             with self._lock:
@@ -371,7 +438,7 @@ class RobotStateManager:
 
     # --- Navigation ---
     def start_navigation(self, map_name: Optional[str] = None) -> str:
-        with self._lock:
+        def precheck_and_transition():
             if self._nav_status != NavStatus.IDLE:
                 raise ProcessError("Navigation is already running")
             if self._slam_status != SlamStatus.IDLE:
@@ -379,9 +446,9 @@ class RobotStateManager:
             else:
                 slam_running = False
             self._nav_status = NavStatus.STARTING
+            return slam_running
 
-        process: Optional[subprocess.Popen] = None
-        try:
+        def prepare(slam_running: bool) -> list:
             if slam_running:
                 logger.info("Mapping is running; stopping it before starting navigation")
                 try:
@@ -399,44 +466,38 @@ class RobotStateManager:
             self._cleanup_processes(self.SLAM_CLEANUP_PATTERNS, "SLAM")
             self._cleanup_processes(self.NAV_CLEANUP_PATTERNS, "navigation")
 
-            process = subprocess.Popen(
-                ["ros2", "launch", "nav2", "autonomous_navigation.launch.py",
-                 f"map:={map_yaml}"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                preexec_fn=os.setsid,
-            )
-            if not self._verify_process_started(process, "Navigation"):
-                raise ProcessError("Navigation process failed to start")
-        except ProcessError:
-            if process is not None:
-                self._terminate_process_safely(process, "Navigation", timeout=3)
-            with self._lock:
-                self._nav_status = NavStatus.IDLE
-            raise
-        except Exception as e:
-            if process is not None:
-                self._terminate_process_safely(process, "Navigation", timeout=3)
-            with self._lock:
-                self._nav_status = NavStatus.IDLE
-            raise ProcessError(f"Failed to start navigation: {e}")
+            return ["ros2", "launch", "nav2", "autonomous_navigation.launch.py",
+                    f"map:={map_yaml}"]
 
-        with self._lock:
-            self._nav_process = process
+        def on_rollback():
+            self._nav_status = NavStatus.IDLE
+
+        def on_commit(process: subprocess.Popen):
+            self._nav.process = process
             self._nav_status = NavStatus.RUNNING
             self._crash_info.pop('navigation', None)
             self._current_map = map_name if map_name else "map"
             return self._current_map
 
+        return self._spawn_managed(
+            self._nav,
+            precheck_and_transition=precheck_and_transition,
+            prepare=prepare,
+            verify_failed_message="Navigation process failed to start",
+            on_rollback=on_rollback,
+            start_failed_prefix="Failed to start navigation",
+            on_commit=on_commit,
+        )
+
     def stop_navigation(self) -> None:
         with self._lock:
             if self._nav_status != NavStatus.RUNNING:
                 raise ProcessError("Navigation is not running")
-            process = self._nav_process
-            self._nav_process = None
+            process = self._nav.process
+            self._nav.process = None
             self._nav_status = NavStatus.STOPPING
         try:
-            if process and not self._terminate_process_safely(process, "Navigation"):
+            if process and not self._nav.terminate_safely(process):
                 logger.error("Navigation process may still be running")
         finally:
             with self._lock:
@@ -449,56 +510,48 @@ class RobotStateManager:
             return self._robot_core_running
 
     def start_robot_core(self) -> None:
-        with self._lock:
+        def precheck_and_transition():
             if self._robot_core_running or self._robot_core_transition:
                 raise ProcessError("Robot core is already running")
             self._robot_core_transition = True
 
-        process: Optional[subprocess.Popen] = None
-        try:
+        def prepare(_context) -> list:
             existing = subprocess.run(
                 ["pgrep", "-f", "ros2 launch motor_control bringup"], capture_output=True
             )
             if existing.returncode == 0:
                 raise ProcessError("Robot core is already running outside this API")
+            return ["ros2", "launch", "motor_control", "bringup.launch.py", "enable_web:=false"]
 
-            process = subprocess.Popen(
-                ["ros2", "launch", "motor_control", "bringup.launch.py", "enable_web:=false"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                preexec_fn=os.setsid,
-            )
-            if not self._verify_process_started(process, "Robot Core"):
-                raise ProcessError("Robot core process failed to start")
-        except ProcessError:
-            if process is not None:
-                self._terminate_process_safely(process, "Robot Core", timeout=3)
-            with self._lock:
-                self._robot_core_transition = False
-            raise
-        except Exception as e:
-            if process is not None:
-                self._terminate_process_safely(process, "Robot Core", timeout=3)
-            with self._lock:
-                self._robot_core_transition = False
-            raise ProcessError(f"Failed to start robot core: {e}")
+        def on_rollback():
+            self._robot_core_transition = False
 
-        with self._lock:
-            self._robot_core_process = process
+        def on_commit(process: subprocess.Popen):
+            self._robot_core.process = process
             self._robot_core_running = True
             self._robot_core_transition = False
             self._crash_info.pop('robot_core', None)
+
+        self._spawn_managed(
+            self._robot_core,
+            precheck_and_transition=precheck_and_transition,
+            prepare=prepare,
+            verify_failed_message="Robot core process failed to start",
+            on_rollback=on_rollback,
+            start_failed_prefix="Failed to start robot core",
+            on_commit=on_commit,
+        )
 
     def stop_robot_core(self) -> None:
         with self._lock:
             if not self._robot_core_running:
                 raise ProcessError("Robot core is not running")
-            process = self._robot_core_process
-            self._robot_core_process = None
+            process = self._robot_core.process
+            self._robot_core.process = None
             self._robot_core_running = False
             self._robot_core_transition = True
         try:
-            if process and not self._terminate_process_safely(process, "Robot Core"):
+            if process and not self._robot_core.terminate_safely(process):
                 logger.error("Robot Core process may still be running")
         finally:
             with self._lock:
@@ -533,27 +586,27 @@ class RobotStateManager:
         crashed = []
         now = time.strftime('%Y-%m-%dT%H:%M:%S')
         with self._lock:
-            if self._slam_process and self._slam_status == SlamStatus.MAPPING:
-                ret = self._slam_process.poll()
+            if self._slam.process and self._slam_status == SlamStatus.MAPPING:
+                ret = self._slam.process.poll()
                 if ret is not None:
                     self._crash_info['slam'] = {'exit_code': ret, 'time': now}
-                    self._slam_process = None
+                    self._slam.process = None
                     self._slam_status = SlamStatus.IDLE
                     crashed.append('slam')
 
-            if self._nav_process and self._nav_status == NavStatus.RUNNING:
-                ret = self._nav_process.poll()
+            if self._nav.process and self._nav_status == NavStatus.RUNNING:
+                ret = self._nav.process.poll()
                 if ret is not None:
                     self._crash_info['navigation'] = {'exit_code': ret, 'time': now}
-                    self._nav_process = None
+                    self._nav.process = None
                     self._nav_status = NavStatus.IDLE
                     crashed.append('navigation')
 
-            if self._robot_core_process and self._robot_core_running:
-                ret = self._robot_core_process.poll()
+            if self._robot_core.process and self._robot_core_running:
+                ret = self._robot_core.process.poll()
                 if ret is not None:
                     self._crash_info['robot_core'] = {'exit_code': ret, 'time': now}
-                    self._robot_core_process = None
+                    self._robot_core.process = None
                     self._robot_core_running = False
                     crashed.append('robot_core')
         return crashed
@@ -567,21 +620,21 @@ class RobotStateManager:
         logger.info("Starting cleanup of all processes...")
         self.stop_health_monitor()
         with self._lock:
-            processes = [
-                (self._slam_process, "SLAM"),
-                (self._nav_process, "Navigation"),
-                (self._robot_core_process, "Robot Core"),
+            managed_processes = [
+                (self._slam, self._slam.process),
+                (self._nav, self._nav.process),
+                (self._robot_core, self._robot_core.process),
             ]
-            self._slam_process = None
-            self._nav_process = None
-            self._robot_core_process = None
+            self._slam.process = None
+            self._nav.process = None
+            self._robot_core.process = None
             self._slam_status = SlamStatus.IDLE
             self._nav_status = NavStatus.IDLE
             self._robot_core_running = False
             self._robot_core_transition = False
-        for process, name in processes:
+        for managed, process in managed_processes:
             if process:
-                self._terminate_process_safely(process, name, timeout=3)
+                managed.terminate_safely(process, timeout=3)
         logger.info("Cleanup completed")
 
 

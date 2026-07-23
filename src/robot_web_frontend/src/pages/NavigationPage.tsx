@@ -1,13 +1,11 @@
 // 自動導航分頁：切 navigate 模式 → 重定位 → 選點位或點地圖導航 → 停止。
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { MapCanvas, type MapInteraction } from '../components/MapCanvas';
 import { useStoredMap } from '../hooks/useMapSource';
+import { useMapEntities } from '../hooks/useMapEntities';
 import { useAction } from '../hooks/useAction';
-import { describeError, isAbortError } from '../api/client';
 import {
-  listPoints,
-  listVirtualWalls,
   moveToLocation,
   moveToPoint,
   relocateToLocation,
@@ -17,7 +15,7 @@ import {
 } from '../api/robot.api';
 import { pushToast, useRobotStore } from '../store/useRobotStore';
 import { pixelToApiLocation, type PixelPoint } from '../lib/coords';
-import type { RobotPoint, VirtualWall } from '../api/types';
+import type { RobotPoint } from '../api/types';
 import page from './Page.module.css';
 
 interface NavigationPageProps {
@@ -49,9 +47,7 @@ export function NavigationPage({
   const { busy, run } = useAction();
   const { image, meta, loading, error } = useStoredMap(selectedMap);
 
-  const [points, setPoints] = useState<RobotPoint[]>([]);
-  const [walls, setWalls] = useState<VirtualWall[]>([]);
-  const [entitiesError, setEntitiesError] = useState<string | null>(null);
+  const { points, walls, error: entitiesError } = useMapEntities(selectedMap);
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
   const [tool, setTool] = useState<Tool>('none');
   /**
@@ -60,40 +56,6 @@ export function NavigationPage({
    */
   const [localized, setLocalized] = useState<boolean | null>(null);
   const [localizeDetail, setLocalizeDetail] = useState<string | null>(null);
-
-  const requestId = useRef(0);
-
-  useEffect(() => {
-    if (!selectedMap) {
-      requestId.current += 1;
-      setPoints([]);
-      setWalls([]);
-      setEntitiesError(null);
-      return;
-    }
-    const id = ++requestId.current;
-    const controller = new AbortController();
-
-    (async () => {
-      try {
-        const [nextPoints, nextWalls] = await Promise.all([
-          listPoints(selectedMap, { signal: controller.signal }),
-          listVirtualWalls(selectedMap, { signal: controller.signal }),
-        ]);
-        if (id !== requestId.current) return;
-        setPoints(nextPoints);
-        setWalls(nextWalls);
-        setEntitiesError(null);
-      } catch (err) {
-        if (isAbortError(err) || id !== requestId.current) return;
-        setPoints([]);
-        setWalls([]);
-        setEntitiesError(describeError(err));
-      }
-    })();
-
-    return () => controller.abort();
-  }, [selectedMap]);
 
   useEffect(() => {
     setSelectedPointId(null);

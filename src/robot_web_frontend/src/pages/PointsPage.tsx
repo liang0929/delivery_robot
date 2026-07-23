@@ -3,12 +3,12 @@
 // 後端是暫存交易模型（規格 §4.2、§8）：所有變更先進記憶體，
 // 必須按「提交變更」才會寫入磁碟並套用。UI 以黃色橫幅明示未提交狀態。
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { MapCanvas, type MapInteraction } from '../components/MapCanvas';
 import { useStoredMap } from '../hooks/useMapSource';
+import { useMapEntities } from '../hooks/useMapEntities';
 import { useAction } from '../hooks/useAction';
-import { describeError, isAbortError } from '../api/client';
 import {
   commitEdits,
   createPoint,
@@ -16,8 +16,6 @@ import {
   deletePoint,
   deleteVirtualWall,
   discardEdits,
-  listPoints,
-  listVirtualWalls,
   updatePoint,
 } from '../api/robot.api';
 import { useRobotStore } from '../store/useRobotStore';
@@ -76,54 +74,20 @@ export function PointsPage({
   const [mapVersion, setMapVersion] = useState(0);
   const { image, meta, loading, error } = useStoredMap(selectedMap, mapVersion);
 
-  const [points, setPoints] = useState<RobotPoint[]>([]);
-  const [walls, setWalls] = useState<VirtualWall[]>([]);
-  const [entitiesError, setEntitiesError] = useState<string | null>(null);
-  const [entitiesVersion, setEntitiesVersion] = useState(0);
+  const {
+    points,
+    walls,
+    error: entitiesError,
+    reload: reloadEntities,
+    setPoints,
+    setWalls,
+  } = useMapEntities(selectedMap);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tool, setTool] = useState<Tool>('none');
   const [draftPoint, setDraftPoint] = useState<DraftPoint | null>(null);
   const [draftWall, setDraftWall] = useState<DraftWall | null>(null);
   const [dirty, setDirty] = useState(false);
-
-  // ---------------------------------------------- 載入 points / virtual walls
-  // requestId 防競態：切換地圖時舊回應不得覆蓋新地圖的資料
-  const entitiesRequestId = useRef(0);
-
-  useEffect(() => {
-    if (!selectedMap) {
-      entitiesRequestId.current += 1;
-      setPoints([]);
-      setWalls([]);
-      setEntitiesError(null);
-      return;
-    }
-    const id = ++entitiesRequestId.current;
-    const controller = new AbortController();
-
-    (async () => {
-      try {
-        const [nextPoints, nextWalls] = await Promise.all([
-          listPoints(selectedMap, { signal: controller.signal }),
-          listVirtualWalls(selectedMap, { signal: controller.signal }),
-        ]);
-        if (id !== entitiesRequestId.current) return;
-        setPoints(nextPoints);
-        setWalls(nextWalls);
-        setEntitiesError(null);
-      } catch (err) {
-        if (isAbortError(err) || id !== entitiesRequestId.current) return;
-        setPoints([]);
-        setWalls([]);
-        setEntitiesError(describeError(err));
-      }
-    })();
-
-    return () => controller.abort();
-  }, [selectedMap, entitiesVersion]);
-
-  const reloadEntities = useCallback(() => setEntitiesVersion((v) => v + 1), []);
 
   // 切換地圖時把編輯狀態歸零，避免草稿套到別張地圖上
   useEffect(() => {

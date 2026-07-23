@@ -1,10 +1,18 @@
-"""機器人資訊與移動端點 🟢（規格 §5）。"""
+"""機器人資訊與移動端點 🟢（規格 §5）。
+
+意圖層操作（狀態查詢、移動、重定位、停止…）一律透過 ``RobotService``
+（``..robot_service``）呼叫，不直接碰觸 ``state``/``bridge``/``mission``/
+``nav_manager`` 這些底層單例——這是重構把 ``ros_bridge.py`` 拆檔後的
+router 遷移範圍之一（另一個是 ``mode.py``）。錯誤轉譯（``ApiError``）與
+WebSocket 事件推播（``hub``）仍留在本檔，屬於 HTTP / 傳輸層關注點。
+"""
 
 import asyncio
 
 from fastapi import APIRouter, Response
 
-from .. import errors, ros_bridge
+from .. import errors
+from ..conversions import cm_to_m, deg_to_yaw
 from ..logging_config import get_logger
 from ..models import (
     Direction,
@@ -19,7 +27,9 @@ from ..models import (
     RobotInfo,
     WsEvent,
 )
-from ..ros_bridge import NavStatus, bridge, mission, nav_manager, state
+from ..navigator import GoalRejectedError, Nav2NotReadyError
+from ..process_manager import ProcessError
+from ..ros_facade import nav_manager, robot_service as service
 from ..store import store
 from ..ws_server import hub
 
@@ -27,29 +37,19 @@ logger = get_logger(__name__)
 
 router = APIRouter(tags=["robot"])
 
-#: 取不到定位時回報的 fallback（避免 /info 直接失敗）
-_UNKNOWN_LOCATION = Location(x=0, y=0, orientation=0.0)
-
 
 def build_robot_info() -> RobotInfo:
     """組出規格 §5 Robot Information / §5 robot_info 事件的內容（同步、可在執行緒中呼叫）"""
-    location = bridge.location() or _UNKNOWN_LOCATION
-    return RobotInfo(
-        op_mode=state.op_mode(),
-        status=ros_bridge.robot_status(),
-        battery=bridge.battery(),
-        voltage=bridge.voltage(),
-        location=location,
-    )
+    return service.get_info()
 
 
 def _require_navigation_mode() -> None:
-    if state.op_mode() != ros_bridge.OpMode.NAVIGATE or state.nav_status != NavStatus.RUNNING:
+    if not service.is_navigation_mode_ready():
         raise errors.ApiError(errors.NOT_IN_NAVIGATION_MODE)
 
 
 def _require_not_busy() -> None:
-    if state.is_busy:
+    if service.is_busy:
         raise errors.ApiError(errors.ROBOT_BUSY)
 
 
@@ -57,13 +57,13 @@ async def _navigate_to(location: Location, point_type: PointType) -> None:
     """送出導航目標，統一處理 move_to_location / move_to_point 共用的錯誤轉譯"""
     kind = 'charging' if point_type == PointType.CHARGE else 'point'
     try:
-        await asyncio.to_thread(ros_bridge.navigate_to, location, kind)
-    except ros_bridge.Nav2NotReadyError as e:
+        await asyncio.to_thread(service.navigate_to, location, kind)
+    except Nav2NotReadyError as e:
         # 未定位、或 navigator 在就緒核對後又被併發重置——都不是「忙碌」，
         # 回報語意正確的碼，讓前端能提示使用者先重定位
         logger.error(f"Navigation not ready: {e}")
         raise errors.ApiError(errors.NOT_IN_NAVIGATION_MODE)
-    except ros_bridge.GoalRejectedError as e:
+    except GoalRejectedError as e:
         # 目標被 bt_navigator 拒絕，同樣不是「忙碌」而是 Nav2 未真正就緒
         logger.error(f"Goal rejected: {e}")
         raise errors.ApiError(errors.NOT_IN_NAVIGATION_MODE)
@@ -77,10 +77,10 @@ async def _relocate_to(location: Location) -> None:
     """發布初始位姿並推播 relocate 事件，統一處理 relocate_by_location /
     relocate_by_point 共用的邏輯"""
     ok = await asyncio.to_thread(
-        bridge.publish_initial_pose,
-        ros_bridge.cm_to_m(location.x),
-        ros_bridge.cm_to_m(location.y),
-        ros_bridge.deg_to_yaw(location.orientation),
+        service.publish_initial_pose,
+        cm_to_m(location.x),
+        cm_to_m(location.y),
+        deg_to_yaw(location.orientation),
     )
     await hub.emit_event_async(
         WsEvent.RELOCATE, EventCode.COMPLETE if ok else EventCode.ABORT
@@ -110,7 +110,7 @@ async def move_to_point(point_id: str) -> Point:
     _require_not_busy()
     _require_navigation_mode()
     owner, point = store.find_point(point_id)
-    current = state.current_map
+    current = service.current_map
     if current and owner != current:
         raise errors.ApiError(errors.POINT_NOT_IN_MAP)
     await _navigate_to(point.location, point.type)
@@ -123,16 +123,16 @@ async def manual_move(request: ManualMoveRequest) -> Response:
     if request.direction != Direction.STOP:
         _require_not_busy()
         # 手動控制與導航互斥：先取消目前導航目標
-        if mission.active:
-            await asyncio.to_thread(ros_bridge.stop_motion)
-    await asyncio.to_thread(bridge.set_manual_direction, request.direction)
+        if service.mission_active:
+            await asyncio.to_thread(service.stop_motion)
+    await asyncio.to_thread(service.set_manual_direction, request.direction)
     return Response(status_code=200)
 
 
 @router.post("/stop")
 async def stop() -> Response:
     """POST /v1/robot/stop — 200，軟停止並取消導航"""
-    await asyncio.to_thread(ros_bridge.stop_motion)
+    await asyncio.to_thread(service.stop_motion)
     return Response(status_code=200)
 
 
@@ -149,7 +149,7 @@ async def relocate_by_point(point_id: str) -> Point:
     """POST /v1/robot/relocate/{pointId} — 200，回傳完整 Point 物件"""
     _require_navigation_mode()
     owner, point = store.find_point(point_id)
-    current = state.current_map
+    current = service.current_map
     if current and owner != current:
         raise errors.ApiError(errors.POINT_NOT_IN_MAP)
     await _relocate_to(point.location)
@@ -160,10 +160,10 @@ async def relocate_by_point(point_id: str) -> Point:
 async def shutdown() -> Response:
     """POST /v1/robot/shutdown — 200。先送 power 事件（SHUTDOWN）再關機（文件 §9）。"""
     await hub.emit_event_async(WsEvent.POWER, EventCode.SHUTDOWN)
-    await asyncio.to_thread(ros_bridge.stop_motion)
+    await asyncio.to_thread(service.stop_motion)
     try:
-        await asyncio.to_thread(ros_bridge.shutdown_system)
-    except ros_bridge.ProcessError as e:
+        await asyncio.to_thread(service.shutdown_system)
+    except ProcessError as e:
         logger.error(f"Shutdown failed: {e}")
         raise errors.ApiError(errors.INTERNAL_ERROR)
     return Response(status_code=200)

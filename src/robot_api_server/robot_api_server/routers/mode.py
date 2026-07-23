@@ -2,6 +2,10 @@
 
 規格定義了 ``explore`` / ``navigate`` 兩種 op_mode 與 ``switch_mode`` 事件，
 卻沒有切換模式的端點，因此在此補上。
+
+與 ``robot.py`` 同為此次重構遷移到 ``RobotService`` 的 router：直接操作
+低階狀態（啟動 SLAM / 啟動導航 / 導航就緒探測）一律透過 ``service`` 呼叫，
+不直接碰觸 ``state``/``bridge``。
 """
 
 import asyncio
@@ -11,9 +15,8 @@ from fastapi import APIRouter
 from .. import errors
 from ..logging_config import get_logger
 from ..models import EventCode, ModeRequest, OpMode, WsEvent
-from ..ros_bridge import (
-    NavStatus, ProcessError, SlamStatus, bridge, handle_navigation_down, state,
-)
+from ..process_manager import NavStatus, ProcessError, SlamStatus
+from ..ros_facade import robot_service as service
 from ..store import map_exists, sanitize_map_name
 from ..ws_server import hub
 from .common import EXTENSION
@@ -26,25 +29,25 @@ router = APIRouter(tags=["mode"])
 def _switch(mode: OpMode, map_name) -> None:
     """在工作執行緒中執行的同步切換（子程序生命週期操作）"""
     if mode == OpMode.EXPLORE:
-        if state.slam_status == SlamStatus.MAPPING:
+        if service.slam_status == SlamStatus.MAPPING:
             return
-        state.start_slam()
-        state.current_map = None
+        service.start_slam()
+        service.clear_current_map()
     else:
-        if state.nav_status == NavStatus.RUNNING:
+        if service.nav_status == NavStatus.RUNNING:
             return
-        state.start_navigation(map_name)
+        service.start_navigation(map_name)
 
 
 @router.post("/mode", openapi_extra=EXTENSION)
 async def switch_mode(request: ModeRequest) -> dict:
     """POST /v1/robot/mode 🟡 — 切換模式，完成後推播 ``switch_mode`` 事件"""
-    if state.is_busy:
+    if service.is_busy:
         raise errors.ApiError(errors.ROBOT_BUSY)
 
     map_name = None
     if request.mode == OpMode.NAVIGATE:
-        map_name = sanitize_map_name(request.map) if request.map else state.current_map
+        map_name = sanitize_map_name(request.map) if request.map else service.current_map
         if not map_name or not map_exists(map_name):
             raise errors.ApiError(errors.MAP_NOT_FOUND)
 
@@ -57,13 +60,13 @@ async def switch_mode(request: ModeRequest) -> dict:
 
     if request.mode == OpMode.EXPLORE:
         # 導航已被停止，重置 navigator
-        await asyncio.to_thread(handle_navigation_down)
+        await asyncio.to_thread(service.handle_navigation_down)
         await hub.emit_event_async(WsEvent.SWITCH_MODE, EventCode.COMPLETE)
         return {"mode": request.mode.value, "map": map_name}
 
     # 導航模式：程序起來不等於可以導航。用 ROS 狀態逐項探測直到真的就緒，
     # 並在此階段設定初始位姿（地圖原點），避免使用者按了「前往」才發現不能動。
-    ready, detail = await asyncio.to_thread(bridge.wait_for_navigation_ready)
+    ready, detail = await asyncio.to_thread(service.wait_for_navigation_ready)
     if not ready:
         logger.error(f"Navigation not ready after mode switch: {detail}")
         await hub.emit_event_async(WsEvent.SWITCH_MODE, EventCode.ABORT)

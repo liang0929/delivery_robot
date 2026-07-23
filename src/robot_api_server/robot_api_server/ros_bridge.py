@@ -11,6 +11,7 @@
 - ROS 不可用時全部優雅降級，不讓 API server crash
 """
 
+import asyncio
 import io
 import math
 import os
@@ -19,7 +20,7 @@ import subprocess
 import threading
 import time
 from enum import Enum
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Awaitable, Callable, Dict, Optional, Tuple
 from uuid import uuid4
 
 from .config import (
@@ -29,6 +30,7 @@ from .config import (
     MANUAL_LINEAR_SPEED,
     MANUAL_PUBLISH_HZ,
     MAP_PATH,
+    NAV2_READY_TIMEOUT_SEC,
     WORKSPACE_ROOT,
 )
 from .conversions import (
@@ -41,7 +43,7 @@ from .conversions import (
     yaw_to_quaternion,
 )
 from .logging_config import get_logger
-from .models import Direction, EventCode, Location, OpMode, RobotStatus
+from .models import Direction, EventCode, Location, OpMode, RobotStatus, WsEvent
 
 logger = get_logger(__name__)
 
@@ -68,9 +70,6 @@ try:
 except Exception as e:  # pragma: no cover
     NAV2_AVAILABLE = False
     logger.error(f"nav2_simple_commander unavailable: {e}")
-
-# 等待 Nav2 就緒的上限。冷啟動時全部節點 active 約需 10-20 秒，留足餘裕。
-NAV2_READY_TIMEOUT_SEC = float(os.environ.get('ROBOT_NAV2_READY_TIMEOUT', '40'))
 
 from .imaging import Image, PIL_AVAILABLE
 
@@ -586,6 +585,18 @@ class RobotStateManager:
         logger.info("Cleanup completed")
 
 
+class Nav2NotReadyError(RuntimeError):
+    """Nav2 未就緒（通常是 AMCL 尚未定位，或 navigator 於就緒核對後又被重置，
+    例如導航行程於檢查與送出目標之間崩潰）。與其他導航失敗區分，讓端點能
+    回傳語意正確的錯誤碼而非 ROBOT_BUSY。"""
+
+
+class GoalRejectedError(RuntimeError):
+    """導航目標被 Nav2 action server 拒絕（例如 bt_navigator 尚未進入 active
+    狀態）。這與「機器人忙碌」是不同語意，端點應回傳語意正確的錯誤碼而非
+    ROBOT_BUSY。"""
+
+
 class NavigatorManager:
     """BasicNavigator 的生命週期管理（執行緒安全）"""
 
@@ -687,7 +698,12 @@ class NavigatorManager:
     def send_goal(self, x_m: float, y_m: float, yaw_rad: float) -> None:
         with self._lock:
             if self.navigator is None:
-                raise RuntimeError("Navigator not initialized")
+                # 呼叫端已透過 ensure_nav2_ready() 核對過就緒；navigator 仍為
+                # None 代表在核對之後、送出目標之前被併發重置（例如導航行程
+                # 於此期間崩潰）——這是「Nav2 未就緒」而非「機器人忙碌」。
+                raise Nav2NotReadyError(
+                    "Navigator 尚未初始化（可能於就緒核對後被併發重置）"
+                )
             goal_pose = PoseStamped()
             goal_pose.header.frame_id = 'map'
             goal_pose.header.stamp = self.navigator.get_clock().now().to_msg()
@@ -702,7 +718,7 @@ class NavigatorManager:
             # result_future 而立刻回 True，任務被誤判成 STUCK——錯誤訊息會指向
             # 導航失敗，而真正的原因是目標從未被接受。
             if self.navigator.goToPose(goal_pose) is False:
-                raise RuntimeError(
+                raise GoalRejectedError(
                     "導航目標被拒絕；bt_navigator 可能未進入 active 狀態"
                 )
 
@@ -748,17 +764,21 @@ class NavigatorManager:
 
 
 class MissionTracker:
-    """導航任務的世代握手。
+    """導航任務的世代握手，並擁有完成偵測迴圈（監控 task）的完整生命週期。
 
     狀態推進（begin）到 goal 實際送出（dispatched）之間，
     ``isTaskComplete()`` 反映的是上一段航程的結果，不得據此判定完成。
     """
+
+    #: 完成偵測迴圈的輪詢間隔
+    MONITOR_INTERVAL_SEC = 0.5
 
     def __init__(self):
         self._lock = threading.Lock()
         self._kind: Optional[str] = None       # "point" | "charging" | None
         self._generation = 0
         self._awaiting_goal = False
+        self._monitor_task: Optional["asyncio.Task"] = None
 
     def begin(self, kind: str) -> int:
         with self._lock:
@@ -797,6 +817,63 @@ class MissionTracker:
     def active(self) -> bool:
         with self._lock:
             return self._kind is not None
+
+    # --- 完成偵測 driver（監控迴圈；生命週期由本物件自行擁有）---
+    async def _monitor_loop(
+        self,
+        nav_manager: "NavigatorManager",
+        on_finished: Callable[["WsEvent", "EventCode"], Awaitable[None]],
+    ) -> None:
+        """監控導航任務並在完成時呼叫 ``on_finished(event, code)``。
+
+        goal 世代握手：``awaiting_goal`` 期間 ``isTaskComplete()`` 反映的是
+        上一段航程的結果，不得據此判定完成。
+        """
+        while True:
+            try:
+                await asyncio.sleep(self.MONITOR_INTERVAL_SEC)
+                kind, generation, awaiting = self.snapshot()
+                if kind is None or awaiting:
+                    continue
+                if not nav_manager.is_ready:
+                    continue
+                if not await asyncio.to_thread(nav_manager.is_task_complete):
+                    continue
+
+                result = await asyncio.to_thread(nav_manager.get_result)
+                code = nav_manager.result_to_event_code(result)
+                finished = self.finish(generation)
+                if finished is None:
+                    continue  # 世代已過期（例如被新的目標取代）
+                event = WsEvent.GO_CHARGING if finished == 'charging' else WsEvent.GO_POINT
+                logger.info(f"Mission finished: {finished} → {code.value}")
+                await on_finished(event, code)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error(f"Mission monitor error: {e}")
+
+    def start_monitor(
+        self,
+        nav_manager: "NavigatorManager",
+        on_finished: Callable[["WsEvent", "EventCode"], Awaitable[None]],
+    ) -> None:
+        """啟動完成偵測迴圈（背景 task，強引用由本物件持有）。"""
+        if self._monitor_task is not None:
+            return
+        self._monitor_task = asyncio.create_task(self._monitor_loop(nav_manager, on_finished))
+
+    async def stop_monitor(self) -> None:
+        """停止完成偵測迴圈並等待其結束。"""
+        task = self._monitor_task
+        self._monitor_task = None
+        if task is None:
+            return
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 class RosBridge:
@@ -1259,11 +1336,6 @@ def robot_status() -> RobotStatus:
 
 def current_map() -> Optional[str]:
     return state.current_map
-
-
-class Nav2NotReadyError(RuntimeError):
-    """Nav2 未就緒（通常是 AMCL 尚未定位）。與其他導航失敗區分，
-    讓端點能回傳語意正確的錯誤碼而非 ROBOT_BUSY。"""
 
 
 def navigate_to(location: Location, kind: str = 'point') -> int:

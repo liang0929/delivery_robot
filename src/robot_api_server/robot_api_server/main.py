@@ -6,9 +6,7 @@
 所有 REST 路徑前綴 ``/v1/robot``。
 """
 
-import asyncio
 from contextlib import asynccontextmanager
-from typing import Set
 
 import uvicorn
 from fastapi import FastAPI
@@ -21,6 +19,7 @@ from .config import (
     BIND_HOST,
     HTTP_PORT,
     WS_PORT,
+    settings,
 )
 from .logging_config import get_logger, setup_logging
 from .models import EventCode, WsEvent
@@ -34,50 +33,12 @@ logger = get_logger(__name__)
 
 API_PREFIX = "/v1/robot"
 
-# event loop 對 task 只持弱引用，fire-and-forget 的 task 必須保留強引用
-_background_tasks: Set[asyncio.Task] = set()
-
-
-def spawn_background_task(coro) -> asyncio.Task:
-    task = asyncio.create_task(coro)
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
-    return task
-
-
-async def _mission_monitor_loop() -> None:
-    """監控導航任務並推播 ``go_point`` / ``go_charging`` 事件。
-
-    goal 世代握手：``awaiting_goal`` 期間 ``isTaskComplete()`` 反映的是
-    上一段航程的結果，不得據此判定完成。
-    """
-    while True:
-        try:
-            await asyncio.sleep(0.5)
-            kind, generation, awaiting = mission.snapshot()
-            if kind is None or awaiting:
-                continue
-            if not nav_manager.is_ready:
-                continue
-            if not await asyncio.to_thread(nav_manager.is_task_complete):
-                continue
-
-            result = await asyncio.to_thread(nav_manager.get_result)
-            code = nav_manager.result_to_event_code(result)
-            finished = mission.finish(generation)
-            if finished is None:
-                continue  # 世代已過期（例如被新的目標取代）
-            event = WsEvent.GO_CHARGING if finished == 'charging' else WsEvent.GO_POINT
-            logger.info(f"Mission finished: {finished} → {code.value}")
-            await hub.emit_event_async(event, code)
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            logger.error(f"Mission monitor error: {e}")
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 啟動期才碰觸檔案系統，而非 import 期的副作用
+    settings.ensure_map_path()
+
     # store 需要知道「目前載入的地圖」才能解析省略 map 的請求
     store.set_current_map_provider(ros_bridge.current_map)
 
@@ -89,16 +50,14 @@ async def lifespan(app: FastAPI):
     if not ws_started:
         logger.error(f"WebSocket server failed to start on port {WS_PORT}")
 
-    monitor_task = spawn_background_task(_mission_monitor_loop())
+    # 導航任務的完成偵測迴圈由 MissionTracker 自己擁有生命週期，
+    # 這裡只負責啟動/停止（推播交給 hub.emit_event_async 這個既有 callback）
+    mission.start_monitor(nav_manager, hub.emit_event_async)
 
     try:
         yield
     finally:
-        monitor_task.cancel()
-        try:
-            await monitor_task
-        except asyncio.CancelledError:
-            pass
+        await mission.stop_monitor()
         await hub.stop()
         bridge.stop()
         state.cleanup()

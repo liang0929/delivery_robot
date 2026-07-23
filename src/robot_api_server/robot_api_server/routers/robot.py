@@ -59,10 +59,16 @@ async def _navigate_to(location: Location, point_type: PointType) -> None:
     try:
         await asyncio.to_thread(ros_bridge.navigate_to, location, kind)
     except ros_bridge.Nav2NotReadyError as e:
-        # 未定位不是「忙碌」——回報語意正確的碼，讓前端能提示使用者先重定位
+        # 未定位、或 navigator 在就緒核對後又被併發重置——都不是「忙碌」，
+        # 回報語意正確的碼，讓前端能提示使用者先重定位
         logger.error(f"Navigation not ready: {e}")
         raise errors.ApiError(errors.NOT_IN_NAVIGATION_MODE)
+    except ros_bridge.GoalRejectedError as e:
+        # 目標被 bt_navigator 拒絕，同樣不是「忙碌」而是 Nav2 未真正就緒
+        logger.error(f"Goal rejected: {e}")
+        raise errors.ApiError(errors.NOT_IN_NAVIGATION_MODE)
     except RuntimeError as e:
+        # 其餘未分類的 RuntimeError：語意不明確，保守維持原本的 ROBOT_BUSY
         logger.error(f"Failed to send goal: {e}")
         raise errors.ApiError(errors.ROBOT_BUSY)
 

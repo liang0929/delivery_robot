@@ -21,7 +21,7 @@ REST 路徑前綴一律為 `/v1/robot`。錯誤回應格式為 `{"event": {"code
 | `ros_bridge.py` | rclpy 節點、Nav2 導航、cmd_vel 手動移動、電壓訂閱、模式切換 |
 | `conversions.py` | 座標／角度換算（cm 整數 ↔ 公尺、度 ↔ 弧度） |
 | `errors.py` | 規格錯誤碼與 `{"event": {...}}` 回應格式 |
-| `keepout.py` | keepout mask 產生介面（目前是 stub，由另一個 agent 實作） |
+| `keepout.py` | keepout mask 產生（轉呼叫 `nav2.keepout`，ROS 環境不可用時降級） |
 | `config.py` | 環境變數與路徑設定 |
 | `routers/` | 依資源分檔的端點 |
 
@@ -48,6 +48,8 @@ REST 路徑前綴一律為 `/v1/robot`。錯誤回應格式為 `{"event": {"code
 | `go_point` / `go_charging` / `switch_mode` / `relocate` / `power` | 事件 | `{event, code}` |
 
 `code` 一律大寫：`COMPLETE` / `STUCK` / `ABORT` / `CHG_STA_NOT_FOUND` / `SHUTDOWN`。
+（`CHG_STA_NOT_FOUND` 為規格保留碼，目前實作不會發送——`go_charging` 只回
+`COMPLETE` / `ABORT` / `STUCK`，見 `docs/winstec_api_v1.1.md` §9。）
 
 ## 環境變數
 
@@ -58,7 +60,7 @@ REST 路徑前綴一律為 `/v1/robot`。錯誤回應格式為 `{"event": {"code
 | `ROBOT_API_WS_PORT` | `5001` | WebSocket port |
 | `ROBOT_API_HOST` | `0.0.0.0` | 綁定位址 |
 | `CORS_ORIGINS` | `*` | 逗號分隔的允許來源 |
-| `ROBOT_BATTERY_MIN_V` / `ROBOT_BATTERY_MAX_V` | `21.0` / `25.2` | 電量換算（文件 §9） |
+| `ROBOT_BATTERY_MIN_V` / `ROBOT_BATTERY_MAX_V` | `21.0` / `29.4` | 電量換算（文件 §9） |
 | `ROBOT_MANUAL_LINEAR` / `ROBOT_MANUAL_ANGULAR` | `0.15` / `0.5` | 手動移動速度 |
 
 ## 啟動

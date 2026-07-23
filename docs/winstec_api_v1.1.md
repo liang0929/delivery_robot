@@ -61,6 +61,9 @@ ros_yaw = math.atan2(math.sin(r), math.cos(r))    # api deg → ros rad, 正規�
 | `go_charging` | 前往充電座中 |
 | `switching_mode` | 模式切換中 |
 
+> 本實作的 relocate 為同步操作（`publish_initial_pose` 後立即回傳），
+> `status` 實際上不會出現 `relocating`。
+
 ### 7.3 Point Type
 | 值 | 說明 |
 |---|---|
@@ -275,17 +278,19 @@ wall_id  = f"vw_{secrets.token_urlsafe(16)}"
 group_id = f"gp_{secrets.token_urlsafe(16)}"
 ```
 
-**電池百分比** — 24V 鋰電 6S，由 `/motor/voltage` 換算：
+**電池百分比** — 24V 鋰電 7S，由 `/motor/voltage` 換算：
 
 ```python
 BATTERY_MIN_V = 21.0   # 0%
-BATTERY_MAX_V = 25.2   # 100%
+BATTERY_MAX_V = 29.4   # 100%
 pct = int(round(max(0.0, min(1.0, (v - BATTERY_MIN_V) / (BATTERY_MAX_V - BATTERY_MIN_V))) * 100))
 ```
 
-**充電座** — 無充電硬體。`type: "charge"` 的點位可建立並導航前往；
-`go_charging` 事件在找不到 charge 點位時送 `CHG_STA_NOT_FOUND`，
-抵達時送 `COMPLETE`，但**不會有實際充電行為**。
+**充電座** — 無充電硬體。`type: "charge"` 的點位可建立並導航前往
+（`POST /move/{pointId}`；點位不存在時回 HTTP 404 `POINT_NOT_FOUND`）；
+`go_charging` 事件依導航結果送 `COMPLETE` / `ABORT` / `STUCK`，
+但**不會有實際充電行為**。`CHG_STA_NOT_FOUND` 為規格保留碼——
+本實作沒有「尋找充電座」流程，目前不會發送。
 
 **Shutdown** — `POST /shutdown` 先送 `power` 事件（code `SHUTDOWN`），
 再執行系統關機。

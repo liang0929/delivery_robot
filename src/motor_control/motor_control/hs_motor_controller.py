@@ -52,38 +52,39 @@ class HSMotorController(Node):
     # 嚴重故障碼：短路 (1, 2)、霍爾感測器錯誤 (7, 8) → 立即停止馬達
     SEVERE_FAULT_CODES = frozenset({1, 2, 7, 8})
 
+    # 參數宣告表：{參數名: 預設值}，預設值與 hs_motor_config.yaml 保持一致。
+    # 參數名與載入後的屬性名（self.<name>）完全一致，見 __init__ 的資料驅動迴圈。
+    #   serial_port/baudrate/device_id: 串口與從機位址（device_id 為廣播地址）
+    #   wheel_separation/wheel_radius: 輪距/輪半徑 (m)
+    #   gear_ratio: 減速比 (馬達轉20圈=輪子轉1圈)
+    #   max_linear_vel/max_angular_vel: 最大線速度 (m/s) / 最大角速度 (rad/s)
+    #   min_rpm/max_rpm: 驅動器有效 RPM 範圍 (依 AGV-BLD-2S 手冊)
+    #   control_frequency: 控制頻率 (Hz)
+    #   invert_motor_a/invert_motor_b: 馬達方向反轉
+    PARAMS = {
+        'serial_port': '/dev/motor',
+        'baudrate': 115200,
+        'device_id': 127,
+        'wheel_separation': 0.27,
+        'wheel_radius': 0.065,
+        'gear_ratio': 20.0,
+        'max_linear_vel': 0.05,
+        'max_angular_vel': 0.4,
+        'min_rpm': 100.0,
+        'max_rpm': 3000.0,
+        'control_frequency': 50.0,
+        'invert_motor_a': True,
+        'invert_motor_b': False,
+    }
+
     def __init__(self):
         super().__init__('hs_motor_controller')
 
-        # 宣告參數（預設值與 hs_motor_config.yaml 保持一致）
-        self.declare_parameter('serial_port', '/dev/motor')
-        self.declare_parameter('baudrate', 115200)
-        self.declare_parameter('device_id', 127)  # 廣播地址
-        self.declare_parameter('wheel_separation', 0.27)  # 輪距 (m)
-        self.declare_parameter('wheel_radius', 0.065)  # 輪半徑 (m)
-        self.declare_parameter('gear_ratio', 20.0)  # 減速比 (馬達轉20圈=輪子轉1圈)
-        self.declare_parameter('max_linear_vel', 0.05)  # 最大線速度 (m/s)
-        self.declare_parameter('max_angular_vel', 0.4)  # 最大角速度 (rad/s)
-        self.declare_parameter('min_rpm', 100.0)  # 最小馬達 RPM (根據 AGV-BLD-2S 手冊)
-        self.declare_parameter('max_rpm', 3000.0)  # 最大馬達 RPM
-        self.declare_parameter('control_frequency', 50.0)  # 控制頻率 (Hz)
-        self.declare_parameter('invert_motor_a', True)  # A馬達反轉
-        self.declare_parameter('invert_motor_b', False)
-
-        # 獲取參數
-        self.serial_port = self.get_parameter('serial_port').value
-        self.baudrate = self.get_parameter('baudrate').value
-        self.device_id = self.get_parameter('device_id').value
-        self.wheel_separation = self.get_parameter('wheel_separation').value
-        self.wheel_radius = self.get_parameter('wheel_radius').value
-        self.gear_ratio = self.get_parameter('gear_ratio').value
-        self.max_linear_vel = self.get_parameter('max_linear_vel').value
-        self.max_angular_vel = self.get_parameter('max_angular_vel').value
-        self.min_rpm = self.get_parameter('min_rpm').value
-        self.max_rpm = self.get_parameter('max_rpm').value
-        self.control_frequency = self.get_parameter('control_frequency').value
-        self.invert_motor_a = self.get_parameter('invert_motor_a').value
-        self.invert_motor_b = self.get_parameter('invert_motor_b').value
+        # 宣告參數並取值（資料驅動：見類別頂部 PARAMS，
+        # 參數名稱/預設值/型別與屬性名皆與抽取前完全一致）
+        for name, default in self.PARAMS.items():
+            self.declare_parameter(name, default)
+            setattr(self, name, self.get_parameter(name).value)
 
         # 驗證參數
         self._validate_parameters()

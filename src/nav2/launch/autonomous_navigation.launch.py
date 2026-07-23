@@ -12,36 +12,20 @@ from lifecycle_msgs.msg import Transition
 from ament_index_python.packages import get_package_share_directory
 import os
 
+from motor_control.cpu_affinity import (
+    CPU_AFFINITY,
+    get_online_cpus,
+    resolve_affinity_spec,
+    get_cpu_prefix as _shared_get_cpu_prefix,
+)
+
 
 # ========== Jetson Orin NX CPU 親和性配置 ==========
-# 導航相關節點使用核心 4-5（定位層）。實際綁定範圍會與
+# 導航相關節點使用核心 4-5（定位層），與 motor_control/launch/bringup.launch.py
+# 共用 motor_control.cpu_affinity 模組。實際綁定範圍會與
 # /sys/devices/system/cpu/online 取交集，因為 nvpmodel 低功耗模式
 # （15W 只保留 0-3）會讓部分核心離線，此時 taskset 會直接失敗。
-CPU_AFFINITY_LOCALIZATION = '4-5'
-
-
-def parse_cpu_list(spec: str) -> list:
-    """解析 '4-5'、'0,2-4' 這類 CPU 清單字串"""
-    cpus = set()
-    for part in spec.split(','):
-        part = part.strip()
-        if not part:
-            continue
-        if '-' in part:
-            start, end = part.split('-', 1)
-            cpus.update(range(int(start), int(end) + 1))
-        else:
-            cpus.add(int(part))
-    return sorted(cpus)
-
-
-def get_online_cpus() -> list:
-    """讀取目前線上的 CPU 核心；讀取失敗回傳空清單"""
-    try:
-        with open('/sys/devices/system/cpu/online') as f:
-            return parse_cpu_list(f.read().strip())
-    except (OSError, ValueError):
-        return []
+CPU_AFFINITY_LOCALIZATION = CPU_AFFINITY['localization']  # '4-5'
 
 
 def get_cpu_prefix(enabled: bool) -> str:
@@ -49,10 +33,10 @@ def get_cpu_prefix(enabled: bool) -> str:
     if not enabled:
         return ''
     online = get_online_cpus()
-    usable = [c for c in parse_cpu_list(CPU_AFFINITY_LOCALIZATION) if c in online]
+    usable = resolve_affinity_spec(CPU_AFFINITY_LOCALIZATION, online)
     if not usable:
         return ''
-    return f'taskset -c {",".join(str(c) for c in usable)}'
+    return _shared_get_cpu_prefix(','.join(str(c) for c in usable))
 
 
 def get_default_map_path():
@@ -125,6 +109,9 @@ def launch_setup(context, *args, **kwargs):
     keepout_mask_file = LaunchConfiguration('keepout_mask').perform(context)
     if not keepout_mask_file:
         keepout_mask_file = get_default_keepout_mask(map_yaml_file)
+    initial_pose_x = float(LaunchConfiguration('initial_pose_x').perform(context))
+    initial_pose_y = float(LaunchConfiguration('initial_pose_y').perform(context))
+    initial_pose_yaw = float(LaunchConfiguration('initial_pose_yaw').perform(context))
 
     cpu_prefix = get_cpu_prefix(cpu_affinity_enabled)
     nodes = []
@@ -169,10 +156,10 @@ def launch_setup(context, *args, **kwargs):
             {
                 'use_sim_time': use_sim_time,
                 'set_initial_pose': True,
-                'initial_pose.x': 0.0,
-                'initial_pose.y': 0.0,
+                'initial_pose.x': initial_pose_x,
+                'initial_pose.y': initial_pose_y,
                 'initial_pose.z': 0.0,
-                'initial_pose.yaw': 0.0,
+                'initial_pose.yaw': initial_pose_yaw,
             },
         ],
         prefix=cpu_prefix
@@ -280,6 +267,21 @@ def generate_launch_description():
             'keepout_mask',
             default_value='',
             description='虛擬牆 keepout mask yaml（留空則用 <map 同目錄>/<map>.keepout.yaml）'
+        ),
+        DeclareLaunchArgument(
+            'initial_pose_x',
+            default_value='0.0',
+            description='AMCL 初始位姿 x (m)'
+        ),
+        DeclareLaunchArgument(
+            'initial_pose_y',
+            default_value='0.0',
+            description='AMCL 初始位姿 y (m)'
+        ),
+        DeclareLaunchArgument(
+            'initial_pose_yaw',
+            default_value='0.0',
+            description='AMCL 初始位姿 yaw (rad)'
         ),
         DeclareLaunchArgument(
             'cpu_affinity',

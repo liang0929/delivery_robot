@@ -28,28 +28,32 @@ class MockMotorController(Node):
     # 低於此馬達 RPM 的命令視為零命令（與 HSMotorController 一致）
     ZERO_RPM_EPSILON = 1.0
 
+    # 參數宣告表：{參數名: 預設值}，預設值與 hs_motor_config.yaml 保持一致。
+    # 參數名與載入後的屬性名（self.<name>）完全一致，見 __init__ 的資料驅動迴圈。
+    #   wheel_separation/wheel_radius: 輪距/輪半徑 (m)
+    #   max_linear_vel/max_angular_vel: 最大線速度 (m/s) / 最大角速度 (rad/s)
+    #   odom_frequency: 里程計發布頻率 (Hz)
+    #   gear_ratio: 減速比
+    #   min_rpm: 模擬驅動器低速死區 / max_rpm: 驅動器最大 RPM
+    PARAMS = {
+        'wheel_separation': 0.27,
+        'wheel_radius': 0.065,
+        'max_linear_vel': 0.05,
+        'max_angular_vel': 0.4,
+        'odom_frequency': 50.0,
+        'gear_ratio': 20.0,
+        'min_rpm': 100.0,
+        'max_rpm': 3000.0,
+    }
+
     def __init__(self):
         super().__init__('mock_motor_controller')
 
-        # 宣告參數（預設值與 hs_motor_config.yaml 保持一致）
-        self.declare_parameter('wheel_separation', 0.27)
-        self.declare_parameter('wheel_radius', 0.065)
-        self.declare_parameter('max_linear_vel', 0.05)
-        self.declare_parameter('max_angular_vel', 0.4)
-        self.declare_parameter('odom_frequency', 50.0)
-        self.declare_parameter('gear_ratio', 20.0)
-        self.declare_parameter('min_rpm', 100.0)   # 模擬驅動器低速死區
-        self.declare_parameter('max_rpm', 3000.0)
-
-        # 獲取參數
-        self.wheel_separation = self.get_parameter('wheel_separation').value
-        self.wheel_radius = self.get_parameter('wheel_radius').value
-        self.max_linear_vel = self.get_parameter('max_linear_vel').value
-        self.max_angular_vel = self.get_parameter('max_angular_vel').value
-        self.odom_frequency = self.get_parameter('odom_frequency').value
-        self.gear_ratio = self.get_parameter('gear_ratio').value
-        self.min_rpm = self.get_parameter('min_rpm').value
-        self.max_rpm = self.get_parameter('max_rpm').value
+        # 宣告參數並取值（資料驅動：見類別頂部 PARAMS，
+        # 參數名稱/預設值/型別與屬性名皆與抽取前完全一致）
+        for name, default in self.PARAMS.items():
+            self.declare_parameter(name, default)
+            setattr(self, name, self.get_parameter(name).value)
 
         # 運動學計算（純模組，與 HSMotorController 共用等價部分，數值與抽取前完全相同）
         self.kinematics = DifferentialDriveKinematics(

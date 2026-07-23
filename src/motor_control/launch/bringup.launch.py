@@ -31,15 +31,13 @@ from ament_index_python.packages import get_package_share_directory
 import os
 import yaml
 
+from motor_control.cpu_affinity import (
+    resolve_cpu_affinity,
+    get_cpu_prefix as _shared_get_cpu_prefix,
+    get_cpu_prefix_list as _shared_get_cpu_prefix_list,
+)
 
-# ========== Jetson Orin NX CPU 親和性配置 ==========
-# 8 核心分配策略：
-#   核心 0-1: 馬達控制（實時性最高）
-#   核心 2-3: LiDAR/IMU 感測器處理
-#   核心 4-5: EKF/AMCL 定位
-#   核心 6-7: Web 服務/API（優先級最低）
-# 實際綁定範圍會與 /sys/devices/system/cpu/online 取交集，因為 nvpmodel 低功耗
-# 模式（15W 只保留 0-3）會讓部分核心離線，詳見 resolve_cpu_affinity()。
+
 # enable_imu:=false 時的提示。EKF 的 odom0 提供 vx 與 vyaw，
 # 因此缺少 IMU 仍可推算航向，但航向僅來自輪差、打滑無法修正。
 IMU_DISABLED_NOTICE = LogInfo(msg=(
@@ -54,12 +52,13 @@ ESTOP_BYPASSED_NOTICE = LogInfo(msg=(
     '操作時務必全程目視監控。接上實體急停按鈕後請移除此參數。'
 ))
 
-CPU_AFFINITY = {
-    'motor': '0-1',
-    'sensor': '2-3',
-    'localization': '4-5',
-    'web': '6-7',
-}
+# ========== 硬體/服務預設常數 ==========
+# 以下皆可用同名 launch argument 覆寫（見 generate_launch_description）；
+# 集中於此方便查閱與調整預設值。
+DEFAULT_ESTOP_GPIO_PIN = 7
+DEFAULT_IMU_I2C_ADDRESS = 40
+DEFAULT_LIDAR_BAUDRATE = 256000
+DEFAULT_ROSBRIDGE_PORT = 9090
 
 # CPU_AFFINITY 與實際線上核心取交集後的結果，由 resolve_cpu_affinity() 於
 # launch_setup 開頭填入。key 不存在代表該類節點不綁定 CPU。
@@ -129,72 +128,20 @@ def create_static_tf_node(name: str, tf_config: dict) -> Node:
     )
 
 
-def parse_cpu_list(spec: str) -> list:
-    """解析 '0-3'、'0,2-4' 這類 CPU 清單字串"""
-    cpus = set()
-    for part in spec.split(','):
-        part = part.strip()
-        if not part:
-            continue
-        if '-' in part:
-            start, end = part.split('-', 1)
-            cpus.update(range(int(start), int(end) + 1))
-        else:
-            cpus.add(int(part))
-    return sorted(cpus)
-
-
-def get_online_cpus() -> list:
-    """讀取目前線上的 CPU 核心；讀取失敗回傳空清單"""
-    try:
-        with open('/sys/devices/system/cpu/online') as f:
-            return parse_cpu_list(f.read().strip())
-    except (OSError, ValueError):
-        return []
-
-
-def resolve_cpu_affinity() -> tuple:
-    """將 CPU_AFFINITY 對照到實際線上的核心，回傳 (對照表, 警告訊息清單)。
-
-    nvpmodel 的低功耗模式（例如 15W 只保留核心 0-3）會讓部分核心離線。
-    taskset 綁到離線核心會立即失敗，配合 respawn 會讓節點陷入無限重啟，
-    因此離線核心必須先剔除；整組都離線時該類節點就不綁定。
-    """
-    online = get_online_cpus()
-    if not online:
-        return {}, ['[bringup] 無法讀取線上 CPU 清單，已停用 CPU 親和性綁定']
-
-    resolved = {}
-    warnings = []
-    online_str = ','.join(str(c) for c in online)
-    for name, spec in CPU_AFFINITY.items():
-        requested = parse_cpu_list(spec)
-        usable = [c for c in requested if c in online]
-        if not usable:
-            warnings.append(
-                f'[bringup] {name} 指定核心 {spec} 全部離線（線上核心：{online_str}），'
-                f'該類節點改為不綁定 CPU'
-            )
-            continue
-        if len(usable) != len(requested):
-            warnings.append(
-                f'[bringup] {name} 指定核心 {spec} 僅 {",".join(str(c) for c in usable)} '
-                f'線上，已縮減綁定範圍'
-            )
-        resolved[name] = ','.join(str(c) for c in usable)
-    return resolved, warnings
+# parse_cpu_list / get_online_cpus / resolve_cpu_affinity 的實作已抽到
+# motor_control.cpu_affinity（與 nav2 launch 共用，行為保持不變）。
 
 
 def get_cpu_prefix(affinity_type: str, enabled: bool) -> str:
     """獲取 CPU 親和性 prefix（用於 Node 的 prefix 參數）"""
     cpus = _RESOLVED_AFFINITY.get(affinity_type) if enabled else None
-    return f'taskset -c {cpus}' if cpus else ''
+    return _shared_get_cpu_prefix(cpus)
 
 
 def get_cpu_prefix_list(affinity_type: str, enabled: bool) -> list:
     """獲取 CPU 親和性 prefix 列表（用於 ExecuteProcess 的 cmd 參數）"""
     cpus = _RESOLVED_AFFINITY.get(affinity_type) if enabled else None
-    return ['taskset', '-c', cpus] if cpus else []
+    return _shared_get_cpu_prefix_list(cpus)
 
 
 def launch_setup(context, *args, **kwargs):
@@ -212,6 +159,10 @@ def launch_setup(context, *args, **kwargs):
     imu_device = LaunchConfiguration('imu_device').perform(context)
     enable_imu = LaunchConfiguration('enable_imu').perform(context).lower() == 'true'
     enable_estop = LaunchConfiguration('enable_estop').perform(context).lower() == 'true'
+    gpio_pin = int(LaunchConfiguration('gpio_pin').perform(context))
+    imu_address = int(LaunchConfiguration('imu_address').perform(context))
+    lidar_baudrate = int(LaunchConfiguration('lidar_baudrate').perform(context))
+    rosbridge_port = int(LaunchConfiguration('rosbridge_port').perform(context))
 
     # 套件路徑
     motor_control_dir = get_package_share_directory('motor_control')
@@ -296,7 +247,7 @@ def launch_setup(context, *args, **kwargs):
             output='screen',
             parameters=[{
                 'serial_port': lidar_port,
-                'serial_baudrate': 256000,
+                'serial_baudrate': lidar_baudrate,
                 'frame_id': 'laser',
                 'inverted': False,
                 'angle_compensate': True,
@@ -316,7 +267,7 @@ def launch_setup(context, *args, **kwargs):
                 output='screen',
                 parameters=[{
                     'device': imu_device,
-                    'address': 40,
+                    'address': imu_address,
                     'frame_id': 'imu_link',
                     'rate': 50.0,
                 }],
@@ -336,7 +287,7 @@ def launch_setup(context, *args, **kwargs):
             name='e_stop_node',
             output='screen',
             parameters=[{
-                'gpio_pin': 7,
+                'gpio_pin': gpio_pin,
                 'active_low': True,
                 'poll_rate': 100.0,
                 'debounce_ms': 50,
@@ -438,7 +389,7 @@ def launch_setup(context, *args, **kwargs):
             name='rosbridge_websocket',
             output='screen',
             parameters=[{
-                'port': 9090,
+                'port': rosbridge_port,
                 'call_services_in_new_thread': True,
                 'send_action_goals_in_new_thread': True,
                 'default_call_service_timeout': 10.0,
@@ -487,6 +438,14 @@ def generate_launch_description():
                              description='啟用實體急停按鈕 (false 時旁路，未接按鈕才可使用)'),
         DeclareLaunchArgument('cpu_affinity', default_value='true',
                              description='啟用 CPU 親和性綁定 (Jetson Orin NX 優化)'),
+        DeclareLaunchArgument('gpio_pin', default_value=str(DEFAULT_ESTOP_GPIO_PIN),
+                             description='E-Stop GPIO pin 編號'),
+        DeclareLaunchArgument('imu_address', default_value=str(DEFAULT_IMU_I2C_ADDRESS),
+                             description='IMU I2C 位址'),
+        DeclareLaunchArgument('lidar_baudrate', default_value=str(DEFAULT_LIDAR_BAUDRATE),
+                             description='LiDAR 串口鮑率'),
+        DeclareLaunchArgument('rosbridge_port', default_value=str(DEFAULT_ROSBRIDGE_PORT),
+                             description='rosbridge WebSocket port'),
 
         # ========== 動態生成節點 ==========
         OpaqueFunction(function=launch_setup),

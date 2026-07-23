@@ -8,6 +8,7 @@ Mock LiDAR 節點 - 用於模擬測試
 """
 
 import math
+import random
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
@@ -34,6 +35,8 @@ class MockLidar(Node):
         self.declare_parameter('scene', 'room')  # 場景: empty, room, corridor
         self.declare_parameter('room_width', 5.0)   # 房間寬度
         self.declare_parameter('room_height', 5.0)  # 房間高度
+        self.declare_parameter('corridor_width', 2.0)   # 走廊寬度
+        self.declare_parameter('corridor_length', 20.0)  # 走廊長度
 
         # 獲取參數
         self.frame_id = self.get_parameter('frame_id').value
@@ -46,6 +49,8 @@ class MockLidar(Node):
         self.scene = self.get_parameter('scene').value
         self.room_width = self.get_parameter('room_width').value
         self.room_height = self.get_parameter('room_height').value
+        self.corridor_width = self.get_parameter('corridor_width').value
+        self.corridor_length = self.get_parameter('corridor_length').value
 
         # 機器人位置 (從 odom 獲取)
         self.robot_x = 0.0
@@ -89,7 +94,6 @@ class MockLidar(Node):
 
     def get_simulated_ranges(self) -> list:
         """根據場景和機器人實際位置生成模擬距離數據"""
-        import random
         ranges = []
 
         for i in range(self.num_readings):
@@ -106,8 +110,9 @@ class MockLidar(Node):
                 distance = self._room_distance(
                     world_angle, self.room_width, self.room_height)
             elif self.scene == 'corridor':
-                # 走廊 (寬 2m，長 20m) - 模擬長廊
-                distance = self._corridor_distance(world_angle, 2.0, 20.0)
+                # 走廊 - 模擬長廊
+                distance = self._corridor_distance(
+                    world_angle, self.corridor_width, self.corridor_length)
             else:
                 distance = self.range_max
 
@@ -162,6 +167,31 @@ class MockLidar(Node):
 
         return distance if distance > 0 else self.range_max
 
+    def _axis_wall_hit(self, component: float, robot_pos: float, bound: float,
+                        other_component: float, other_robot_pos: float,
+                        other_bound: float):
+        """計算射線與垂直於某軸、位於 `bound` 的牆面的交點距離。
+
+        `component`/`robot_pos`/`bound` 描述主軸（射線方向分量、機器人座標、
+        牆面座標）；`other_*` 描述另一軸，用於檢查交點是否落在牆的範圍內。
+        僅在射線朝牆的方向前進、且交點落在牆範圍內時回傳距離，否則回傳 None。
+
+        對照抽取前 `_room_distance`/`_corridor_distance` 四面牆各自展開的
+        判斷式：僅在方向分量與牆面座標同號時才有效，等價於原本個別的
+        `if cos_a > 0` / `if cos_a < 0` / `if sin_a > 0` / `if sin_a < 0` 分支。
+        """
+        if component == 0:
+            return None
+        if (component > 0) != (bound > 0):
+            return None
+        d = (bound - robot_pos) / component
+        if d <= 0:
+            return None
+        other = other_robot_pos + d * other_component
+        if abs(other) <= other_bound:
+            return d
+        return None
+
     def _room_distance(self, angle: float, width: float, height: float) -> float:
         """計算從機器人實際位置到方形房間牆壁和障礙物的距離
 
@@ -181,39 +211,14 @@ class MockLidar(Node):
             sin_a = 1e-6 if sin_a >= 0 else -1e-6
 
         # 計算到四面牆的距離 (從機器人實際位置出發)
-        distances = []
-
-        # 右牆 (x = half_w)
-        if cos_a > 0:
-            d = (half_w - self.robot_x) / cos_a
-            if d > 0:
-                y = self.robot_y + d * sin_a
-                if abs(y) <= half_h:
-                    distances.append(d)
-
-        # 左牆 (x = -half_w)
-        if cos_a < 0:
-            d = (-half_w - self.robot_x) / cos_a
-            if d > 0:
-                y = self.robot_y + d * sin_a
-                if abs(y) <= half_h:
-                    distances.append(d)
-
-        # 前牆 (y = half_h)
-        if sin_a > 0:
-            d = (half_h - self.robot_y) / sin_a
-            if d > 0:
-                x = self.robot_x + d * cos_a
-                if abs(x) <= half_w:
-                    distances.append(d)
-
-        # 後牆 (y = -half_h)
-        if sin_a < 0:
-            d = (-half_h - self.robot_y) / sin_a
-            if d > 0:
-                x = self.robot_x + d * cos_a
-                if abs(x) <= half_w:
-                    distances.append(d)
+        distances = [
+            hit for hit in (
+                self._axis_wall_hit(cos_a, self.robot_x, half_w, sin_a, self.robot_y, half_h),   # 右牆
+                self._axis_wall_hit(cos_a, self.robot_x, -half_w, sin_a, self.robot_y, half_h),   # 左牆
+                self._axis_wall_hit(sin_a, self.robot_y, half_h, cos_a, self.robot_x, half_w),    # 前牆
+                self._axis_wall_hit(sin_a, self.robot_y, -half_h, cos_a, self.robot_x, half_w),   # 後牆
+            ) if hit is not None
+        ]
 
         # 計算到障礙物的距離
         for cx, cy, radius in self.ROOM_OBSTACLES:
@@ -240,39 +245,14 @@ class MockLidar(Node):
         if abs(sin_a) < 1e-6:
             sin_a = 1e-6 if sin_a >= 0 else -1e-6
 
-        distances = []
-
-        # 側牆 (y = half_w)
-        if sin_a > 0:
-            d = (half_w - self.robot_y) / sin_a
-            if d > 0:
-                x = self.robot_x + d * cos_a
-                if abs(x) <= half_l:
-                    distances.append(d)
-
-        # 側牆 (y = -half_w)
-        if sin_a < 0:
-            d = (-half_w - self.robot_y) / sin_a
-            if d > 0:
-                x = self.robot_x + d * cos_a
-                if abs(x) <= half_l:
-                    distances.append(d)
-
-        # 前牆 (x = half_l)
-        if cos_a > 0:
-            d = (half_l - self.robot_x) / cos_a
-            if d > 0:
-                y = self.robot_y + d * sin_a
-                if abs(y) <= half_w:
-                    distances.append(d)
-
-        # 後牆 (x = -half_l)
-        if cos_a < 0:
-            d = (-half_l - self.robot_x) / cos_a
-            if d > 0:
-                y = self.robot_y + d * sin_a
-                if abs(y) <= half_w:
-                    distances.append(d)
+        distances = [
+            hit for hit in (
+                self._axis_wall_hit(sin_a, self.robot_y, half_w, cos_a, self.robot_x, half_l),   # 側牆 (y = half_w)
+                self._axis_wall_hit(sin_a, self.robot_y, -half_w, cos_a, self.robot_x, half_l),  # 側牆 (y = -half_w)
+                self._axis_wall_hit(cos_a, self.robot_x, half_l, sin_a, self.robot_y, half_w),   # 前牆 (x = half_l)
+                self._axis_wall_hit(cos_a, self.robot_x, -half_l, sin_a, self.robot_y, half_w),  # 後牆 (x = -half_l)
+            ) if hit is not None
+        ]
 
         return min(distances) if distances else self.range_max
 

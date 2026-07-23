@@ -12,7 +12,7 @@
 
 import asyncio
 import json
-from typing import Optional, Set
+from typing import Callable, Optional, Set
 
 from .config import BIND_HOST, WS_PORT
 from .logging_config import get_logger
@@ -40,9 +40,9 @@ class EventHub:
         self._lock = asyncio.Lock()
         self._server = None
         self._tasks: Set[asyncio.Task] = set()
-        self._info_provider = None
+        self._info_provider: Optional[Callable[[], Optional[RobotInfo]]] = None
 
-    def set_info_provider(self, provider) -> None:
+    def set_info_provider(self, provider: Callable[[], Optional[RobotInfo]]) -> None:
         """provider() -> Optional[RobotInfo]，由 main 注入以避免循環相依"""
         self._info_provider = provider
 

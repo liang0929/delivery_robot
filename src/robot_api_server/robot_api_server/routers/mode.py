@@ -16,12 +16,11 @@ from ..ros_bridge import (
 )
 from ..store import map_exists, sanitize_map_name
 from ..ws_server import hub
+from .common import EXTENSION
 
 logger = get_logger(__name__)
 
 router = APIRouter(tags=["mode"])
-
-EXTENSION = {"x-extension": True}
 
 
 def _switch(mode: OpMode, map_name) -> None:

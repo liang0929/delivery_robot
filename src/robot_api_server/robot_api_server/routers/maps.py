@@ -12,22 +12,16 @@ from fastapi import APIRouter, Response
 
 from .. import errors
 from ..config import MAP_PATH
+from ..imaging import Image, PIL_AVAILABLE
 from ..logging_config import get_logger
 from ..models import MapInfo, MapList, MapMetadata, MapSaveRequest
 from ..ros_bridge import ProcessError, bridge, save_map, state
 from ..store import list_map_names, map_exists, sanitize_map_name, store
+from .common import EXTENSION
 
 logger = get_logger(__name__)
 
-try:
-    from PIL import Image
-    PIL_AVAILABLE = True
-except Exception:  # pragma: no cover
-    PIL_AVAILABLE = False
-
 router = APIRouter(prefix="/maps", tags=["maps"])
-
-EXTENSION = {"x-extension": True}
 
 
 @router.get("", response_model=MapList, openapi_extra=EXTENSION)

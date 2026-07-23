@@ -5,6 +5,8 @@
     { "event": { "code": "POINT_NOT_FOUND" } }
 """
 
+from typing import Optional
+
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -57,7 +59,7 @@ class ApiError(Exception):
     ``status_code`` 省略時依 :data:`DEFAULT_STATUS` 推導。
     """
 
-    def __init__(self, code: str, status_code: int = None):
+    def __init__(self, code: str, status_code: Optional[int] = None):
         self.code = code
         self.status_code = status_code or DEFAULT_STATUS.get(code, 400)
         super().__init__(code)
@@ -66,11 +68,6 @@ class ApiError(Exception):
 def error_body(code: str) -> dict:
     """規格 §6.1 回應體"""
     return {"event": {"code": code}}
-
-
-def error_response(code: str, status_code: int = None) -> JSONResponse:
-    status = status_code or DEFAULT_STATUS.get(code, 400)
-    return JSONResponse(status_code=status, content=error_body(code))
 
 
 def register_exception_handlers(app) -> None:

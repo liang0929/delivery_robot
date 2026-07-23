@@ -19,7 +19,7 @@ import subprocess
 import threading
 import time
 from enum import Enum
-from typing import Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 from uuid import uuid4
 
 from .config import (
@@ -72,11 +72,7 @@ except Exception as e:  # pragma: no cover
 # 等待 Nav2 就緒的上限。冷啟動時全部節點 active 約需 10-20 秒，留足餘裕。
 NAV2_READY_TIMEOUT_SEC = float(os.environ.get('ROBOT_NAV2_READY_TIMEOUT', '40'))
 
-try:
-    from PIL import Image
-    PIL_AVAILABLE = True
-except Exception:  # pragma: no cover
-    PIL_AVAILABLE = False
+from .imaging import Image, PIL_AVAILABLE
 
 
 # --- rclpy 全局初始化管理 ---
@@ -173,9 +169,9 @@ class RobotStateManager:
         self._e_stop_active = False
         self._health_thread: Optional[threading.Thread] = None
         self._health_stop_event = threading.Event()
-        self._crash_info: dict = {}
+        self._crash_info: Dict[str, Dict[str, Any]] = {}
         # 導航停止/崩潰時的善後 callback（在鎖外呼叫）
-        self.on_navigation_down = None
+        self.on_navigation_down: Optional[Callable[[], None]] = None
 
     # --- E-Stop ---
     @property
@@ -564,7 +560,7 @@ class RobotStateManager:
         return crashed
 
     @property
-    def crash_info(self) -> dict:
+    def crash_info(self) -> Dict[str, Dict[str, Any]]:
         with self._lock:
             return self._crash_info.copy()
 
@@ -721,7 +717,7 @@ class NavigatorManager:
                 logger.warning(f"Task complete check failed: {e}")
                 return False
 
-    def get_result(self):
+    def get_result(self) -> Optional["TaskResult"]:
         with self._lock:
             if self.navigator is None or not self._nav2_ready:
                 return None
@@ -920,25 +916,27 @@ class RosBridge:
             self._node = None
 
     # --- 訂閱 callback ---
-    def _on_voltage(self, msg) -> None:
+    # msg 型別以字串註記（forward reference）：ROS 訊息類別視執行環境而定，
+    # 部分（如 LaserScan）只在 _spin_loop 內局部 import，模組層級不一定存在。
+    def _on_voltage(self, msg: "Float32") -> None:
         with self._lock:
             self._voltage = float(msg.data)
 
-    def _on_e_stop(self, msg) -> None:
+    def _on_e_stop(self, msg: "Bool") -> None:
         with self._lock:
             self._e_stop = bool(msg.data)
         state.e_stop_active = bool(msg.data)
 
-    def _on_map(self, msg) -> None:
+    def _on_map(self, msg: "OccupancyGrid") -> None:
         with self._lock:
             self._latest_map = msg
 
-    def _on_scan(self, msg) -> None:
+    def _on_scan(self, msg: "LaserScan") -> None:
         # 只計數，不保留內容——就緒探測只需要知道雷射有沒有在發布
         with self._lock:
             self._scan_count += 1
 
-    def _on_amcl_pose(self, msg) -> None:
+    def _on_amcl_pose(self, msg: "PoseWithCovarianceStamped") -> None:
         q = msg.pose.pose.orientation
         with self._lock:
             self._latest_pose = (

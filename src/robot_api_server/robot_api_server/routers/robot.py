@@ -53,6 +53,36 @@ def _require_not_busy() -> None:
         raise errors.ApiError(errors.ROBOT_BUSY)
 
 
+async def _navigate_to(location: Location, point_type: PointType) -> None:
+    """送出導航目標，統一處理 move_to_location / move_to_point 共用的錯誤轉譯"""
+    kind = 'charging' if point_type == PointType.CHARGE else 'point'
+    try:
+        await asyncio.to_thread(ros_bridge.navigate_to, location, kind)
+    except ros_bridge.Nav2NotReadyError as e:
+        # 未定位不是「忙碌」——回報語意正確的碼，讓前端能提示使用者先重定位
+        logger.error(f"Navigation not ready: {e}")
+        raise errors.ApiError(errors.NOT_IN_NAVIGATION_MODE)
+    except RuntimeError as e:
+        logger.error(f"Failed to send goal: {e}")
+        raise errors.ApiError(errors.ROBOT_BUSY)
+
+
+async def _relocate_to(location: Location) -> None:
+    """發布初始位姿並推播 relocate 事件，統一處理 relocate_by_location /
+    relocate_by_point 共用的邏輯"""
+    ok = await asyncio.to_thread(
+        bridge.publish_initial_pose,
+        ros_bridge.cm_to_m(location.x),
+        ros_bridge.cm_to_m(location.y),
+        ros_bridge.deg_to_yaw(location.orientation),
+    )
+    await hub.emit_event_async(
+        WsEvent.RELOCATE, EventCode.COMPLETE if ok else EventCode.ABORT
+    )
+    if not ok:
+        raise errors.ApiError(errors.GET_LOCATION_FAILED)
+
+
 @router.get("/info", response_model=RobotInfo)
 async def get_info() -> RobotInfo:
     """GET /v1/robot/info — 200"""
@@ -64,16 +94,7 @@ async def move_to_location(request: MoveRequest) -> MoveRequest:
     """POST /v1/robot/move — 200，回傳同 body"""
     _require_not_busy()
     _require_navigation_mode()
-    kind = 'charging' if request.type == PointType.CHARGE else 'point'
-    try:
-        await asyncio.to_thread(ros_bridge.navigate_to, request.location, kind)
-    except ros_bridge.Nav2NotReadyError as e:
-        # 未定位不是「忙碌」——回報語意正確的碼，讓前端能提示使用者先重定位
-        logger.error(f"Navigation not ready: {e}")
-        raise errors.ApiError(errors.NOT_IN_NAVIGATION_MODE)
-    except RuntimeError as e:
-        logger.error(f"Failed to send goal: {e}")
-        raise errors.ApiError(errors.ROBOT_BUSY)
+    await _navigate_to(request.location, request.type)
     return request
 
 
@@ -86,16 +107,7 @@ async def move_to_point(point_id: str) -> Point:
     current = state.current_map
     if current and owner != current:
         raise errors.ApiError(errors.POINT_NOT_IN_MAP)
-    kind = 'charging' if point.type == PointType.CHARGE else 'point'
-    try:
-        await asyncio.to_thread(ros_bridge.navigate_to, point.location, kind)
-    except ros_bridge.Nav2NotReadyError as e:
-        # 未定位不是「忙碌」——回報語意正確的碼，讓前端能提示使用者先重定位
-        logger.error(f"Navigation not ready: {e}")
-        raise errors.ApiError(errors.NOT_IN_NAVIGATION_MODE)
-    except RuntimeError as e:
-        logger.error(f"Failed to send goal: {e}")
-        raise errors.ApiError(errors.ROBOT_BUSY)
+    await _navigate_to(point.location, point.type)
     return point
 
 
@@ -122,19 +134,8 @@ async def stop() -> Response:
 async def relocate_by_location(request: RelocateLocationRequest) -> LocationResponse:
     """POST /v1/robot/relocate/location — 200，回傳 {location}"""
     _require_navigation_mode()
-    location = request.location
-    ok = await asyncio.to_thread(
-        bridge.publish_initial_pose,
-        ros_bridge.cm_to_m(location.x),
-        ros_bridge.cm_to_m(location.y),
-        ros_bridge.deg_to_yaw(location.orientation),
-    )
-    await hub.emit_event_async(
-        WsEvent.RELOCATE, EventCode.COMPLETE if ok else EventCode.ABORT
-    )
-    if not ok:
-        raise errors.ApiError(errors.GET_LOCATION_FAILED)
-    return LocationResponse(location=location)
+    await _relocate_to(request.location)
+    return LocationResponse(location=request.location)
 
 
 @router.post("/relocate/{point_id}", response_model=Point)
@@ -145,17 +146,7 @@ async def relocate_by_point(point_id: str) -> Point:
     current = state.current_map
     if current and owner != current:
         raise errors.ApiError(errors.POINT_NOT_IN_MAP)
-    ok = await asyncio.to_thread(
-        bridge.publish_initial_pose,
-        ros_bridge.cm_to_m(point.location.x),
-        ros_bridge.cm_to_m(point.location.y),
-        ros_bridge.deg_to_yaw(point.location.orientation),
-    )
-    await hub.emit_event_async(
-        WsEvent.RELOCATE, EventCode.COMPLETE if ok else EventCode.ABORT
-    )
-    if not ok:
-        raise errors.ApiError(errors.GET_LOCATION_FAILED)
+    await _relocate_to(point.location)
     return point
 
 

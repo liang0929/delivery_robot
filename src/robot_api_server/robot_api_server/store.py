@@ -21,7 +21,7 @@ import json
 import os
 import secrets
 import threading
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, TypeVar
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -39,6 +39,29 @@ from .models import (
 )
 
 logger = get_logger(__name__)
+
+_T = TypeVar('_T')
+
+
+def _update_in_list(
+    collection: List[_T],
+    item_id: str,
+    mutator: Callable[[_T], None],
+    not_found_code: str,
+) -> _T:
+    """在 ``collection`` 中找到 ``id == item_id`` 的項目，深拷貝後交給 ``mutator``
+    就地修改欄位，寫回原位並回傳更新後的項目。
+
+    找不到、或 ``mutator`` 內丟出例外（例如欄位驗證失敗）時都不會寫回，
+    語意與逐一手寫的 for 迴圈完全一致。
+    """
+    for idx, item in enumerate(collection):
+        if item.id == item_id:
+            updated = item.model_copy(deep=True)
+            mutator(updated)
+            collection[idx] = updated
+            return updated
+    raise errors.ApiError(not_found_code)
 
 
 # --- ID 產生（文件 §9）---
@@ -241,22 +264,20 @@ class EditStore:
             requested = sanitize_map_name(map_name)
             if requested != owner:
                 raise errors.ApiError(errors.MAP_MISMATCH)
+
+        def mutate(updated: Point) -> None:
+            if name is not None:
+                if not name.strip():
+                    raise errors.ApiError(errors.MISSING_POINT_NAME)
+                updated.name = name
+            if point_type is not None:
+                updated.type = point_type
+            if location is not None:
+                updated.location = location
+
         with self._lock:
             data = self._mutable(owner)
-            for idx, p in enumerate(data.points):
-                if p.id == point_id:
-                    updated = p.model_copy(deep=True)
-                    if name is not None:
-                        if not name.strip():
-                            raise errors.ApiError(errors.MISSING_POINT_NAME)
-                        updated.name = name
-                    if point_type is not None:
-                        updated.type = point_type
-                    if location is not None:
-                        updated.location = location
-                    data.points[idx] = updated
-                    return updated
-        raise errors.ApiError(errors.POINT_NOT_FOUND)
+            return _update_in_list(data.points, point_id, mutate, errors.POINT_NOT_FOUND)
 
     def delete_points(self, map_name: Optional[str], point_id: Optional[str] = None) -> None:
         """point_id 省略時刪除該 map 全部點位（規格明定 pointId 為選填）"""
@@ -317,22 +338,22 @@ class EditStore:
             requested = sanitize_map_name(map_name)
             if requested != owner:
                 raise errors.ApiError(errors.MAP_MISMATCH)
+
+        def mutate(updated: VirtualWall) -> None:
+            if name is not None:
+                if not name.strip():
+                    raise errors.ApiError(errors.MISSING_VIRTUAL_WALL_NAME)
+                updated.name = name
+            if start_position is not None:
+                updated.start_position = start_position
+            if end_position is not None:
+                updated.end_position = end_position
+
         with self._lock:
             data = self._mutable(owner)
-            for idx, w in enumerate(data.walls):
-                if w.id == wall_id:
-                    updated = w.model_copy(deep=True)
-                    if name is not None:
-                        if not name.strip():
-                            raise errors.ApiError(errors.MISSING_VIRTUAL_WALL_NAME)
-                        updated.name = name
-                    if start_position is not None:
-                        updated.start_position = start_position
-                    if end_position is not None:
-                        updated.end_position = end_position
-                    data.walls[idx] = updated
-                    return updated
-        raise errors.ApiError(errors.MISSING_VIRTUAL_WALL_NAME)
+            return _update_in_list(
+                data.walls, wall_id, mutate, errors.MISSING_VIRTUAL_WALL_NAME
+            )
 
     def delete_walls(self, map_name: Optional[str], wall_id: Optional[str] = None) -> None:
         """wall_id 省略時刪除該 map 全部虛擬牆（規格明定 virtualWallId 為選填）"""
@@ -379,20 +400,18 @@ class EditStore:
         self, group_id: str, name: Optional[str] = None, is_enable: Optional[bool] = None
     ) -> GroupRecord:
         owner, _ = self.find_group(group_id)
+
+        def mutate(updated: GroupRecord) -> None:
+            if name is not None:
+                if not name.strip():
+                    raise errors.ApiError(errors.MISSING_GROUP_NAME)
+                updated.name = name
+            if is_enable is not None:
+                updated.is_enable = is_enable
+
         with self._lock:
             data = self._mutable(owner)
-            for idx, g in enumerate(data.groups):
-                if g.id == group_id:
-                    updated = g.model_copy(deep=True)
-                    if name is not None:
-                        if not name.strip():
-                            raise errors.ApiError(errors.MISSING_GROUP_NAME)
-                        updated.name = name
-                    if is_enable is not None:
-                        updated.is_enable = is_enable
-                    data.groups[idx] = updated
-                    return updated
-        raise errors.ApiError(errors.GROUP_NOT_FOUND)
+            return _update_in_list(data.groups, group_id, mutate, errors.GROUP_NOT_FOUND)
 
     def delete_group(self, group_id: str) -> None:
         owner, _ = self.find_group(group_id)

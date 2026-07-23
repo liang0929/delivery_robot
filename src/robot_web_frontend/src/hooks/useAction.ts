@@ -1,21 +1,12 @@
 // 非同步動作包裝：統一 try/catch、忙碌狀態與錯誤 toast。
 // 所有 async handler 都應該走這裡，避免 unhandled rejection。
+//
+// 不做 mounted-ref 卸載保護：React 18 起 setState 在卸載後呼叫已是安全的
+// no-op（不會警告也不會出錯），加上該 pattern 官方本就勸退，故直接省略。
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { describeError, isAbortError } from '../api/client';
 import { pushToast } from '../store/useRobotStore';
-
-/** 追蹤元件是否仍掛載，供非同步完成後的 setState 保護 */
-export function useIsMounted(): { readonly current: boolean } {
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-  return mounted;
-}
 
 export interface ActionRunner {
   /** 目前執行中的動作標籤，未執行時為 null */
@@ -31,7 +22,6 @@ export interface ActionRunner {
 }
 
 export function useAction(): ActionRunner {
-  const mounted = useIsMounted();
   const [busy, setBusy] = useState<string | null>(null);
 
   const run = useCallback(
@@ -47,10 +37,10 @@ export function useAction(): ActionRunner {
         }
         return false;
       } finally {
-        if (mounted.current) setBusy(null);
+        setBusy(null);
       }
     },
-    [mounted],
+    [],
   );
 
   return { busy, run };

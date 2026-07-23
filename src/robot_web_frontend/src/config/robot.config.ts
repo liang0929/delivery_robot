@@ -13,15 +13,18 @@ const resolveRobotIp = (): string => {
 const ROBOT_IP = resolveRobotIp();
 
 /** Winstec Robot API v1.1：HTTP 5000 / WebSocket 5001 */
+const HTTP_PORT = 5000;
+const WS_PORT = 5001;
+
 export const ROBOT_CONFIG = {
   ROBOT_IP,
-  HTTP_PORT: 5000,
-  WS_PORT: 5001,
+  HTTP_PORT,
+  WS_PORT,
 
   /** REST 前綴，例如 http://192.168.1.10:5000/v1/robot */
-  API_BASE_URL: `http://${ROBOT_IP}:5000/v1/robot`,
+  API_BASE_URL: `http://${ROBOT_IP}:${HTTP_PORT}/v1/robot`,
   /** WebSocket 位址 */
-  WS_URL: `ws://${ROBOT_IP}:5001`,
+  WS_URL: `ws://${ROBOT_IP}:${WS_PORT}`,
 
   /** 建圖時 live map 輪詢間隔（ms）→ 1.25 Hz */
   LIVE_MAP_POLL_MS: 800,

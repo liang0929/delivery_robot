@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { MapCanvas, type MapInteraction } from '../components/MapCanvas';
+import { MapPicker, mapEmptyHint } from '../components/MapPicker';
 import { useStoredMap } from '../hooks/useMapSource';
 import { useMapEntities } from '../hooks/useMapEntities';
 import { useAction } from '../hooks/useAction';
@@ -18,13 +19,6 @@ import { pixelToApiLocation, type PixelPoint } from '../lib/coords';
 import type { RobotPoint } from '../api/types';
 import page from './Page.module.css';
 
-interface NavigationPageProps {
-  maps: string[];
-  selectedMap: string | null;
-  onSelectMap: (name: string) => void;
-  onReloadMaps: () => void;
-}
-
 type Tool = 'none' | 'relocate' | 'goto';
 
 const TOOL_HINT: Record<Tool, string> = {
@@ -33,16 +27,16 @@ const TOOL_HINT: Record<Tool, string> = {
   goto: '在地圖上按下決定目標位置，拖曳決定抵達朝向後放開。',
 };
 
-export function NavigationPage({
-  maps,
-  selectedMap,
-  onSelectMap,
-  onReloadMaps,
-}: NavigationPageProps) {
+export function NavigationPage() {
   const info = useRobotStore((s) => s.info);
   const robotLocation = info?.location ?? null;
   const opMode = info?.op_mode ?? null;
   const status = info?.status ?? null;
+
+  const maps = useRobotStore((s) => s.maps);
+  const selectedMap = useRobotStore((s) => s.selectedMap);
+  const selectMap = useRobotStore((s) => s.selectMap);
+  const loadMaps = useRobotStore((s) => s.loadMaps);
 
   const { busy, run } = useAction();
   const { image, meta, loading, error } = useStoredMap(selectedMap);
@@ -155,13 +149,7 @@ export function NavigationPage({
             interaction={interaction}
             onPose={handlePose}
             badge={selectedMap ? `${selectedMap} · ${TOOL_HINT[tool]}` : undefined}
-            emptyHint={
-              !selectedMap
-                ? '請先在右側選擇一張地圖'
-                : loading
-                  ? '地圖載入中…'
-                  : (error ?? '地圖載入失敗')
-            }
+            emptyHint={mapEmptyHint(selectedMap, loading, error)}
           />
         </div>
       </div>
@@ -169,24 +157,12 @@ export function NavigationPage({
       <div className={page.side}>
         <section className="panel">
           <h2 className="panelTitle">1. 地圖與模式</h2>
-          <div className="row">
-            <select
-              className="select"
-              style={{ flex: 1 }}
-              value={selectedMap ?? ''}
-              onChange={(e) => onSelectMap(e.target.value)}
-            >
-              <option value="">— 選擇地圖 —</option>
-              {maps.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-            <button type="button" className="btn small" onClick={onReloadMaps}>
-              重新整理
-            </button>
-          </div>
+          <MapPicker
+            maps={maps}
+            selectedMap={selectedMap}
+            onSelectMap={selectMap}
+            onReloadMaps={() => void loadMaps()}
+          />
           <div className="row" style={{ marginTop: 10 }}>
             <button
               type="button"

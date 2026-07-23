@@ -29,6 +29,7 @@ import {
 } from '../lib/coords';
 import type {
   ApiLocation,
+  DraftPose,
   MapMetadata,
   RobotPoint,
   VirtualWall,
@@ -47,7 +48,7 @@ export interface MapCanvasProps {
   /** 目前選取的 point / wall id，會高亮 */
   selectedId?: string | null;
   /** 尚未送出的暫定位姿（例如剛點下的新點位） */
-  draftPose?: { location: ApiLocation } | null;
+  draftPose?: DraftPose | null;
   interaction?: MapInteraction;
   /** interaction='click' 時，單擊地圖 */
   onPick?: (px: PixelPoint) => void;
@@ -165,6 +166,7 @@ export function MapCanvas(props: MapCanvasProps) {
   }, [bitmapVersion, transform, size.width, size.height]);
 
   // ---------------------------------------------------------------- 疊加層繪製
+  // 實際繪製邏輯是純函式 drawOverlay，這裡只負責準備 canvas 再呼叫它。
   useEffect(() => {
     const canvas = overlayRef.current;
     if (!canvas) return;
@@ -173,73 +175,16 @@ export function MapCanvas(props: MapCanvasProps) {
     ctx.clearRect(0, 0, size.width, size.height);
     if (!meta || !transform) return;
 
-    // 虛擬牆
-    for (const wall of walls ?? []) {
-      const a = pixelToView(apiToPixel(wall.start_position, meta), transform);
-      const b = pixelToView(apiToPixel(wall.end_position, meta), transform);
-      const active = wall.id === selectedId;
-      ctx.strokeStyle = active ? COLOR.selected : COLOR.wall;
-      ctx.lineWidth = active ? 5 : 3;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.stroke();
-    }
-
-    // 點位
-    for (const point of points ?? []) {
-      const view = pixelToView(apiToPixel(point.location, meta), transform);
-      const color = point.type === 'charge' ? COLOR.charge : COLOR.point;
-      drawPose(
-        ctx,
-        view.x,
-        view.y,
-        point.location.orientation,
-        point.id === selectedId ? COLOR.selected : color,
-        point.id === selectedId ? 9 : 7,
-      );
-      drawLabel(ctx, view.x, view.y - 14, point.name);
-    }
-
-    // 未送出的暫定點位
-    if (draftPose) {
-      const view = pixelToView(apiToPixel(draftPose.location, meta), transform);
-      ctx.setLineDash([4, 3]);
-      drawPose(ctx, view.x, view.y, draftPose.location.orientation, COLOR.draft, 9);
-      ctx.setLineDash([]);
-    }
-
-    // 拖曳預覽
-    if (drag) {
-      const a = pixelToView(drag.startPx, transform);
-      const b = pixelToView(drag.currentPx, transform);
-      if (interaction === 'segment') {
-        ctx.strokeStyle = COLOR.draft;
-        ctx.lineWidth = 3;
-        ctx.setLineDash([6, 4]);
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      } else if (interaction === 'pose') {
-        drawPose(
-          ctx,
-          a.x,
-          a.y,
-          pixelDeltaToApiDeg(drag.startPx, drag.currentPx),
-          COLOR.draft,
-          9,
-        );
-      }
-    }
-
-    // 機器人（畫最上層）
-    if (robot) {
-      const view = pixelToView(apiToPixel(robot, meta), transform);
-      drawRobot(ctx, view.x, view.y, robot.orientation);
-    }
+    drawOverlay(ctx, transform, {
+      meta,
+      points: points ?? [],
+      walls: walls ?? [],
+      robot: robot ?? null,
+      selectedId,
+      draftPose,
+      drag,
+      interaction,
+    });
   }, [
     meta,
     transform,
@@ -351,6 +296,96 @@ export function MapCanvas(props: MapCanvasProps) {
 }
 
 // ------------------------------------------------------------------ 繪圖工具
+
+/** drawOverlay 所需的場景資料：純函式，不碰任何 React state */
+export interface OverlayScene {
+  meta: MapMetadata;
+  points: RobotPoint[];
+  walls: VirtualWall[];
+  robot: ApiLocation | null;
+  selectedId: string | null;
+  draftPose: DraftPose | null;
+  drag: DragState | null;
+  interaction: MapInteraction;
+}
+
+/** 疊加層主繪製：牆 → 點位 → 暫定點位 → 拖曳預覽 → 機器人（由下到上疊層） */
+function drawOverlay(
+  ctx: CanvasRenderingContext2D,
+  transform: ViewTransform,
+  scene: OverlayScene,
+): void {
+  const { meta, points, walls, robot, selectedId, draftPose, drag, interaction } =
+    scene;
+
+  // 虛擬牆
+  for (const wall of walls) {
+    const a = pixelToView(apiToPixel(wall.start_position, meta), transform);
+    const b = pixelToView(apiToPixel(wall.end_position, meta), transform);
+    const active = wall.id === selectedId;
+    ctx.strokeStyle = active ? COLOR.selected : COLOR.wall;
+    ctx.lineWidth = active ? 5 : 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+
+  // 點位
+  for (const point of points) {
+    const view = pixelToView(apiToPixel(point.location, meta), transform);
+    const color = point.type === 'charge' ? COLOR.charge : COLOR.point;
+    drawPose(
+      ctx,
+      view.x,
+      view.y,
+      point.location.orientation,
+      point.id === selectedId ? COLOR.selected : color,
+      point.id === selectedId ? 9 : 7,
+    );
+    drawLabel(ctx, view.x, view.y - 14, point.name);
+  }
+
+  // 未送出的暫定點位
+  if (draftPose) {
+    const view = pixelToView(apiToPixel(draftPose.location, meta), transform);
+    ctx.setLineDash([4, 3]);
+    drawPose(ctx, view.x, view.y, draftPose.location.orientation, COLOR.draft, 9);
+    ctx.setLineDash([]);
+  }
+
+  // 拖曳預覽
+  if (drag) {
+    const a = pixelToView(drag.startPx, transform);
+    const b = pixelToView(drag.currentPx, transform);
+    if (interaction === 'segment') {
+      ctx.strokeStyle = COLOR.draft;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else if (interaction === 'pose') {
+      drawPose(
+        ctx,
+        a.x,
+        a.y,
+        pixelDeltaToApiDeg(drag.startPx, drag.currentPx),
+        COLOR.draft,
+        9,
+      );
+    }
+  }
+
+  // 機器人（畫最上層）
+  if (robot) {
+    const view = pixelToView(apiToPixel(robot, meta), transform);
+    drawRobot(ctx, view.x, view.y, robot.orientation);
+  }
+}
 
 /** 設定 DPR 對應的實際像素尺寸並回傳已縮放的 context */
 function prepareCanvas(

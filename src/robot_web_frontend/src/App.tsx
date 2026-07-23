@@ -9,7 +9,6 @@ import { Toasts } from './components/Toasts';
 import { MappingPage } from './pages/MappingPage';
 import { PointsPage } from './pages/PointsPage';
 import { NavigationPage } from './pages/NavigationPage';
-import { useMapList } from './hooks/useMapList';
 import { useRobotStore } from './store/useRobotStore';
 import styles from './App.module.css';
 
@@ -36,34 +35,28 @@ function usePageVisible(): boolean {
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('mapping');
-  const [selectedMap, setSelectedMap] = useState<string | null>(null);
   const visible = usePageVisible();
 
   const startSocket = useRobotStore((s) => s.startSocket);
   const stopSocket = useRobotStore((s) => s.stopSocket);
-  const { maps, reload: reloadMaps } = useMapList();
+  const loadMaps = useRobotStore((s) => s.loadMaps);
+  const selectMap = useRobotStore((s) => s.selectMap);
 
   useEffect(() => {
     startSocket();
     return () => stopSocket();
   }, [startSocket, stopSocket]);
 
-  // 地圖清單載入後，若尚未選過就自動選第一張
   useEffect(() => {
-    setSelectedMap((prev) => (prev === null && maps.length > 0 ? maps[0] : prev));
-  }, [maps]);
-
-  const handleSelectMap = useCallback(
-    (name: string) => setSelectedMap(name === '' ? null : name),
-    [],
-  );
+    void loadMaps();
+  }, [loadMaps]);
 
   const handleMapSaved = useCallback(
     (name: string) => {
-      reloadMaps();
-      setSelectedMap(name);
+      void loadMaps();
+      selectMap(name);
     },
-    [reloadMaps],
+    [loadMaps, selectMap],
   );
 
   return (
@@ -90,22 +83,8 @@ export default function App() {
         {tab === 'mapping' && (
           <MappingPage active={visible} onMapSaved={handleMapSaved} />
         )}
-        {tab === 'points' && (
-          <PointsPage
-            maps={maps}
-            selectedMap={selectedMap}
-            onSelectMap={handleSelectMap}
-            onReloadMaps={reloadMaps}
-          />
-        )}
-        {tab === 'navigation' && (
-          <NavigationPage
-            maps={maps}
-            selectedMap={selectedMap}
-            onSelectMap={handleSelectMap}
-            onReloadMaps={reloadMaps}
-          />
-        )}
+        {tab === 'points' && <PointsPage />}
+        {tab === 'navigation' && <NavigationPage />}
       </main>
 
       <Toasts />

@@ -67,8 +67,26 @@ export interface CreatePointBody {
   location?: ApiLocation;
 }
 
-export const createPoint = (body: CreatePointBody, o: Sig = {}) =>
-  request<RobotPoint>('/points', { method: 'POST', body, signal: o.signal });
+/** 後端 POST 可能不回完整物件，缺值時用送出的 body 補齊回傳完整 RobotPoint */
+export const createPoint = async (
+  body: CreatePointBody,
+  o: Sig = {},
+): Promise<RobotPoint> => {
+  const res = await request<RobotPoint | undefined>('/points', {
+    method: 'POST',
+    body,
+    signal: o.signal,
+  });
+  return (
+    res ?? {
+      id: `tmp_${Date.now()}`,
+      map: body.map ?? '',
+      name: body.name,
+      type: body.type,
+      location: body.location ?? { x: 0, y: 0, orientation: 0 },
+    }
+  );
+};
 
 export const listPoints = (map?: string, o: Sig = {}) =>
   request<{ points: RobotPoint[] }>('/points', {
@@ -82,16 +100,18 @@ export interface UpdatePointBody {
   location?: ApiLocation;
 }
 
-export const updatePoint = (
-  pointId: string,
+/** 後端 PATCH 可能不回完整物件，缺值時用送出前的點位 + body 補齊回傳完整 RobotPoint */
+export const updatePoint = async (
+  point: RobotPoint,
   body: UpdatePointBody,
   o: Sig = {},
-) =>
-  request<RobotPoint>(`/points/${encodeURIComponent(pointId)}`, {
-    method: 'PATCH',
-    body,
-    signal: o.signal,
-  });
+): Promise<RobotPoint> => {
+  const res = await request<RobotPoint | undefined>(
+    `/points/${encodeURIComponent(point.id)}`,
+    { method: 'PATCH', body, signal: o.signal },
+  );
+  return res ?? { ...point, ...body };
+};
 
 export const deletePoint = (pointId: string, map?: string, o: Sig = {}) =>
   request<void>(`/points/${encodeURIComponent(pointId)}`, {
@@ -109,12 +129,26 @@ export interface CreateVirtualWallBody {
   end_position: ApiPosition;
 }
 
-export const createVirtualWall = (body: CreateVirtualWallBody, o: Sig = {}) =>
-  request<VirtualWall>('/virtual-walls', {
+/** 後端 POST 可能不回完整物件，缺值時用送出的 body 補齊回傳完整 VirtualWall */
+export const createVirtualWall = async (
+  body: CreateVirtualWallBody,
+  o: Sig = {},
+): Promise<VirtualWall> => {
+  const res = await request<VirtualWall | undefined>('/virtual-walls', {
     method: 'POST',
     body,
     signal: o.signal,
   });
+  return (
+    res ?? {
+      id: `tmp_${Date.now()}`,
+      map: body.map ?? '',
+      name: body.name,
+      start_position: body.start_position,
+      end_position: body.end_position,
+    }
+  );
+};
 
 export const listVirtualWalls = (map?: string, o: Sig = {}) =>
   request<{ virtual_walls: VirtualWall[] }>('/virtual-walls', {

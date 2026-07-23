@@ -4,8 +4,8 @@
 // 必須按「提交變更」才會寫入磁碟並套用。UI 以黃色橫幅明示未提交狀態。
 
 import { useCallback, useEffect, useState } from 'react';
-import type { Dispatch, SetStateAction } from 'react';
 import { MapCanvas, type MapInteraction } from '../components/MapCanvas';
+import { MapPicker, mapEmptyHint } from '../components/MapPicker';
 import { useStoredMap } from '../hooks/useMapSource';
 import { useMapEntities } from '../hooks/useMapEntities';
 import { useAction } from '../hooks/useAction';
@@ -34,13 +34,6 @@ import type {
 } from '../api/types';
 import page from './Page.module.css';
 
-interface PointsPageProps {
-  maps: string[];
-  selectedMap: string | null;
-  onSelectMap: (name: string) => void;
-  onReloadMaps: () => void;
-}
-
 type Tool = 'none' | 'add-point' | 'add-wall' | 'move-point';
 
 interface DraftPoint {
@@ -62,13 +55,12 @@ const TOOL_HINT: Record<Tool, string> = {
   'move-point': '在地圖上按下並拖曳，設定選取點位的新位姿。',
 };
 
-export function PointsPage({
-  maps,
-  selectedMap,
-  onSelectMap,
-  onReloadMaps,
-}: PointsPageProps) {
+export function PointsPage() {
   const robotLocation = useRobotStore((s) => s.info?.location ?? null);
+  const maps = useRobotStore((s) => s.maps);
+  const selectedMap = useRobotStore((s) => s.selectedMap);
+  const selectMap = useRobotStore((s) => s.selectMap);
+  const loadMaps = useRobotStore((s) => s.loadMaps);
   const { busy, run } = useAction();
 
   const [mapVersion, setMapVersion] = useState(0);
@@ -114,8 +106,10 @@ export function PointsPage({
         void run(
           '更新點位位置',
           async () => {
-            const updated = await updatePoint(selectedPoint.id, { location });
-            applyUpdatedPoint(setPoints, selectedPoint.id, updated, location);
+            const updated = await updatePoint(selectedPoint, { location });
+            setPoints((prev) =>
+              prev.map((p) => (p.id === selectedPoint.id ? updated : p)),
+            );
             setDirty(true);
             setTool('none');
           },
@@ -152,16 +146,7 @@ export function PointsPage({
           type: draftPoint.type,
           location: draftPoint.location,
         });
-        setPoints((prev) => [
-          ...prev,
-          created ?? {
-            id: `tmp_${Date.now()}`,
-            map: selectedMap,
-            name,
-            type: draftPoint.type,
-            location: draftPoint.location,
-          },
-        ]);
+        setPoints((prev) => [...prev, created]);
         setDraftPoint(null);
         setTool('none');
         setDirty(true);
@@ -177,12 +162,8 @@ export function PointsPage({
     void run(
       '更新點位',
       async () => {
-        const updated = await updatePoint(point.id, { name: trimmed, type });
-        setPoints((prev) =>
-          prev.map((p) =>
-            p.id === point.id ? updated ?? { ...p, name: trimmed, type } : p,
-          ),
-        );
+        const updated = await updatePoint(point, { name: trimmed, type });
+        setPoints((prev) => prev.map((p) => (p.id === point.id ? updated : p)));
         setDirty(true);
       },
       '點位已更新（尚未提交）',
@@ -197,8 +178,8 @@ export function PointsPage({
     void run(
       '更新朝向',
       async () => {
-        const updated = await updatePoint(point.id, { location });
-        applyUpdatedPoint(setPoints, point.id, updated, location);
+        const updated = await updatePoint(point, { location });
+        setPoints((prev) => prev.map((p) => (p.id === point.id ? updated : p)));
         setDirty(true);
       },
       '朝向已更新（尚未提交）',
@@ -230,16 +211,7 @@ export function PointsPage({
           start_position: draftWall.start,
           end_position: draftWall.end,
         });
-        setWalls((prev) => [
-          ...prev,
-          created ?? {
-            id: `tmp_${Date.now()}`,
-            map: selectedMap,
-            name,
-            start_position: draftWall.start,
-            end_position: draftWall.end,
-          },
-        ]);
+        setWalls((prev) => [...prev, created]);
         setDraftWall(null);
         setTool('none');
         setDirty(true);
@@ -337,13 +309,7 @@ export function PointsPage({
             onPose={handlePose}
             onSegment={handleSegment}
             badge={selectedMap ? `${selectedMap} · ${TOOL_HINT[tool]}` : undefined}
-            emptyHint={
-              !selectedMap
-                ? '請先在右側選擇一張地圖'
-                : loading
-                  ? '地圖載入中…'
-                  : (error ?? '地圖載入失敗')
-            }
+            emptyHint={mapEmptyHint(selectedMap, loading, error)}
           />
         </div>
       </div>
@@ -351,24 +317,12 @@ export function PointsPage({
       <div className={page.side}>
         <section className="panel">
           <h2 className="panelTitle">地圖</h2>
-          <div className="row">
-            <select
-              className="select"
-              style={{ flex: 1 }}
-              value={selectedMap ?? ''}
-              onChange={(e) => onSelectMap(e.target.value)}
-            >
-              <option value="">— 選擇地圖 —</option>
-              {maps.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-            <button type="button" className="btn small" onClick={onReloadMaps}>
-              重新整理
-            </button>
-          </div>
+          <MapPicker
+            maps={maps}
+            selectedMap={selectedMap}
+            onSelectMap={selectMap}
+            onReloadMaps={() => void loadMaps()}
+          />
           {entitiesError && (
             <p className="hintText" style={{ marginTop: 8, color: '#ff9a9a' }}>
               點位資料載入失敗：{entitiesError}
@@ -613,20 +567,6 @@ export function PointsPage({
         </section>
       </div>
     </div>
-  );
-}
-
-/** 後端 PATCH 可能不回完整物件，缺值時用本地推算值遞補 */
-function applyUpdatedPoint(
-  setPoints: Dispatch<SetStateAction<RobotPoint[]>>,
-  id: string,
-  updated: RobotPoint | undefined,
-  fallbackLocation: ApiLocation,
-) {
-  setPoints((prev) =>
-    prev.map((p) =>
-      p.id === id ? (updated ?? { ...p, location: fallbackLocation }) : p,
-    ),
   );
 }
 

@@ -62,6 +62,11 @@ export interface VirtualWall {
   end_position: ApiPosition;
 }
 
+/** 尚未送出的暫定位姿（例如剛點下的新點位、拖曳中的預覽） */
+export interface DraftPose {
+  location: ApiLocation;
+}
+
 /** POST /manual/move 的方向值 */
 export type ManualDirection = 'stop' | 'forward' | 'backward' | 'left' | 'right';
 

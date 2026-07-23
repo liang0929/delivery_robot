@@ -1,10 +1,12 @@
-// 全域狀態：WebSocket 連線、robot_info、事件 / 錯誤 toast。
+// 全域狀態：WebSocket 連線、robot_info、事件 / 錯誤 toast、地圖清單與選取。
 //
 // robot_info 每秒一次；為了避免整棵樹每秒重繪，元件請用 selector
 // 只訂閱自己需要的欄位（例如只要 location 的地圖圖層）。
 
 import { create } from 'zustand';
 import { RobotSocket, type ConnectionState } from '../ws/RobotSocket';
+import { describeError } from '../api/client';
+import { listMaps } from '../api/robot.api';
 import { isRobotInfoMessage } from '../api/types';
 import type { RobotInfo, RobotSocketMessage } from '../api/types';
 
@@ -25,15 +27,27 @@ interface RobotState {
   infoAt: number | null;
   toasts: Toast[];
 
+  /** 已存檔地圖清單 */
+  maps: string[];
+  /** 目前選取的地圖；null 代表尚未選取 */
+  selectedMap: string | null;
+  mapsLoading: boolean;
+  mapsError: string | null;
+
   startSocket: () => void;
   stopSocket: () => void;
   pushToast: (level: ToastLevel, title: string, detail?: string) => void;
   dismissToast: (id: number) => void;
+  /** 重新拉取地圖清單；清單載入後若尚未選過就自動選第一張 */
+  loadMaps: () => Promise<void>;
+  /** 選取地圖；空字串視為取消選取 */
+  selectMap: (name: string) => void;
 }
 
 let socket: RobotSocket | null = null;
 let socketRefCount = 0;
 let toastSeq = 0;
+let mapsRequestId = 0;
 
 const MAX_TOASTS = 5;
 
@@ -73,6 +87,11 @@ export const useRobotStore = create<RobotState>((set, get) => ({
   info: null,
   infoAt: null,
   toasts: [],
+
+  maps: [],
+  selectedMap: null,
+  mapsLoading: false,
+  mapsError: null,
 
   startSocket: () => {
     socketRefCount += 1;
@@ -120,6 +139,27 @@ export const useRobotStore = create<RobotState>((set, get) => ({
 
   dismissToast: (id) =>
     set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+
+  loadMaps: async () => {
+    const id = ++mapsRequestId;
+    set({ mapsLoading: true, mapsError: null });
+    try {
+      const list = await listMaps();
+      if (id !== mapsRequestId) return;
+      set((s) => ({
+        maps: list,
+        mapsLoading: false,
+        // 地圖清單載入後，若尚未選過就自動選第一張
+        selectedMap:
+          s.selectedMap === null && list.length > 0 ? list[0] : s.selectedMap,
+      }));
+    } catch (err) {
+      if (id !== mapsRequestId) return;
+      set({ mapsLoading: false, mapsError: describeError(err) });
+    }
+  },
+
+  selectMap: (name) => set({ selectedMap: name === '' ? null : name }),
 }));
 
 /** 非 React 環境（例如 catch 區塊工具函式）也能推 toast */

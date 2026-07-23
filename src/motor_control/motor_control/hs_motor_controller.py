@@ -25,6 +25,8 @@ from std_msgs.msg import Float32, Int32, Bool
 from std_srvs.srv import Trigger
 
 from motor_control.odom_constants import POSE_COVARIANCE, TWIST_COVARIANCE
+from motor_control import hs_protocol
+from motor_control.kinematics import DifferentialDriveKinematics
 
 
 class HSMotorController(Node):
@@ -85,6 +87,16 @@ class HSMotorController(Node):
 
         # 驗證參數
         self._validate_parameters()
+
+        # 運動學計算（純模組，數值與抽取前完全相同）
+        self.kinematics = DifferentialDriveKinematics(
+            wheel_separation=self.wheel_separation,
+            wheel_radius=self.wheel_radius,
+            gear_ratio=self.gear_ratio,
+            min_rpm=self.min_rpm,
+            max_rpm=self.max_rpm,
+            zero_rpm_epsilon=self.ZERO_RPM_EPSILON,
+        )
 
         # 串口連接
         self.serial_conn: Optional[serial.Serial] = None
@@ -266,21 +278,20 @@ class HSMotorController(Node):
         return self.connect_serial(max_retries=1)
 
     def crc16(self, data: bytes) -> int:
-        """計算 CRC16 校驗碼 (Modbus CRC16)"""
-        crc = 0xFFFF
-        for byte in data:
-            crc ^= byte
-            for _ in range(8):
-                if crc & 0x0001:
-                    crc = (crc >> 1) ^ 0xA001
-                else:
-                    crc >>= 1
-        return crc
+        """計算 CRC16 校驗碼 (Modbus CRC16)
+
+        委派給 hs_protocol.crc16（純函式，數值與行為完全相同）。
+        保留此 method 供既有呼叫端（若有）相容使用。
+        """
+        return hs_protocol.crc16(data)
 
     def build_command_packet(self, clear_fault: int = 0) -> bytes:
         """
         建立 HS 協議命令封包 (16 bytes)
         格式: AA + 地址 + 返回類型 + 故障清除 + 保留 + A控制 + B控制 + A方向 + B方向 + A轉速(2B) + B轉速(2B) + 55 + CRC16
+
+        E-Stop / motor_enabled 狀態判斷與共享狀態快照留在此處（Node 業務邏輯），
+        純粹的 byte 封裝 + CRC 計算委派給 hs_protocol.encode_command。
 
         注意：欄位順序以實測硬體行為為準，如與手冊不符請先驗證再修改。
         """
@@ -302,53 +313,15 @@ class HSMotorController(Node):
         else:
             motor_control_byte = self.MOTOR_DISABLE
 
-        packet = bytearray()
-
-        # Byte 1: 起始碼 (AA)
-        packet.append(self.START_BYTE_MASTER)
-
-        # Byte 2: 地址碼 (1-127)
-        packet.append(self.device_id & 0x7F)
-
-        # Byte 3: 返回數據類型 (00: 不返回, 01: 返回運行數據)
-        packet.append(0x01)  # 需要回傳數據
-
-        # Byte 4: 故障清除 (00: 默認, 01→00: 復位操作)
-        packet.append(clear_fault & 0x01)
-
-        # Byte 5: 保留位 (00)
-        packet.append(0x00)
-
-        # Byte 6: A電機控制 (00: 失能, 01: 使能, 03: 制動)
-        packet.append(motor_control_byte)
-
-        # Byte 7: B電機控制 (00: 失能, 01: 使能, 03: 制動)
-        packet.append(motor_control_byte)
-
-        # Byte 8: A電機運行方向 (00: 正轉, 01: 反轉)
-        packet.append(dir_a & 0x01)
-
-        # Byte 9: B電機運行方向 (00: 正轉, 01: 反轉)
-        packet.append(dir_b & 0x01)
-
-        # Byte 10-11: A電機轉速值 (高位在前, 低位在後) 100-3000 RPM
-        packet.append((target_rpm_a >> 8) & 0xFF)  # 高位
-        packet.append(target_rpm_a & 0xFF)         # 低位
-
-        # Byte 12-13: B電機轉速值 (高位在前, 低位在後) 100-3000 RPM
-        packet.append((target_rpm_b >> 8) & 0xFF)  # 高位
-        packet.append(target_rpm_b & 0xFF)         # 低位
-
-        # Byte 14: 結束碼 (55)
-        packet.append(self.END_BYTE_MASTER)
-
-        # Byte 15-16: CRC16 校驗碼 (低位在前, 高位在後)
-        # CRC 計算範圍: 起始碼到結束碼 (Byte 1-14, 即 packet[0:14])
-        crc = self.crc16(bytes(packet[0:14]))
-        packet.append(crc & 0xFF)         # CRC 低位
-        packet.append((crc >> 8) & 0xFF)  # CRC 高位
-
-        return bytes(packet)
+        return hs_protocol.encode_command(
+            device_id=self.device_id,
+            clear_fault=clear_fault,
+            motor_control_byte=motor_control_byte,
+            dir_a=dir_a,
+            dir_b=dir_b,
+            rpm_a=target_rpm_a,
+            rpm_b=target_rpm_b,
+        )
 
     def parse_response_packet(self, data: bytes) -> bool:
         """
@@ -357,59 +330,39 @@ class HSMotorController(Node):
 
         注意：欄位順序以實測硬體行為為準，如與手冊不符請先驗證再修改。
         """
-        if len(data) < 16:
+        if len(data) < hs_protocol.PACKET_LENGTH:
             return False
 
         # 掃描所有 0x55 候選起始碼，直到找到驗證通過的封包
         # （0x55 可能出現在數據內容中，只試第一個會漏掉緊接在雜訊後的有效封包）
-        start_idx = data.find(self.START_BYTE_SLAVE)
-        while start_idx != -1 and len(data) - start_idx >= 16:
-            packet = data[start_idx:start_idx + 16]
+        start_idx = data.find(hs_protocol.START_BYTE_SLAVE)
+        while start_idx != -1 and len(data) - start_idx >= hs_protocol.PACKET_LENGTH:
+            packet = data[start_idx:start_idx + hs_protocol.PACKET_LENGTH]
             if self._try_parse_packet(packet):
                 return True
-            start_idx = data.find(self.START_BYTE_SLAVE, start_idx + 1)
+            start_idx = data.find(hs_protocol.START_BYTE_SLAVE, start_idx + 1)
 
         return False
 
     def _try_parse_packet(self, packet: bytes) -> bool:
-        """驗證並解析單一 16-byte 候選封包，成功時更新回饋狀態"""
-        # 驗證結束碼 (Byte 14 = 0xAA)
-        if packet[13] != self.END_BYTE_SLAVE:
-            self.get_logger().debug(f'Invalid end byte: {packet[13]:02X}')
+        """驗證並解析單一 16-byte 候選封包，成功時更新回饋狀態
+
+        byte offset 解析與 CRC 驗證委派給 hs_protocol.decode_packet
+        （純函式，數值與驗證順序完全相同），這裡只負責失敗時記 debug log
+        與成功時把結果寫回 Node 狀態，與抽取前行為一致。
+        """
+        result = hs_protocol.decode_packet(packet, self.device_id)
+        if not result.ok:
+            self.get_logger().debug(result.error)
             return False
 
-        # 驗證 CRC16 (Byte 15-16, 低位在前)
-        received_crc = packet[14] | (packet[15] << 8)
-        calculated_crc = self.crc16(packet[0:14])  # CRC 計算範圍: 起始碼到結束碼
-        if received_crc != calculated_crc:
-            self.get_logger().debug(f'CRC mismatch: recv={received_crc:04X} calc={calculated_crc:04X}')
-            return False
-
-        # 驗證地址 (Byte 2)；device_id 127 為廣播地址，跳過檢查
-        if self.device_id != 127 and packet[1] != self.device_id:
-            self.get_logger().debug(
-                f'Address mismatch: recv={packet[1]} expect={self.device_id}')
-            return False
-
-        # 解析數據 (高位在前 Big-endian)
-
-        # Byte 3-4: A電機電流 (解析度 0.1A)
-        self.current_a = int.from_bytes(packet[2:4], byteorder='big') * 0.1
-
-        # Byte 5-6: B電機電流 (解析度 0.1A)
-        self.current_b = int.from_bytes(packet[4:6], byteorder='big') * 0.1
-
-        # Byte 7-8: A電機轉速 (0-3000 RPM)
-        self.actual_rpm_a = float(int.from_bytes(packet[6:8], byteorder='big'))
-
-        # Byte 9-10: B電機轉速 (0-3000 RPM)
-        self.actual_rpm_b = float(int.from_bytes(packet[8:10], byteorder='big'))
-
-        # Byte 11-12: 電源電壓 (解析度 0.01V)
-        self.voltage = int.from_bytes(packet[10:12], byteorder='big') * 0.01
-
-        # Byte 13: 故障狀態 (00 = 正常)
-        self.fault_code = packet[12]
+        response = result.response
+        self.current_a = response.current_a
+        self.current_b = response.current_b
+        self.actual_rpm_a = response.actual_rpm_a
+        self.actual_rpm_b = response.actual_rpm_b
+        self.voltage = response.voltage
+        self.fault_code = response.fault_code
 
         return True
 
@@ -544,15 +497,14 @@ class HSMotorController(Node):
         """更新里程計"""
         # 獲取實際轉速並轉換為 m/s
         # 忽略低於死區的 RPM (避免靜止時漂移)
+        # 注意：此處的死區過濾是真機回饋特有的邏輯，mock 沒有對應行為，
+        # 不納入共用 kinematics；死區判斷後的轉換公式本身才共用。
         motor_rpm_a = self.actual_rpm_a if self.actual_rpm_a > self.RPM_DEADZONE else 0.0
         motor_rpm_b = self.actual_rpm_b if self.actual_rpm_b > self.RPM_DEADZONE else 0.0
 
-        # 馬達 RPM 轉換為輪子 RPM (除以減速比)
-        wheel_rpm_a = motor_rpm_a / self.gear_ratio
-        wheel_rpm_b = motor_rpm_b / self.gear_ratio
-
-        vel_a = (wheel_rpm_a / 60.0) * (2 * math.pi * self.wheel_radius)
-        vel_b = (wheel_rpm_b / 60.0) * (2 * math.pi * self.wheel_radius)
+        # 馬達 RPM 轉換為輪速 (m/s)
+        vel_a = self.kinematics.motor_rpm_to_wheel_vel(motor_rpm_a)
+        vel_b = self.kinematics.motor_rpm_to_wheel_vel(motor_rpm_b)
 
         # 使用鎖保護讀取邏輯方向和更新里程計
         with self.state_lock:
@@ -563,8 +515,7 @@ class HSMotorController(Node):
                 vel_b = -vel_b
 
             # 計算機器人速度 (Motor A = 物理右輪, Motor B = 物理左輪)
-            vx = (vel_a + vel_b) / 2.0
-            vth = (vel_a - vel_b) / self.wheel_separation
+            vx, vth = self.kinematics.wheel_vel_to_twist(vel_b, vel_a)
 
             # 計算時間差
             current_time = self.get_clock().now()
@@ -575,10 +526,9 @@ class HSMotorController(Node):
             if dt <= 0:
                 return
 
-            # 積分更新位置
-            self.odom_x += vx * math.cos(self.odom_theta) * dt
-            self.odom_y += vx * math.sin(self.odom_theta) * dt
-            self.odom_theta += vth * dt
+            # 積分更新位置（不含角度正規化，與抽取前行為一致）
+            self.odom_x, self.odom_y, self.odom_theta = self.kinematics.integrate_odometry(
+                self.odom_x, self.odom_y, self.odom_theta, vx, vth, dt)
 
         # 發布里程計 (TF 由 EKF 發布，避免重複)
         self.publish_odometry(vx, vth)
@@ -622,8 +572,7 @@ class HSMotorController(Node):
         angular_z = max(min(msg.angular.z, self.max_angular_vel), -self.max_angular_vel)
 
         # 差動驅動運動學
-        left_vel = linear_x - (angular_z * self.wheel_separation / 2.0)
-        right_vel = linear_x + (angular_z * self.wheel_separation / 2.0)
+        left_vel, right_vel = self.kinematics.twist_to_wheel_vel(linear_x, angular_z)
 
         # 設定馬達 (Motor A = 物理右輪, Motor B = 物理左輪)
         self.set_motor_speeds(left_vel, right_vel)
@@ -634,10 +583,11 @@ class HSMotorController(Node):
         - 低於 ZERO_RPM_EPSILON 視為零命令 → 0
         - 非零但低於 min_rpm → clamp 到 min_rpm（避免低速死區導致不動）
         - 其餘 clamp 到 max_rpm
+
+        clamp 邏輯委派給 kinematics.quantize_motor_rpm，這裡只負責轉成 int
+        （與抽取前 int(max(min(...))) 完全相同）。
         """
-        if motor_rpm < self.ZERO_RPM_EPSILON:
-            return 0
-        return int(max(min(motor_rpm, self.max_rpm), self.min_rpm))
+        return int(self.kinematics.quantize_motor_rpm(motor_rpm))
 
     def set_motor_speeds(self, left_vel: float, right_vel: float) -> None:
         """設定馬達速度 (m/s)
@@ -646,13 +596,9 @@ class HSMotorController(Node):
             left_vel: 左輪目標速度 → Motor B
             right_vel: 右輪目標速度 → Motor A
         """
-        # 轉換為輪子 RPM
-        left_wheel_rpm = abs(left_vel) / (2 * math.pi * self.wheel_radius) * 60.0
-        right_wheel_rpm = abs(right_vel) / (2 * math.pi * self.wheel_radius) * 60.0
-
-        # 輪子 RPM 轉換為馬達 RPM (乘以減速比)
-        left_motor_rpm = left_wheel_rpm * self.gear_ratio
-        right_motor_rpm = right_wheel_rpm * self.gear_ratio
+        # 輪速轉換為馬達 RPM (取絕對值，方向另外處理)
+        left_motor_rpm = self.kinematics.wheel_vel_to_motor_rpm(left_vel)
+        right_motor_rpm = self.kinematics.wheel_vel_to_motor_rpm(right_vel)
 
         # 計算邏輯方向 (用於里程計，反轉前)
         # Motor A = 物理右輪, Motor B = 物理左輪

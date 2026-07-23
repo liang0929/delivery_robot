@@ -15,6 +15,7 @@ from nav_msgs.msg import Odometry
 from std_msgs.msg import Header, Bool
 
 from motor_control.odom_constants import POSE_COVARIANCE_SIM, TWIST_COVARIANCE_SIM
+from motor_control.kinematics import DifferentialDriveKinematics
 
 
 class MockMotorController(Node):
@@ -49,6 +50,16 @@ class MockMotorController(Node):
         self.gear_ratio = self.get_parameter('gear_ratio').value
         self.min_rpm = self.get_parameter('min_rpm').value
         self.max_rpm = self.get_parameter('max_rpm').value
+
+        # 運動學計算（純模組，與 HSMotorController 共用等價部分，數值與抽取前完全相同）
+        self.kinematics = DifferentialDriveKinematics(
+            wheel_separation=self.wheel_separation,
+            wheel_radius=self.wheel_radius,
+            gear_ratio=self.gear_ratio,
+            min_rpm=self.min_rpm,
+            max_rpm=self.max_rpm,
+            zero_rpm_epsilon=self.ZERO_RPM_EPSILON,
+        )
 
         # ROS2 發布者和訂閱者
         qos = QoSProfile(
@@ -136,15 +147,14 @@ class MockMotorController(Node):
             min(msg.angular.z, self.max_angular_vel), -self.max_angular_vel)
 
         # 差動運動學 + min_rpm 死區 clamp（模擬真機驅動器行為）
-        left_vel = linear_x - (angular_z * self.wheel_separation / 2.0)
-        right_vel = linear_x + (angular_z * self.wheel_separation / 2.0)
+        left_vel, right_vel = self.kinematics.twist_to_wheel_vel(linear_x, angular_z)
 
         left_vel = self._quantize_wheel_vel(left_vel)
         right_vel = self._quantize_wheel_vel(right_vel)
 
         # 換算回機器人速度
-        self.current_linear_x = (left_vel + right_vel) / 2.0
-        self.current_angular_z = (right_vel - left_vel) / self.wheel_separation
+        self.current_linear_x, self.current_angular_z = self.kinematics.wheel_vel_to_twist(
+            left_vel, right_vel)
 
         self.get_logger().debug(
             f'Cmd: linear={self.current_linear_x:.3f}, '
@@ -154,16 +164,17 @@ class MockMotorController(Node):
     def _quantize_wheel_vel(self, wheel_vel: float) -> float:
         """模擬驅動器 RPM 量化：非零命令低於 min_rpm 時 clamp 到 min_rpm
 
-        與 HSMotorController._quantize_rpm 行為一致：
+        與 HSMotorController._quantize_rpm 行為一致（clamp 邏輯與換算公式
+        皆委派給共用的 kinematics 純函式，數值與抽取前完全相同）：
         - 低於 ZERO_RPM_EPSILON 的馬達 RPM 視為零命令 → 0
         - 非零但低於 min_rpm → clamp 到 min_rpm（保留方向）
         - 其餘 clamp 到 max_rpm
         """
-        motor_rpm = abs(wheel_vel) / (2 * math.pi * self.wheel_radius) * 60.0 * self.gear_ratio
-        if motor_rpm < self.ZERO_RPM_EPSILON:
+        motor_rpm = self.kinematics.wheel_vel_to_motor_rpm(wheel_vel)
+        quantized_rpm = self.kinematics.quantize_motor_rpm(motor_rpm)
+        if quantized_rpm == 0.0:
             return 0.0
-        motor_rpm = max(min(motor_rpm, self.max_rpm), self.min_rpm)
-        quantized = (motor_rpm / self.gear_ratio / 60.0) * (2 * math.pi * self.wheel_radius)
+        quantized = self.kinematics.motor_rpm_to_wheel_vel(quantized_rpm)
         return math.copysign(quantized, wheel_vel)
 
     def safety_check(self) -> None:
@@ -192,16 +203,12 @@ class MockMotorController(Node):
         vx = self.current_linear_x
         vth = self.current_angular_z
 
-        # 積分更新位置
-        delta_x = vx * math.cos(self.odom_theta) * dt
-        delta_y = vx * math.sin(self.odom_theta) * dt
-        delta_theta = vth * dt
+        # 積分更新位置（與 HSMotorController 共用的 unicycle 積分公式，數值相同）
+        self.odom_x, self.odom_y, self.odom_theta = self.kinematics.integrate_odometry(
+            self.odom_x, self.odom_y, self.odom_theta, vx, vth, dt)
 
-        self.odom_x += delta_x
-        self.odom_y += delta_y
-        self.odom_theta += delta_theta
-
-        # 正規化角度到 [-pi, pi]
+        # 正規化角度到 [-pi, pi]（mock 特有行為，HSMotorController 未做此正規化，
+        # 不納入共用的 integrate_odometry，避免改變真機行為）
         while self.odom_theta > math.pi:
             self.odom_theta -= 2 * math.pi
         while self.odom_theta < -math.pi:

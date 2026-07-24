@@ -329,7 +329,7 @@ def _build_sim_nodes(cfg: _BringupConfig) -> list:
         parameters=[{
             'wheel_separation': 0.3514,
             'wheel_radius': 0.065,
-            'max_linear_vel': 0.075,
+            'max_linear_vel': 0.1125,
             'max_angular_vel': 0.6,
             'gear_ratio': 20.0,
             'min_rpm': 100.0,

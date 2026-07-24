@@ -128,7 +128,9 @@ controller_server:
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.20         # 放寬容差，減少終點搖擺
-      yaw_goal_tolerance: 0.35        # 放寬到 ~20 度，避免持續旋轉對齊
+      # 0.35(~20°) 是旋轉 odom 失準時代的補償值；2026-07-24 極對數與輪距
+      # 校正後收緊到 0.15(~8.6°)。若終點出現來回對齊抖動再放回 0.2。
+      yaw_goal_tolerance: 0.15
       stateful: True
     
     FollowPath:

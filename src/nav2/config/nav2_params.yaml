@@ -133,14 +133,15 @@ controller_server:
     
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-      desired_linear_vel: 0.05
+      # 對齊 hs_motor_config.yaml 的 max_linear_vel 0.1125（與遙控同速）
+      desired_linear_vel: 0.1125
       max_linear_accel: 0.5
       max_linear_decel: 0.5
       lookahead_dist: 0.3
       min_lookahead_dist: 0.15
       max_lookahead_dist: 0.5
       lookahead_time: 1.5
-      rotate_to_heading_angular_vel: 0.4
+      rotate_to_heading_angular_vel: 0.6
       transform_tolerance: 0.1
       use_velocity_scaled_lookahead_dist: false
       # 0.035 = 馬達最低可實現輪速 (min_rpm 100 / gear 20 @ r=0.065)
@@ -173,8 +174,8 @@ velocity_smoother:
     scale_velocities: False
     feedback: "OPEN_LOOP"
     # 與 hs_motor_config.yaml 的 max_linear_vel/max_angular_vel 一致
-    max_velocity: [0.05, 0.0, 0.4]
-    min_velocity: [-0.05, 0.0, -0.4]
+    max_velocity: [0.1125, 0.0, 0.6]
+    min_velocity: [-0.1125, 0.0, -0.6]
     # 線加減速與 RPP 的 max_linear_accel/decel 0.5 對齊
     max_accel: [0.5, 0.0, 3.2]
     max_decel: [-0.5, 0.0, -3.2]
@@ -232,7 +233,7 @@ behavior_server:
     robot_base_frame: base_footprint
     transform_timeout: 0.1
     simulate_ahead_time: 2.0
-    max_rotational_vel: 0.4
+    max_rotational_vel: 0.6
     # 0.26 rad/s 以上輪速才超過馬達 min_rpm 死區 (0.034 m/s / 半輪距 0.135m)
     min_rotational_vel: 0.26
     rotational_acc_lim: 3.2

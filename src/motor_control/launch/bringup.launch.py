@@ -327,7 +327,7 @@ def _build_sim_nodes(cfg: _BringupConfig) -> list:
         name='mock_motor_controller',
         output='screen',
         parameters=[{
-            'wheel_separation': 0.27,
+            'wheel_separation': 0.3514,
             'wheel_radius': 0.065,
             'max_linear_vel': 0.075,
             'max_angular_vel': 0.6,

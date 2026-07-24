@@ -35,7 +35,7 @@ class MockMotorController(BaseMotorNode):
     #   gear_ratio: 減速比
     #   min_rpm: 模擬驅動器低速死區 / max_rpm: 驅動器最大 RPM
     PARAMS = {
-        'wheel_separation': 0.27,
+        'wheel_separation': 0.3514,
         'wheel_radius': 0.065,
         'max_linear_vel': 0.075,
         'max_angular_vel': 0.6,

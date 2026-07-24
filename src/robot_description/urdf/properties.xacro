@@ -11,7 +11,7 @@
 
   <!-- ========== 輪子參數 ========== -->
   <!-- 來源: motor_control/config/hs_motor_config.yaml -->
-  <xacro:property name="wheel_separation" value="0.27"/>   <!-- 輪距 (m) -->
+  <xacro:property name="wheel_separation" value="0.3514"/>   <!-- 有效輪距 (m)，2026-07-24 旋轉校正，與 hs_motor_config.yaml 同步 -->
   <xacro:property name="wheel_radius" value="0.065"/>      <!-- 輪半徑 (m) -->
   <xacro:property name="wheel_width" value="0.032"/>        <!-- 輪寬 (m) -->
   <xacro:property name="wheel_mass" value="0.5"/>          <!-- 輪子質量 (kg) -->

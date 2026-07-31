@@ -2,7 +2,7 @@
 	(version "E")
 	(design
 		(source "D:\\Projects\\愛吠的狗機器人\\kicad circuit\\kicad circuit.kicad_sch")
-		(date "2026-08-01T00:54:50")
+		(date "2026-08-01T02:12:18")
 		(tool "Eeschema 10.0.5")
 		(sheet
 			(number "1")
@@ -1480,6 +1480,66 @@
 			)
 		)
 		(comp
+			(ref "J4")
+			(value "Jetson 40-pin I2C (pin1/3/5/6)")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Connector_Generic")
+				(part "Conn_01x04")
+				(description "Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "connector")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "Connector*:*_1x??_*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "43610ae3-aeb9-4a3a-ae17-a2587ce7c27b")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "4")
+						)
+					)
+				)
+			)
+		)
+		(comp
 			(ref "R1")
 			(value "2.5mohm FL-2 30A/75mV")
 			(description "Shunt resistor with Kelvin connections")
@@ -2907,6 +2967,150 @@
 				)
 			)
 		)
+		(comp
+			(ref "U19")
+			(value "BNO055 IMU Module")
+			(footprint "Package_LGA:LGA-28_5.2x3.8mm_P0.5mm")
+			(datasheet "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bno055-ds000.pdf")
+			(description "Intelligent 9-axis absolute orientation sensor, LGA-28")
+			(fields
+				(field
+					(name "Bus") "Jetson I2C (40-pin)")
+				(field
+					(name "Note") "符號為裸晶片、實體為模組板；PS0/PS1/CAP/晶振/上拉皆在模組板上，故掛 NC")
+				(field
+					(name "Footprint") "Package_LGA:LGA-28_5.2x3.8mm_P0.5mm")
+				(field
+					(name "Datasheet") "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bno055-ds000.pdf")
+				(field
+					(name "Description") "Intelligent 9-axis absolute orientation sensor, LGA-28")
+			)
+			(libsource
+				(lib "Sensor_Motion")
+				(part "BNO055")
+				(description "Intelligent 9-axis absolute orientation sensor, LGA-28")
+			)
+			(property
+				(name "Bus")
+				(value "Jetson I2C (40-pin)")
+			)
+			(property
+				(name "Note")
+				(value "符號為裸晶片、實體為模組板；PS0/PS1/CAP/晶振/上拉皆在模組板上，故掛 NC")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "IMU Fusion I2C UART")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "LGA*5.2x3.8mm*P0.5mm*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "00252fb6-5303-452f-bbbd-c1faacfe410b")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "11")
+						)
+						(pin
+							(num "14")
+						)
+						(pin
+							(num "4")
+						)
+						(pin
+							(num "10")
+						)
+						(pin
+							(num "20")
+						)
+						(pin
+							(num "19")
+						)
+						(pin
+							(num "18")
+						)
+						(pin
+							(num "17")
+						)
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "7")
+						)
+						(pin
+							(num "8")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "28")
+						)
+						(pin
+							(num "25")
+						)
+						(pin
+							(num "15")
+						)
+						(pin
+							(num "16")
+						)
+						(pin
+							(num "12")
+						)
+						(pin
+							(num "13")
+						)
+						(pin
+							(num "21")
+						)
+						(pin
+							(num "22")
+						)
+						(pin
+							(num "23")
+						)
+						(pin
+							(num "24")
+						)
+						(pin
+							(num "26")
+						)
+						(pin
+							(num "27")
+						)
+						(pin
+							(num "6")
+						)
+						(pin
+							(num "5")
+						)
+						(pin
+							(num "9")
+						)
+					)
+				)
+			)
+		)
 	)
 	(groups)
 	(variants)
@@ -3084,6 +3288,50 @@
 				(pin
 					(num "2")
 					(name "Pin_2")
+					(type "passive")
+				)
+			)
+		)
+		(libpart
+			(lib "Connector_Generic")
+			(part "Conn_01x04")
+			(description "Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)")
+			(footprints
+				(fp "Connector*:*_1x??_*")
+			)
+			(fields
+				(field
+					(name "Reference") "J")
+				(field
+					(name "Value") "Conn_01x04")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)")
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "Pin_1")
+					(type "passive")
+				)
+				(pin
+					(num "2")
+					(name "Pin_2")
+					(type "passive")
+				)
+				(pin
+					(num "3")
+					(name "Pin_3")
+					(type "passive")
+				)
+				(pin
+					(num "4")
+					(name "Pin_4")
 					(type "passive")
 				)
 			)
@@ -3690,6 +3938,169 @@
 			)
 		)
 		(libpart
+			(lib "Sensor_Motion")
+			(part "BNO055")
+			(description "Intelligent 9-axis absolute orientation sensor, LGA-28")
+			(docs "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bno055-ds000.pdf")
+			(footprints
+				(fp "LGA*5.2x3.8mm*P0.5mm*")
+			)
+			(fields
+				(field
+					(name "Reference") "U")
+				(field
+					(name "Value") "BNO055")
+				(field
+					(name "Footprint") "Package_LGA:LGA-28_5.2x3.8mm_P0.5mm")
+				(field
+					(name "Datasheet") "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bno055-ds000.pdf")
+				(field
+					(name "Description") "Intelligent 9-axis absolute orientation sensor, LGA-28")
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "PIN1")
+					(type "no_connect")
+				)
+				(pin
+					(num "2")
+					(name "GND")
+					(type "power_in")
+				)
+				(pin
+					(num "3")
+					(name "VDD")
+					(type "power_in")
+				)
+				(pin
+					(num "4")
+					(name "~{BOOT_LOAD_PIN}")
+					(type "input")
+				)
+				(pin
+					(num "5")
+					(name "PS1")
+					(type "input")
+				)
+				(pin
+					(num "6")
+					(name "PS0")
+					(type "input")
+				)
+				(pin
+					(num "7")
+					(name "PIN7")
+					(type "no_connect")
+				)
+				(pin
+					(num "8")
+					(name "PIN8")
+					(type "no_connect")
+				)
+				(pin
+					(num "9")
+					(name "CAP")
+					(type "passive")
+				)
+				(pin
+					(num "10")
+					(name "BL_IND")
+					(type "output")
+				)
+				(pin
+					(num "11")
+					(name "~{RESET}")
+					(type "input")
+				)
+				(pin
+					(num "12")
+					(name "PIN12")
+					(type "no_connect")
+				)
+				(pin
+					(num "13")
+					(name "PIN13")
+					(type "no_connect")
+				)
+				(pin
+					(num "14")
+					(name "INT")
+					(type "output")
+				)
+				(pin
+					(num "15")
+					(name "PIN15")
+					(type "no_connect")
+				)
+				(pin
+					(num "16")
+					(name "PIN16")
+					(type "no_connect")
+				)
+				(pin
+					(num "17")
+					(name "COM3")
+					(type "input")
+				)
+				(pin
+					(num "18")
+					(name "COM2")
+					(type "passive")
+				)
+				(pin
+					(num "19")
+					(name "COM1")
+					(type "bidirectional")
+				)
+				(pin
+					(num "20")
+					(name "COM0")
+					(type "bidirectional")
+				)
+				(pin
+					(num "21")
+					(name "PIN21")
+					(type "no_connect")
+				)
+				(pin
+					(num "22")
+					(name "PIN22")
+					(type "no_connect")
+				)
+				(pin
+					(num "23")
+					(name "PIN23")
+					(type "no_connect")
+				)
+				(pin
+					(num "24")
+					(name "PIN24")
+					(type "no_connect")
+				)
+				(pin
+					(num "25")
+					(name "GNDIO")
+					(type "power_in")
+				)
+				(pin
+					(num "26")
+					(name "XOUT32")
+					(type "output")
+				)
+				(pin
+					(num "27")
+					(name "XIN32")
+					(type "input")
+				)
+				(pin
+					(num "28")
+					(name "VDDIO")
+					(type "power_in")
+				)
+			)
+		)
+		(libpart
 			(lib "Signal Conversion Module")
 			(part "DB9 to USB")
 			(fields
@@ -3926,6 +4337,10 @@
 		(library
 			(logical "SMCJ30A")
 			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/SMCJ30A/SMCJ30A.kicad_sym")
+		)
+		(library
+			(logical "Sensor_Motion")
+			(uri "${KICAD10_SYMBOL_DIR}/Sensor_Motion.kicad_sym")
 		)
 		(library
 			(logical "Signal Conversion Module")
@@ -4382,6 +4797,24 @@
 			(name "/GND_JETSON")
 			(class "Default")
 			(node
+				(ref "J4")
+				(pin "4")
+				(pinfunction "Pin_4_4")
+				(pintype "passive")
+			)
+			(node
+				(ref "U19")
+				(pin "2")
+				(pinfunction "GND_2")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U19")
+				(pin "25")
+				(pinfunction "GNDIO_25")
+				(pintype "power_in")
+			)
+			(node
 				(ref "U5")
 				(pin "4")
 				(pinfunction "OUT-_4")
@@ -4626,6 +5059,63 @@
 		)
 		(net
 			(code "26")
+			(name "/JET_3V3")
+			(class "Default")
+			(node
+				(ref "J4")
+				(pin "1")
+				(pinfunction "Pin_1_1")
+				(pintype "passive")
+			)
+			(node
+				(ref "U19")
+				(pin "28")
+				(pinfunction "VDDIO_28")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U19")
+				(pin "3")
+				(pinfunction "VDD_3")
+				(pintype "power_in")
+			)
+		)
+		(net
+			(code "27")
+			(name "/JET_I2C_SCL")
+			(class "Default")
+			(node
+				(ref "J4")
+				(pin "3")
+				(pinfunction "Pin_3_3")
+				(pintype "passive")
+			)
+			(node
+				(ref "U19")
+				(pin "19")
+				(pinfunction "COM1_19")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "28")
+			(name "/JET_I2C_SDA")
+			(class "Default")
+			(node
+				(ref "J4")
+				(pin "2")
+				(pinfunction "Pin_2_2")
+				(pintype "passive")
+			)
+			(node
+				(ref "U19")
+				(pin "20")
+				(pinfunction "COM0_20")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "29")
 			(name "/RS232_RX")
 			(class "Default")
 			(node
@@ -4642,7 +5132,7 @@
 			)
 		)
 		(net
-			(code "27")
+			(code "30")
 			(name "/RS232_TX")
 			(class "Default")
 			(node
@@ -4659,7 +5149,7 @@
 			)
 		)
 		(net
-			(code "28")
+			(code "31")
 			(name "/RX_A+")
 			(class "Default")
 			(node
@@ -4676,7 +5166,7 @@
 			)
 		)
 		(net
-			(code "29")
+			(code "32")
 			(name "/RX_A-")
 			(class "Default")
 			(node
@@ -4693,7 +5183,7 @@
 			)
 		)
 		(net
-			(code "30")
+			(code "33")
 			(name "/RX_B+")
 			(class "Default")
 			(node
@@ -4710,7 +5200,7 @@
 			)
 		)
 		(net
-			(code "31")
+			(code "34")
 			(name "/RX_B-")
 			(class "Default")
 			(node
@@ -4727,7 +5217,7 @@
 			)
 		)
 		(net
-			(code "32")
+			(code "35")
 			(name "/SGND")
 			(class "Default")
 			(node
@@ -4744,7 +5234,7 @@
 			)
 		)
 		(net
-			(code "33")
+			(code "36")
 			(name "/SHUNT_SENSE+")
 			(class "Default")
 			(node
@@ -4760,7 +5250,7 @@
 			)
 		)
 		(net
-			(code "34")
+			(code "37")
 			(name "/SHUNT_SENSE-")
 			(class "Default")
 			(node
@@ -4776,7 +5266,7 @@
 			)
 		)
 		(net
-			(code "35")
+			(code "38")
 			(name "/US1_ECHO")
 			(class "Default")
 			(node
@@ -4793,7 +5283,7 @@
 			)
 		)
 		(net
-			(code "36")
+			(code "39")
 			(name "/US1_TRIG")
 			(class "Default")
 			(node
@@ -4810,7 +5300,7 @@
 			)
 		)
 		(net
-			(code "37")
+			(code "40")
 			(name "/US2_ECHO")
 			(class "Default")
 			(node
@@ -4827,7 +5317,7 @@
 			)
 		)
 		(net
-			(code "38")
+			(code "41")
 			(name "/US2_TRIG")
 			(class "Default")
 			(node
@@ -4844,7 +5334,7 @@
 			)
 		)
 		(net
-			(code "39")
+			(code "42")
 			(name "/US3_ECHO")
 			(class "Default")
 			(node
@@ -4861,7 +5351,7 @@
 			)
 		)
 		(net
-			(code "40")
+			(code "43")
 			(name "/US3_TRIG")
 			(class "Default")
 			(node
@@ -4878,7 +5368,7 @@
 			)
 		)
 		(net
-			(code "41")
+			(code "44")
 			(name "/US4_ECHO")
 			(class "Default")
 			(node
@@ -4895,7 +5385,7 @@
 			)
 		)
 		(net
-			(code "42")
+			(code "45")
 			(name "/US4_TRIG")
 			(class "Default")
 			(node
@@ -4912,7 +5402,7 @@
 			)
 		)
 		(net
-			(code "43")
+			(code "46")
 			(name "/US5_ECHO")
 			(class "Default")
 			(node
@@ -4929,7 +5419,7 @@
 			)
 		)
 		(net
-			(code "44")
+			(code "47")
 			(name "/US5_TRIG")
 			(class "Default")
 			(node
@@ -4946,7 +5436,7 @@
 			)
 		)
 		(net
-			(code "45")
+			(code "48")
 			(name "/US6_ECHO")
 			(class "Default")
 			(node
@@ -4963,7 +5453,7 @@
 			)
 		)
 		(net
-			(code "46")
+			(code "49")
 			(name "/US6_TRIG")
 			(class "Default")
 			(node
@@ -4980,7 +5470,7 @@
 			)
 		)
 		(net
-			(code "47")
+			(code "50")
 			(name "/US7_ECHO")
 			(class "Default")
 			(node
@@ -4997,7 +5487,7 @@
 			)
 		)
 		(net
-			(code "48")
+			(code "51")
 			(name "/US7_TRIG")
 			(class "Default")
 			(node
@@ -5014,7 +5504,7 @@
 			)
 		)
 		(net
-			(code "49")
+			(code "52")
 			(name "/US8_ECHO")
 			(class "Default")
 			(node
@@ -5031,7 +5521,7 @@
 			)
 		)
 		(net
-			(code "50")
+			(code "53")
 			(name "/US8_TRIG")
 			(class "Default")
 			(node
@@ -5048,7 +5538,7 @@
 			)
 		)
 		(net
-			(code "51")
+			(code "54")
 			(name "/USB_LIDAR")
 			(class "Default")
 			(node
@@ -5065,7 +5555,7 @@
 			)
 		)
 		(net
-			(code "52")
+			(code "55")
 			(name "/USB_RS232")
 			(class "Default")
 			(node
@@ -5082,7 +5572,7 @@
 			)
 		)
 		(net
-			(code "53")
+			(code "56")
 			(name "unconnected-(A1-3V3_EN-Pad37)")
 			(class "Default")
 			(node
@@ -5093,7 +5583,7 @@
 			)
 		)
 		(net
-			(code "54")
+			(code "57")
 			(name "unconnected-(A1-ADC_VREF-Pad35)")
 			(class "Default")
 			(node
@@ -5104,7 +5594,7 @@
 			)
 		)
 		(net
-			(code "55")
+			(code "58")
 			(name "unconnected-(A1-GPIO19-Pad25)")
 			(class "Default")
 			(node
@@ -5115,7 +5605,7 @@
 			)
 		)
 		(net
-			(code "56")
+			(code "59")
 			(name "unconnected-(A1-GPIO20-Pad26)")
 			(class "Default")
 			(node
@@ -5126,7 +5616,7 @@
 			)
 		)
 		(net
-			(code "57")
+			(code "60")
 			(name "unconnected-(A1-GPIO21-Pad27)")
 			(class "Default")
 			(node
@@ -5137,7 +5627,7 @@
 			)
 		)
 		(net
-			(code "58")
+			(code "61")
 			(name "unconnected-(A1-GPIO22-Pad29)")
 			(class "Default")
 			(node
@@ -5148,7 +5638,7 @@
 			)
 		)
 		(net
-			(code "59")
+			(code "62")
 			(name "unconnected-(A1-GPIO26_ADC0-Pad31)")
 			(class "Default")
 			(node
@@ -5159,7 +5649,7 @@
 			)
 		)
 		(net
-			(code "60")
+			(code "63")
 			(name "unconnected-(A1-GPIO27_ADC1-Pad32)")
 			(class "Default")
 			(node
@@ -5170,7 +5660,7 @@
 			)
 		)
 		(net
-			(code "61")
+			(code "64")
 			(name "unconnected-(A1-GPIO28_ADC2-Pad34)")
 			(class "Default")
 			(node
@@ -5181,7 +5671,7 @@
 			)
 		)
 		(net
-			(code "62")
+			(code "65")
 			(name "unconnected-(A1-RUN-Pad30)")
 			(class "Default")
 			(node
@@ -5192,7 +5682,7 @@
 			)
 		)
 		(net
-			(code "63")
+			(code "66")
 			(name "unconnected-(A1-VBUS-Pad40)")
 			(class "Default")
 			(node
@@ -5203,7 +5693,7 @@
 			)
 		)
 		(net
-			(code "64")
+			(code "67")
 			(name "unconnected-(A1-VSYS-Pad39)")
 			(class "Default")
 			(node
@@ -5214,7 +5704,7 @@
 			)
 		)
 		(net
-			(code "65")
+			(code "68")
 			(name "unconnected-(U8-USB1-Pad3)")
 			(class "Default")
 			(node
@@ -5225,7 +5715,7 @@
 			)
 		)
 		(net
-			(code "66")
+			(code "69")
 			(name "unconnected-(U8-USB3-Pad5)")
 			(class "Default")
 			(node
@@ -5233,6 +5723,248 @@
 				(pin "5")
 				(pinfunction "USB3_5")
 				(pintype "bidirectional+no_connect")
+			)
+		)
+		(net
+			(code "70")
+			(name "unconnected-(U19-BL_IND-Pad10)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "10")
+				(pinfunction "BL_IND_10")
+				(pintype "output+no_connect")
+			)
+		)
+		(net
+			(code "71")
+			(name "unconnected-(U19-CAP-Pad9)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "9")
+				(pinfunction "CAP_9")
+				(pintype "passive+no_connect")
+			)
+		)
+		(net
+			(code "72")
+			(name "unconnected-(U19-COM2-Pad18)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "18")
+				(pinfunction "COM2_18")
+				(pintype "passive+no_connect")
+			)
+		)
+		(net
+			(code "73")
+			(name "unconnected-(U19-COM3-Pad17)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "17")
+				(pinfunction "COM3_17")
+				(pintype "input+no_connect")
+			)
+		)
+		(net
+			(code "74")
+			(name "unconnected-(U19-INT-Pad14)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "14")
+				(pinfunction "INT_14")
+				(pintype "output+no_connect")
+			)
+		)
+		(net
+			(code "75")
+			(name "unconnected-(U19-PIN1-Pad1)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "1")
+				(pinfunction "PIN1_1")
+				(pintype "no_connect")
+			)
+		)
+		(net
+			(code "76")
+			(name "unconnected-(U19-PIN7-Pad7)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "7")
+				(pinfunction "PIN7_7")
+				(pintype "no_connect")
+			)
+		)
+		(net
+			(code "77")
+			(name "unconnected-(U19-PIN8-Pad8)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "8")
+				(pinfunction "PIN8_8")
+				(pintype "no_connect")
+			)
+		)
+		(net
+			(code "78")
+			(name "unconnected-(U19-PIN12-Pad12)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "12")
+				(pinfunction "PIN12_12")
+				(pintype "no_connect")
+			)
+		)
+		(net
+			(code "79")
+			(name "unconnected-(U19-PIN13-Pad13)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "13")
+				(pinfunction "PIN13_13")
+				(pintype "no_connect")
+			)
+		)
+		(net
+			(code "80")
+			(name "unconnected-(U19-PIN15-Pad15)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "15")
+				(pinfunction "PIN15_15")
+				(pintype "no_connect")
+			)
+		)
+		(net
+			(code "81")
+			(name "unconnected-(U19-PIN16-Pad16)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "16")
+				(pinfunction "PIN16_16")
+				(pintype "no_connect")
+			)
+		)
+		(net
+			(code "82")
+			(name "unconnected-(U19-PIN21-Pad21)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "21")
+				(pinfunction "PIN21_21")
+				(pintype "no_connect")
+			)
+		)
+		(net
+			(code "83")
+			(name "unconnected-(U19-PIN22-Pad22)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "22")
+				(pinfunction "PIN22_22")
+				(pintype "no_connect")
+			)
+		)
+		(net
+			(code "84")
+			(name "unconnected-(U19-PIN23-Pad23)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "23")
+				(pinfunction "PIN23_23")
+				(pintype "no_connect")
+			)
+		)
+		(net
+			(code "85")
+			(name "unconnected-(U19-PIN24-Pad24)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "24")
+				(pinfunction "PIN24_24")
+				(pintype "no_connect")
+			)
+		)
+		(net
+			(code "86")
+			(name "unconnected-(U19-PS0-Pad6)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "6")
+				(pinfunction "PS0_6")
+				(pintype "input+no_connect")
+			)
+		)
+		(net
+			(code "87")
+			(name "unconnected-(U19-PS1-Pad5)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "5")
+				(pinfunction "PS1_5")
+				(pintype "input+no_connect")
+			)
+		)
+		(net
+			(code "88")
+			(name "unconnected-(U19-XIN32-Pad27)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "27")
+				(pinfunction "XIN32_27")
+				(pintype "input+no_connect")
+			)
+		)
+		(net
+			(code "89")
+			(name "unconnected-(U19-XOUT32-Pad26)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "26")
+				(pinfunction "XOUT32_26")
+				(pintype "output+no_connect")
+			)
+		)
+		(net
+			(code "90")
+			(name "unconnected-(U19-~{BOOT_LOAD_PIN}-Pad4)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "4")
+				(pinfunction "~{BOOT_LOAD_PIN}_4")
+				(pintype "input+no_connect")
+			)
+		)
+		(net
+			(code "91")
+			(name "unconnected-(U19-~{RESET}-Pad11)")
+			(class "Default")
+			(node
+				(ref "U19")
+				(pin "11")
+				(pinfunction "~{RESET}_11")
+				(pintype "input+no_connect")
 			)
 		)
 	)

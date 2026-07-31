@@ -1447,8 +1447,59 @@ FL-2 分流器 ──Kelvin──► INA226 ──I2C──► Pico 2 W ──US
 |---|---|---|
 | W-J1 | Jetson USB → USB-RS232 → 驅動器 CN4 | ⚠️ **這條含 GND，是 §7 既有地迴路的成因**——也是 12V 軌不能用 CC/CV 版模組的原因 |
 | W-J2 | Jetson USB → LiDAR A2M12 | |
-| W-J3 | Jetson I2C → BNO055 | |
+| W-J3 | Jetson 40-pin I2C → BNO055（U19） | 共四條線（電源＋地＋SDA＋SCL），腳位／網路名／驅動設定見下方 **W-J3 明細** |
 | W-J4 | Jetson USB → OV9281 相機 | ★二階 |
+
+#### W-J3 明細：Jetson 40-pin → BNO055（U19）
+
+**四條實體線**（線材為杜邦線或現成 4 芯排線，無需壓接）：
+
+| 子編號 | Jetson 40-pin | 訊號 | BNO055 模組腳 | 網路名 |
+|---|---|---|---|---|
+| W-J3-1 | **pin 1** | 3.3V 供電 | VIN | `JET_3V3` |
+| W-J3-2 | **pin 3** | I2C1 SDA | SDA | `JET_I2C_SDA` |
+| W-J3-3 | **pin 5** | I2C1 SCL | SCL | `JET_I2C_SCL` |
+| W-J3-4 | **pin 6** | GND | GND | `GND_JETSON` |
+
+> 🔴 **`JET_3V3` 與 Pico 的 `+3V3` 是不同穩壓器的軌**，刻意分成兩個網路名。
+> `JET_3V3` 來自 Jetson 載板自己的 3.3V；`+3V3` 是 Pico 板載 LDO 的輸出（見 §16 F 區 W-F2）。
+> **不可**因為「都是 3.3V」就在接線時併在一起——那會讓兩顆穩壓器互灌。
+
+**KiCad 對應**：原理圖中這四條線畫成 `J4`（40-pin 排針，只畫出用到的四支腳）連到 `U19`（BNO055），
+網路名即上表第五欄。追圖時從 `J4` 的 pin 1/3/5/6 出發即可對上實體排針同編號的腳。
+
+**模組板事實**：實際採購的是 **BNO055 模組板**，不是裸晶片——模組上已自帶
+LDO（可吃 3.3V 或 5V VIN）、32.768kHz 外部晶振、I2C 上拉電阻，且 PS0/PS1 已固定在 **I2C 模式**。
+原理圖裡畫的裸晶片符號只是**佔位表示**，不代表要自己佈這些週邊。
+因此接線只有上表四條，**不需外加上拉電阻或晶振**。
+
+**驅動設定**（出處為 repo 內實際檔案，非慣例值）：
+
+| 項目 | 值 | 出處 |
+|---|---|---|
+| I2C 裝置節點 | `/dev/i2c-7` | `src/motor_control/launch/bringup.launch.py:493`（`imu_device` 預設值） |
+| I2C 位址 | `40` 十進位 ＝ **`0x28`** | `src/motor_control/launch/bringup.launch.py:59`（`DEFAULT_IMU_I2C_ADDRESS`），於 `:503` 帶入 `imu_address` |
+| 參數傳入節點 | `device` / `address` | `src/motor_control/launch/bringup.launch.py:282-283` |
+| 節點自身預設 | `/dev/i2c-1`、`BNO055_ADDRESS_A` | `src/ros-imu-bno055/src/bno055_i2c_node_ros2.cpp:51-52` |
+| `BNO055_ADDRESS_A` 定義 | `0x28`（模組 ADR 腳未拉高時的預設位址） | `src/ros-imu-bno055/include/imu_bno055/bno055_i2c_driver.h:19` |
+
+> ⚠️ **節點自身預設的 bus 是 `/dev/i2c-1`，不是 `/dev/i2c-7`**。
+> 只有透過 `bringup.launch.py` 啟動時才會被覆寫成 `/dev/i2c-7`。
+> 若有人用 `ros2 run imu_bno055 bno055_i2c_node` 裸跑節點除錯，它會去掃**錯誤的 bus** 而讀不到 IMU——
+> 這不是接線問題。裸跑時要自己帶 `--ros-args -p device:=/dev/i2c-7 -p address:=40`。
+
+**IMU 讀不到時的除錯順序**：
+
+1. **確認 bus 存在**：`i2cdetect -l`——`/dev/i2c-7` 在本機對應的 adapter 為 `c250000.i2c`。
+2. **掃位址**：`i2cdetect -y -r 7`，應在 **0x28** 看到裝置。
+   - 掃不到任何東西 → 先查 W-J3-1（VIN）與 W-J3-4（GND），模組沒電時 SDA/SCL 也不會有回應。
+   - 掃到的是 **0x29** → 模組的 ADR/COM3 腳被拉高了，與驅動設定的 `0x28` 不符；
+     此時應改回模組跳線，或明確帶 `imu_address:=41` 啟動，**不要**只改其中一邊。
+   - 0x28 有回應但節點仍讀不到 → 檢查是否裸跑節點（見上方 ⚠️），以及使用者是否在 `i2c` 群組。
+3. **逐條對線**：照上表的 40-pin 腳位一條一條量。最常見的錯是
+   **SDA/SCL 對調**（pin 3 與 pin 5 相鄰）與 **3.3V 誤接到 pin 2/4 的 5V**。
+   模組自帶 LDO 雖能吃 5V，但**上拉會把匯流排拉到 5V**，長期會傷 Jetson 的 3.3V I/O
+   （與 §16.3 第 2 項 INA226 接 5V 是同一類錯誤）。
 
 ### K. 充電站側（★二階）
 

@@ -1,0 +1,5239 @@
+(export
+	(version "E")
+	(design
+		(source "D:\\Projects\\愛吠的狗機器人\\kicad circuit\\kicad circuit.kicad_sch")
+		(date "2026-08-01T00:54:50")
+		(tool "Eeschema 10.0.5")
+		(sheet
+			(number "1")
+			(name "/")
+			(tstamps "/")
+			(title_block
+				(title)
+				(company)
+				(rev)
+				(date)
+				(source "kicad circuit.kicad_sch")
+				(comment
+					(number "1")
+					(value "")
+				)
+				(comment
+					(number "2")
+					(value "")
+				)
+				(comment
+					(number "3")
+					(value "")
+				)
+				(comment
+					(number "4")
+					(value "")
+				)
+				(comment
+					(number "5")
+					(value "")
+				)
+				(comment
+					(number "6")
+					(value "")
+				)
+				(comment
+					(number "7")
+					(value "")
+				)
+				(comment
+					(number "8")
+					(value "")
+				)
+				(comment
+					(number "9")
+					(value "")
+				)
+			)
+		)
+	)
+	(components
+		(comp
+			(ref "A1")
+			(value "RaspberryPi_Pico_W")
+			(footprint "Module:RaspberryPi_Pico_W_SMD_HandSolder")
+			(datasheet "https://datasheets.raspberrypi.com/picow/pico-w-datasheet.pdf")
+			(description "Versatile and inexpensive wireless microcontroller module powered by RP2040 dual-core Arm Cortex-M0+ processor up to 133 MHz, 264kB SRAM, 2MB QSPI flash, Infineon CYW43439 2.4GHz 802.11n wireless LAN; also supports Raspberry Pi Pico 2 W")
+			(fields
+				(field
+					(name "Footprint") "Module:RaspberryPi_Pico_W_SMD_HandSolder")
+				(field
+					(name "Datasheet") "https://datasheets.raspberrypi.com/picow/pico-w-datasheet.pdf")
+				(field
+					(name "Description") "Versatile and inexpensive wireless microcontroller module powered by RP2040 dual-core Arm Cortex-M0+ processor up to 133 MHz, 264kB SRAM, 2MB QSPI flash, Infineon CYW43439 2.4GHz 802.11n wireless LAN; also supports Raspberry Pi Pico 2 W")
+			)
+			(libsource
+				(lib "MCU_Module")
+				(part "RaspberryPi_Pico_W")
+				(description "Versatile and inexpensive wireless microcontroller module powered by RP2040 dual-core Arm Cortex-M0+ processor up to 133 MHz, 264kB SRAM, 2MB QSPI flash, Infineon CYW43439 2.4GHz 802.11n wireless LAN; also supports Raspberry Pi Pico 2 W")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "RP2350A M33 RISC-V Hazard3 usb wifi bluetooth")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "RaspberryPi?Pico?Common* RaspberryPi?Pico?W?SMD*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "9a19fc9f-100c-4b90-87b7-16be88a579a0")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "30")
+						)
+						(pin
+							(num "37")
+						)
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "4")
+						)
+						(pin
+							(num "5")
+						)
+						(pin
+							(num "6")
+						)
+						(pin
+							(num "7")
+						)
+						(pin
+							(num "9")
+						)
+						(pin
+							(num "10")
+						)
+						(pin
+							(num "11")
+						)
+						(pin
+							(num "12")
+						)
+						(pin
+							(num "14")
+						)
+						(pin
+							(num "15")
+						)
+						(pin
+							(num "16")
+						)
+						(pin
+							(num "17")
+						)
+						(pin
+							(num "19")
+						)
+						(pin
+							(num "20")
+						)
+						(pin
+							(num "39")
+						)
+						(pin
+							(num "40")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "23")
+						)
+						(pin
+							(num "28")
+						)
+						(pin
+							(num "18")
+						)
+						(pin
+							(num "13")
+						)
+						(pin
+							(num "38")
+						)
+						(pin
+							(num "8")
+						)
+						(pin
+							(num "36")
+						)
+						(pin
+							(num "21")
+						)
+						(pin
+							(num "22")
+						)
+						(pin
+							(num "24")
+						)
+						(pin
+							(num "25")
+						)
+						(pin
+							(num "26")
+						)
+						(pin
+							(num "27")
+						)
+						(pin
+							(num "29")
+						)
+						(pin
+							(num "35")
+						)
+						(pin
+							(num "31")
+						)
+						(pin
+							(num "32")
+						)
+						(pin
+							(num "34")
+						)
+						(pin
+							(num "33")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "BT1")
+			(value "Battery")
+			(description "Multiple-cell battery")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Multiple-cell battery")
+			)
+			(libsource
+				(lib "Device")
+				(part "Battery")
+				(description "Multiple-cell battery")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "batt voltage-source cell")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "b194a9a9-1b97-47cd-9362-ba66bdc5be74")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "C1")
+			(value "1000uF/50V EEU-FC1H102")
+			(description "capacitor, US symbol")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "capacitor, US symbol")
+			)
+			(libsource
+				(lib "Device")
+				(part "C_Polarized_US")
+				(description "Polarized capacitor, US symbol")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "cap capacitor")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "CP_*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "93cecbc2-d657-4501-90b4-dd175a6fcb6b")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "C2")
+			(value "0.1uF")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Device")
+				(part "C_US")
+				(description "capacitor, US symbol")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "cap capacitor")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "C_*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "5071a909-c316-4ffa-9c81-5eeeeb684633")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "C3")
+			(value "0.1uF")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Device")
+				(part "C_US")
+				(description "capacitor, US symbol")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "cap capacitor")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "C_*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "b1a9a5b2-094f-4357-bb68-245487ed80bc")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "C4")
+			(value "0.1uF")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Device")
+				(part "C_US")
+				(description "capacitor, US symbol")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "cap capacitor")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "C_*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "fb6be6ac-32ef-4bd5-afdb-c316518df079")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "C5")
+			(value "0.1uF")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Device")
+				(part "C_US")
+				(description "capacitor, US symbol")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "cap capacitor")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "C_*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "ed2b56a9-93f1-424d-9eb7-133b74dab09f")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "C6")
+			(value "0.1uF")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Device")
+				(part "C_US")
+				(description "capacitor, US symbol")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "cap capacitor")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "C_*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "bf896786-0c64-4c0c-a2e2-b9e2f94ca4ff")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "C7")
+			(value "0.1uF")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Device")
+				(part "C_US")
+				(description "capacitor, US symbol")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "cap capacitor")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "C_*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "23ce035e-5690-405a-8aab-639eb390e0e8")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "C8")
+			(value "0.1uF")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Device")
+				(part "C_US")
+				(description "capacitor, US symbol")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "cap capacitor")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "C_*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "0831dcde-be7d-442d-bbf2-1101dbf0cf78")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "C9")
+			(value "0.1uF")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Device")
+				(part "C_US")
+				(description "capacitor, US symbol")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "cap capacitor")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "C_*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "5da6be15-f098-4256-90f4-07045fb4128c")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "C10")
+			(value "470uF/25V bulk")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Device")
+				(part "C_Polarized_US")
+				(description "Polarized capacitor, US symbol")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "cap capacitor")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "CP_*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "d70458e8-8dd8-4208-a8a8-b9ed8b0c59a6")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "D1")
+			(value "Ideal Diode Module")
+			(description "Diode")
+			(fields
+				(field
+					(name "Sim.Device") "D")
+				(field
+					(name "Sim.Pins") "1=K 2=A")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Diode")
+			)
+			(libsource
+				(lib "Device")
+				(part "D")
+				(description "Diode")
+			)
+			(property
+				(name "Sim.Device")
+				(value "D")
+			)
+			(property
+				(name "Sim.Pins")
+				(value "1=K 2=A")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "diode")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "TO-???* *_Diode_* *SingleDiode* D_*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "b3e11c5c-faf4-40fe-ab09-50b466c6ec34")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "D2")
+			(value "Ideal Diode Module")
+			(description "Diode")
+			(fields
+				(field
+					(name "Sim.Device") "D")
+				(field
+					(name "Sim.Pins") "1=K 2=A")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Diode")
+			)
+			(libsource
+				(lib "Device")
+				(part "D")
+				(description "Diode")
+			)
+			(property
+				(name "Sim.Device")
+				(value "D")
+			)
+			(property
+				(name "Sim.Pins")
+				(value "1=K 2=A")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "diode")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "TO-???* *_Diode_* *SingleDiode* D_*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "6688bbb2-2cfd-4551-918d-e1327d86a828")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "D3")
+			(value "SMCJ30A")
+			(footprint "SMCJ30A:DIOM6859X262N")
+			(fields
+				(field
+					(name "DigiKey_Part_Number") "SMCJ30AFSCT-ND")
+				(field
+					(name "SnapEDA_Link") "https://www.snapeda.com/parts/SMCJ30A/taiwan/view-part/?ref=snap")
+				(field
+					(name "MAXIMUM_PACKAGE_HEIGHT") "2.62 mm")
+				(field
+					(name "Package") "SMC-2 Taiwan Semiconductor")
+				(field
+					(name "Check_prices") "https://www.snapeda.com/parts/SMCJ30A/taiwan/view-part/?ref=eda")
+				(field
+					(name "STANDARD") "IPC-7351B")
+				(field
+					(name "PARTREV") "R2102")
+				(field
+					(name "MF") "Taiwan Semiconductor Corporation")
+				(field
+					(name "MP") "SMCJ30A")
+				(field
+					(name "Description_1") "1500W, 30V, Unidirectional, TVS")
+				(field
+					(name "MANUFACTURER") "Taiwan Semiconductor")
+				(field
+					(name "Footprint") "SMCJ30A:DIOM6859X262N")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "SMCJ30A")
+				(part "SMCJ30A")
+				(description "")
+			)
+			(property
+				(name "DigiKey_Part_Number")
+				(value "SMCJ30AFSCT-ND")
+			)
+			(property
+				(name "SnapEDA_Link")
+				(value "https://www.snapeda.com/parts/SMCJ30A/taiwan/view-part/?ref=snap")
+			)
+			(property
+				(name "MAXIMUM_PACKAGE_HEIGHT")
+				(value "2.62 mm")
+			)
+			(property
+				(name "Package")
+				(value "SMC-2 Taiwan Semiconductor")
+			)
+			(property
+				(name "Check_prices")
+				(value "https://www.snapeda.com/parts/SMCJ30A/taiwan/view-part/?ref=eda")
+			)
+			(property
+				(name "STANDARD")
+				(value "IPC-7351B")
+			)
+			(property
+				(name "PARTREV")
+				(value "R2102")
+			)
+			(property
+				(name "MF")
+				(value "Taiwan Semiconductor Corporation")
+			)
+			(property
+				(name "MP")
+				(value "SMCJ30A")
+			)
+			(property
+				(name "Description_1")
+				(value "1500W, 30V, Unidirectional, TVS")
+			)
+			(property
+				(name "MANUFACTURER")
+				(value "Taiwan Semiconductor")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "564fba24-0816-4421-80aa-90dca89bd30e")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "C")
+						)
+						(pin
+							(num "A")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "F1")
+			(value "5A ATO")
+			(description "Fuse")
+			(fields
+				(field
+					(name "DocRef") "F5-A")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Fuse")
+			)
+			(libsource
+				(lib "Device")
+				(part "Fuse")
+				(description "Fuse")
+			)
+			(property
+				(name "DocRef")
+				(value "F5-A")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "fuse")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "*Fuse*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "fd45ec8d-a0bb-42ec-91b1-b14dbb5354a0")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "F2")
+			(value "5A ATO")
+			(description "Fuse")
+			(fields
+				(field
+					(name "DocRef") "F5-B")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Fuse")
+			)
+			(libsource
+				(lib "Device")
+				(part "Fuse")
+				(description "Fuse")
+			)
+			(property
+				(name "DocRef")
+				(value "F5-B")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "fuse")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "*Fuse*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "43fdbb2e-d0b6-475c-853d-8d383fdec0ad")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "F3")
+			(value "25A ATO")
+			(description "Fuse")
+			(fields
+				(field
+					(name "DocRef") "F1")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Fuse")
+			)
+			(libsource
+				(lib "Device")
+				(part "Fuse")
+				(description "Fuse")
+			)
+			(property
+				(name "DocRef")
+				(value "F1")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "fuse")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "*Fuse*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "fe6b4b27-88b6-4a11-96a3-fe4e0cea0f5f")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "F4")
+			(value "7.5A ATO")
+			(description "Fuse")
+			(fields
+				(field
+					(name "DocRef") "F2")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Fuse")
+			)
+			(libsource
+				(lib "Device")
+				(part "Fuse")
+				(description "Fuse")
+			)
+			(property
+				(name "DocRef")
+				(value "F2")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "fuse")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "*Fuse*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "ec5d1fcb-f86e-4243-80b4-408f24935082")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "J1")
+			(value "Screw_Terminal_01x05")
+			(description "Generic screw terminal, single row, 01x05, script generated (kicad-library-utils/schlib/autogen/connector/)")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Generic screw terminal, single row, 01x05, script generated (kicad-library-utils/schlib/autogen/connector/)")
+			)
+			(libsource
+				(lib "Connector")
+				(part "Screw_Terminal_01x05")
+				(description "Generic screw terminal, single row, 01x05, script generated (kicad-library-utils/schlib/autogen/connector/)")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "screw terminal")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "TerminalBlock*:*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "9f2883ad-ea19-4ad2-a2e6-42274a18bf08")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "4")
+						)
+						(pin
+							(num "5")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "J2")
+			(value "Screw_Terminal_01x06")
+			(description "Generic screw terminal, single row, 01x06, script generated (kicad-library-utils/schlib/autogen/connector/)")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Generic screw terminal, single row, 01x06, script generated (kicad-library-utils/schlib/autogen/connector/)")
+			)
+			(libsource
+				(lib "Connector")
+				(part "Screw_Terminal_01x06")
+				(description "Generic screw terminal, single row, 01x06, script generated (kicad-library-utils/schlib/autogen/connector/)")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "screw terminal")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "TerminalBlock*:*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "8a1738a3-a21f-43b6-9e50-dae40ce9beb4")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "4")
+						)
+						(pin
+							(num "5")
+						)
+						(pin
+							(num "6")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "J3")
+			(value "XT60 30A cont./60A surge")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Connector_Generic")
+				(part "Conn_01x02")
+				(description "Generic connector, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "connector")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "Connector*:*_1x??_*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "9d67daa0-1843-4143-bf3e-0c1b62e83857")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "R1")
+			(value "2.5mohm FL-2 30A/75mV")
+			(description "Shunt resistor with Kelvin connections")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Shunt resistor with Kelvin connections")
+			)
+			(libsource
+				(lib "Device")
+				(part "R_Shunt")
+				(description "Shunt resistor with Kelvin connections")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "R res shunt resistor")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "R_*Shunt*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "c57c4494-3d33-472f-ab31-8e93f12021f5")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "4")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "3")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U1")
+			(value "36V　無線充電模組")
+			(footprint "module")
+			(datasheet "https://zanrobot.com/shop/wirelesspowermodule/")
+			(fields
+				(field
+					(name "Footprint") "module")
+				(field
+					(name "Datasheet") "https://zanrobot.com/shop/wirelesspowermodule/")
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Wireless Charging Module")
+				(part "Wireless_Charging_Module")
+				(description "")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "357eb665-ce8e-4268-90b4-534349817202")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U2")
+			(value "36V　無線充電模組")
+			(footprint "module")
+			(datasheet "https://zanrobot.com/shop/wirelesspowermodule/")
+			(fields
+				(field
+					(name "Footprint") "module")
+				(field
+					(name "Datasheet") "https://zanrobot.com/shop/wirelesspowermodule/")
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Wireless Charging Module")
+				(part "Wireless_Charging_Module")
+				(description "")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "7b6bf599-7e31-4849-b040-d14c5d0c998e")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U3")
+			(value "XL4016 CC/CV")
+			(footprint "module")
+			(fields
+				(field
+					(name "Footprint") "module")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Buck Converter")
+				(part "XL4016_CV_module")
+				(description "")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "d2209ec0-4695-4382-9ce0-c4e375f4688d")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "4")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U4")
+			(value "XL4016 CC/CV")
+			(footprint "module")
+			(fields
+				(field
+					(name "Footprint") "module")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Buck Converter")
+				(part "XL4016_CV_module")
+				(description "")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "b37f86e9-1df4-4f4c-b85b-bf1caff055cc")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "4")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U5")
+			(value "XL4016 CV only")
+			(footprint "module")
+			(fields
+				(field
+					(name "Footprint") "module")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Buck Converter")
+				(part "XL4016_CV_module")
+				(description "")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "7c00421c-caac-452b-b315-c0592a6f4958")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "4")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U6")
+			(value "INA226 (R100 removed)")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "power sencer")
+				(part "INA226_Module")
+				(description "")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "5ad00f5d-843b-4232-bbaa-a4d1339bd24f")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "4")
+						)
+						(pin
+							(num "5")
+						)
+						(pin
+							(num "6")
+						)
+						(pin
+							(num "7")
+						)
+						(pin
+							(num "8")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U7")
+			(value "AGV-BLD-2S")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "motor driver")
+				(part "AGV-BLD-2S")
+				(description "")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "3ee7714f-b6ca-4c87-ac7e-56ee0bb42a89")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "20")
+						)
+						(pin
+							(num "21")
+						)
+						(pin
+							(num "22")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U8")
+			(value "jetson orin nx")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Jetson")
+				(part "Jetson_orin_nx_Developer_Kit_CarrierBoard")
+				(description "")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "9ae71628-99b5-4b53-bc6b-aa2fb1bb653a")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "4")
+						)
+						(pin
+							(num "5")
+						)
+						(pin
+							(num "6")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U9")
+			(value "A2M12")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "lidar")
+				(part "A2M12")
+				(description "")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "352cd708-a967-42b4-94ec-a75d46f9fb12")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U10")
+			(value "DB9 to USB")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Signal Conversion Module")
+				(part "DB9 to USB")
+				(description "")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "e182b018-bd15-4ff7-9681-a8e564c19fdc")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "")
+						)
+						(pin
+							(num "4")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U11")
+			(value "HC-SR04P (3-5.5V)")
+			(footprint "HC-SR04:XCVR_HC-SR04")
+			(description "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			(fields
+				(field
+					(name "MF") "OSEPP")
+				(field
+					(name "Package") "None")
+				(field
+					(name "Price") "None")
+				(field
+					(name "Check_prices") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=eda")
+				(field
+					(name "SnapEDA_Link") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=snap")
+				(field
+					(name "MP") "HC-SR04")
+				(field
+					(name "Availability") "In Stock")
+				(field
+					(name "MANUFACTURER") "Osepp")
+				(field
+					(name "Position") "前左")
+				(field
+					(name "Footprint") "HC-SR04:XCVR_HC-SR04")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			)
+			(libsource
+				(lib "HC-SR04")
+				(part "HC-SR04")
+				(description "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			)
+			(property
+				(name "MF")
+				(value "OSEPP")
+			)
+			(property
+				(name "Package")
+				(value "None")
+			)
+			(property
+				(name "Price")
+				(value "None")
+			)
+			(property
+				(name "Check_prices")
+				(value "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=eda")
+			)
+			(property
+				(name "SnapEDA_Link")
+				(value "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=snap")
+			)
+			(property
+				(name "MP")
+				(value "HC-SR04")
+			)
+			(property
+				(name "Availability")
+				(value "In Stock")
+			)
+			(property
+				(name "MANUFACTURER")
+				(value "Osepp")
+			)
+			(property
+				(name "Position")
+				(value "前左")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "c940c06d-4750-490a-acbd-7259063fbf72")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "4")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U12")
+			(value "HC-SR04P (3-5.5V)")
+			(footprint "HC-SR04:XCVR_HC-SR04")
+			(description "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			(fields
+				(field
+					(name "MF") "OSEPP")
+				(field
+					(name "Package") "None")
+				(field
+					(name "Price") "None")
+				(field
+					(name "Check_prices") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=eda")
+				(field
+					(name "SnapEDA_Link") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=snap")
+				(field
+					(name "MP") "HC-SR04")
+				(field
+					(name "Availability") "In Stock")
+				(field
+					(name "MANUFACTURER") "Osepp")
+				(field
+					(name "Position") "前右")
+				(field
+					(name "Footprint") "HC-SR04:XCVR_HC-SR04")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			)
+			(libsource
+				(lib "HC-SR04")
+				(part "HC-SR04")
+				(description "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			)
+			(property
+				(name "MF")
+				(value "OSEPP")
+			)
+			(property
+				(name "Package")
+				(value "None")
+			)
+			(property
+				(name "Price")
+				(value "None")
+			)
+			(property
+				(name "Check_prices")
+				(value "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=eda")
+			)
+			(property
+				(name "SnapEDA_Link")
+				(value "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=snap")
+			)
+			(property
+				(name "MP")
+				(value "HC-SR04")
+			)
+			(property
+				(name "Availability")
+				(value "In Stock")
+			)
+			(property
+				(name "MANUFACTURER")
+				(value "Osepp")
+			)
+			(property
+				(name "Position")
+				(value "前右")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "2a736c43-22b1-4c90-a207-68d0718d1e67")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "4")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U13")
+			(value "HC-SR04P (3-5.5V)")
+			(footprint "HC-SR04:XCVR_HC-SR04")
+			(description "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			(fields
+				(field
+					(name "MF") "OSEPP")
+				(field
+					(name "Package") "None")
+				(field
+					(name "Price") "None")
+				(field
+					(name "Check_prices") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=eda")
+				(field
+					(name "SnapEDA_Link") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=snap")
+				(field
+					(name "MP") "HC-SR04")
+				(field
+					(name "Availability") "In Stock")
+				(field
+					(name "MANUFACTURER") "Osepp")
+				(field
+					(name "Position") "右前")
+				(field
+					(name "Footprint") "HC-SR04:XCVR_HC-SR04")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			)
+			(libsource
+				(lib "HC-SR04")
+				(part "HC-SR04")
+				(description "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			)
+			(property
+				(name "MF")
+				(value "OSEPP")
+			)
+			(property
+				(name "Package")
+				(value "None")
+			)
+			(property
+				(name "Price")
+				(value "None")
+			)
+			(property
+				(name "Check_prices")
+				(value "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=eda")
+			)
+			(property
+				(name "SnapEDA_Link")
+				(value "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=snap")
+			)
+			(property
+				(name "MP")
+				(value "HC-SR04")
+			)
+			(property
+				(name "Availability")
+				(value "In Stock")
+			)
+			(property
+				(name "MANUFACTURER")
+				(value "Osepp")
+			)
+			(property
+				(name "Position")
+				(value "右前")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "18c1894f-3e8c-4033-8aa5-40c7e7aee2bf")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "4")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U14")
+			(value "HC-SR04P (3-5.5V)")
+			(footprint "HC-SR04:XCVR_HC-SR04")
+			(description "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			(fields
+				(field
+					(name "MF") "OSEPP")
+				(field
+					(name "Package") "None")
+				(field
+					(name "Price") "None")
+				(field
+					(name "Check_prices") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=eda")
+				(field
+					(name "SnapEDA_Link") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=snap")
+				(field
+					(name "MP") "HC-SR04")
+				(field
+					(name "Availability") "In Stock")
+				(field
+					(name "MANUFACTURER") "Osepp")
+				(field
+					(name "Position") "右後")
+				(field
+					(name "Footprint") "HC-SR04:XCVR_HC-SR04")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			)
+			(libsource
+				(lib "HC-SR04")
+				(part "HC-SR04")
+				(description "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			)
+			(property
+				(name "MF")
+				(value "OSEPP")
+			)
+			(property
+				(name "Package")
+				(value "None")
+			)
+			(property
+				(name "Price")
+				(value "None")
+			)
+			(property
+				(name "Check_prices")
+				(value "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=eda")
+			)
+			(property
+				(name "SnapEDA_Link")
+				(value "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=snap")
+			)
+			(property
+				(name "MP")
+				(value "HC-SR04")
+			)
+			(property
+				(name "Availability")
+				(value "In Stock")
+			)
+			(property
+				(name "MANUFACTURER")
+				(value "Osepp")
+			)
+			(property
+				(name "Position")
+				(value "右後")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "859e2a09-ca38-4e98-973b-c84d652b3a0e")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "4")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U15")
+			(value "HC-SR04P (3-5.5V)")
+			(footprint "HC-SR04:XCVR_HC-SR04")
+			(description "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			(fields
+				(field
+					(name "MF") "OSEPP")
+				(field
+					(name "Package") "None")
+				(field
+					(name "Price") "None")
+				(field
+					(name "Check_prices") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=eda")
+				(field
+					(name "SnapEDA_Link") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=snap")
+				(field
+					(name "MP") "HC-SR04")
+				(field
+					(name "Availability") "In Stock")
+				(field
+					(name "MANUFACTURER") "Osepp")
+				(field
+					(name "Position") "後右")
+				(field
+					(name "Footprint") "HC-SR04:XCVR_HC-SR04")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			)
+			(libsource
+				(lib "HC-SR04")
+				(part "HC-SR04")
+				(description "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			)
+			(property
+				(name "MF")
+				(value "OSEPP")
+			)
+			(property
+				(name "Package")
+				(value "None")
+			)
+			(property
+				(name "Price")
+				(value "None")
+			)
+			(property
+				(name "Check_prices")
+				(value "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=eda")
+			)
+			(property
+				(name "SnapEDA_Link")
+				(value "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=snap")
+			)
+			(property
+				(name "MP")
+				(value "HC-SR04")
+			)
+			(property
+				(name "Availability")
+				(value "In Stock")
+			)
+			(property
+				(name "MANUFACTURER")
+				(value "Osepp")
+			)
+			(property
+				(name "Position")
+				(value "後右")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "f499e668-73c3-4b26-8fd9-6b087ce848ab")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "4")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U16")
+			(value "HC-SR04P (3-5.5V)")
+			(footprint "HC-SR04:XCVR_HC-SR04")
+			(description "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			(fields
+				(field
+					(name "MF") "OSEPP")
+				(field
+					(name "Package") "None")
+				(field
+					(name "Price") "None")
+				(field
+					(name "Check_prices") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=eda")
+				(field
+					(name "SnapEDA_Link") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=snap")
+				(field
+					(name "MP") "HC-SR04")
+				(field
+					(name "Availability") "In Stock")
+				(field
+					(name "MANUFACTURER") "Osepp")
+				(field
+					(name "Position") "後左")
+				(field
+					(name "Footprint") "HC-SR04:XCVR_HC-SR04")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			)
+			(libsource
+				(lib "HC-SR04")
+				(part "HC-SR04")
+				(description "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			)
+			(property
+				(name "MF")
+				(value "OSEPP")
+			)
+			(property
+				(name "Package")
+				(value "None")
+			)
+			(property
+				(name "Price")
+				(value "None")
+			)
+			(property
+				(name "Check_prices")
+				(value "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=eda")
+			)
+			(property
+				(name "SnapEDA_Link")
+				(value "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=snap")
+			)
+			(property
+				(name "MP")
+				(value "HC-SR04")
+			)
+			(property
+				(name "Availability")
+				(value "In Stock")
+			)
+			(property
+				(name "MANUFACTURER")
+				(value "Osepp")
+			)
+			(property
+				(name "Position")
+				(value "後左")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "5dec8dc9-8948-4d80-9598-0936d7a2ae74")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "4")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U17")
+			(value "HC-SR04P (3-5.5V)")
+			(footprint "HC-SR04:XCVR_HC-SR04")
+			(description "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			(fields
+				(field
+					(name "MF") "OSEPP")
+				(field
+					(name "Package") "None")
+				(field
+					(name "Price") "None")
+				(field
+					(name "Check_prices") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=eda")
+				(field
+					(name "SnapEDA_Link") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=snap")
+				(field
+					(name "MP") "HC-SR04")
+				(field
+					(name "Availability") "In Stock")
+				(field
+					(name "MANUFACTURER") "Osepp")
+				(field
+					(name "Position") "左後")
+				(field
+					(name "Footprint") "HC-SR04:XCVR_HC-SR04")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			)
+			(libsource
+				(lib "HC-SR04")
+				(part "HC-SR04")
+				(description "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			)
+			(property
+				(name "MF")
+				(value "OSEPP")
+			)
+			(property
+				(name "Package")
+				(value "None")
+			)
+			(property
+				(name "Price")
+				(value "None")
+			)
+			(property
+				(name "Check_prices")
+				(value "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=eda")
+			)
+			(property
+				(name "SnapEDA_Link")
+				(value "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=snap")
+			)
+			(property
+				(name "MP")
+				(value "HC-SR04")
+			)
+			(property
+				(name "Availability")
+				(value "In Stock")
+			)
+			(property
+				(name "MANUFACTURER")
+				(value "Osepp")
+			)
+			(property
+				(name "Position")
+				(value "左後")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "62ea9f84-5418-48d2-ae03-d23abdb193dc")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "4")
+						)
+					)
+				)
+			)
+		)
+		(comp
+			(ref "U18")
+			(value "HC-SR04P (3-5.5V)")
+			(footprint "HC-SR04:XCVR_HC-SR04")
+			(description "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			(fields
+				(field
+					(name "MF") "OSEPP")
+				(field
+					(name "Package") "None")
+				(field
+					(name "Price") "None")
+				(field
+					(name "Check_prices") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=eda")
+				(field
+					(name "SnapEDA_Link") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=snap")
+				(field
+					(name "MP") "HC-SR04")
+				(field
+					(name "Availability") "In Stock")
+				(field
+					(name "MANUFACTURER") "Osepp")
+				(field
+					(name "Position") "左前")
+				(field
+					(name "Footprint") "HC-SR04:XCVR_HC-SR04")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			)
+			(libsource
+				(lib "HC-SR04")
+				(part "HC-SR04")
+				(description "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			)
+			(property
+				(name "MF")
+				(value "OSEPP")
+			)
+			(property
+				(name "Package")
+				(value "None")
+			)
+			(property
+				(name "Price")
+				(value "None")
+			)
+			(property
+				(name "Check_prices")
+				(value "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=eda")
+			)
+			(property
+				(name "SnapEDA_Link")
+				(value "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=snap")
+			)
+			(property
+				(name "MP")
+				(value "HC-SR04")
+			)
+			(property
+				(name "Availability")
+				(value "In Stock")
+			)
+			(property
+				(name "MANUFACTURER")
+				(value "Osepp")
+			)
+			(property
+				(name "Position")
+				(value "左前")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "ed0bad72-0e73-4908-a89b-77825034ce0e")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+						(pin
+							(num "3")
+						)
+						(pin
+							(num "4")
+						)
+					)
+				)
+			)
+		)
+	)
+	(groups)
+	(variants)
+	(libparts
+		(libpart
+			(lib "Buck Converter")
+			(part "XL4016_CV_module")
+			(fields
+				(field
+					(name "Reference") "U")
+				(field
+					(name "Value") "XL4016")
+				(field
+					(name "Footprint") "module")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "IN+")
+					(type "power_in")
+				)
+				(pin
+					(num "2")
+					(name "IN-")
+					(type "power_in")
+				)
+				(pin
+					(num "3")
+					(name "OUT+")
+					(type "power_out")
+				)
+				(pin
+					(num "4")
+					(name "OUT-")
+					(type "power_out")
+				)
+			)
+		)
+		(libpart
+			(lib "Connector")
+			(part "Screw_Terminal_01x05")
+			(description "Generic screw terminal, single row, 01x05, script generated (kicad-library-utils/schlib/autogen/connector/)")
+			(footprints
+				(fp "TerminalBlock*:*")
+			)
+			(fields
+				(field
+					(name "Reference") "J")
+				(field
+					(name "Value") "Screw_Terminal_01x05")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Generic screw terminal, single row, 01x05, script generated (kicad-library-utils/schlib/autogen/connector/)")
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "Pin_1")
+					(type "passive")
+				)
+				(pin
+					(num "2")
+					(name "Pin_2")
+					(type "passive")
+				)
+				(pin
+					(num "3")
+					(name "Pin_3")
+					(type "passive")
+				)
+				(pin
+					(num "4")
+					(name "Pin_4")
+					(type "passive")
+				)
+				(pin
+					(num "5")
+					(name "Pin_5")
+					(type "passive")
+				)
+			)
+		)
+		(libpart
+			(lib "Connector")
+			(part "Screw_Terminal_01x06")
+			(description "Generic screw terminal, single row, 01x06, script generated (kicad-library-utils/schlib/autogen/connector/)")
+			(footprints
+				(fp "TerminalBlock*:*")
+			)
+			(fields
+				(field
+					(name "Reference") "J")
+				(field
+					(name "Value") "Screw_Terminal_01x06")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Generic screw terminal, single row, 01x06, script generated (kicad-library-utils/schlib/autogen/connector/)")
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "Pin_1")
+					(type "passive")
+				)
+				(pin
+					(num "2")
+					(name "Pin_2")
+					(type "passive")
+				)
+				(pin
+					(num "3")
+					(name "Pin_3")
+					(type "passive")
+				)
+				(pin
+					(num "4")
+					(name "Pin_4")
+					(type "passive")
+				)
+				(pin
+					(num "5")
+					(name "Pin_5")
+					(type "passive")
+				)
+				(pin
+					(num "6")
+					(name "Pin_6")
+					(type "passive")
+				)
+			)
+		)
+		(libpart
+			(lib "Connector_Generic")
+			(part "Conn_01x02")
+			(description "Generic connector, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)")
+			(footprints
+				(fp "Connector*:*_1x??_*")
+			)
+			(fields
+				(field
+					(name "Reference") "J")
+				(field
+					(name "Value") "Conn_01x02")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Generic connector, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)")
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "Pin_1")
+					(type "passive")
+				)
+				(pin
+					(num "2")
+					(name "Pin_2")
+					(type "passive")
+				)
+			)
+		)
+		(libpart
+			(lib "Device")
+			(part "Battery")
+			(description "Multiple-cell battery")
+			(fields
+				(field
+					(name "Reference") "BT")
+				(field
+					(name "Value") "Battery")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Multiple-cell battery")
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "+")
+					(type "passive")
+				)
+				(pin
+					(num "2")
+					(name "-")
+					(type "passive")
+				)
+			)
+		)
+		(libpart
+			(lib "Device")
+			(part "C_Polarized_US")
+			(description "Polarized capacitor, US symbol")
+			(footprints
+				(fp "CP_*")
+			)
+			(fields
+				(field
+					(name "Reference") "C")
+				(field
+					(name "Value") "C_Polarized_US")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Polarized capacitor, US symbol")
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "")
+					(type "passive")
+				)
+				(pin
+					(num "2")
+					(name "")
+					(type "passive")
+				)
+			)
+		)
+		(libpart
+			(lib "Device")
+			(part "C_US")
+			(description "capacitor, US symbol")
+			(footprints
+				(fp "C_*")
+			)
+			(fields
+				(field
+					(name "Reference") "C")
+				(field
+					(name "Value") "C_US")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "capacitor, US symbol")
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "")
+					(type "passive")
+				)
+				(pin
+					(num "2")
+					(name "")
+					(type "passive")
+				)
+			)
+		)
+		(libpart
+			(lib "Device")
+			(part "D")
+			(description "Diode")
+			(footprints
+				(fp "TO-???*")
+				(fp "*_Diode_*")
+				(fp "*SingleDiode*")
+				(fp "D_*")
+			)
+			(fields
+				(field
+					(name "Reference") "D")
+				(field
+					(name "Value") "D")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Diode")
+				(field
+					(name "Sim.Device") "D")
+				(field
+					(name "Sim.Pins") "1=K 2=A")
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "K")
+					(type "passive")
+				)
+				(pin
+					(num "2")
+					(name "A")
+					(type "passive")
+				)
+			)
+		)
+		(libpart
+			(lib "Device")
+			(part "Fuse")
+			(description "Fuse")
+			(footprints
+				(fp "*Fuse*")
+			)
+			(fields
+				(field
+					(name "Reference") "F")
+				(field
+					(name "Value") "Fuse")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Fuse")
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "")
+					(type "passive")
+				)
+				(pin
+					(num "2")
+					(name "")
+					(type "passive")
+				)
+			)
+		)
+		(libpart
+			(lib "Device")
+			(part "R_Shunt")
+			(description "Shunt resistor with Kelvin connections")
+			(footprints
+				(fp "R_*Shunt*")
+			)
+			(fields
+				(field
+					(name "Reference") "R")
+				(field
+					(name "Value") "R_Shunt")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Shunt resistor with Kelvin connections")
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "")
+					(type "passive")
+				)
+				(pin
+					(num "2")
+					(name "")
+					(type "passive")
+				)
+				(pin
+					(num "3")
+					(name "")
+					(type "passive")
+				)
+				(pin
+					(num "4")
+					(name "")
+					(type "passive")
+				)
+			)
+		)
+		(libpart
+			(lib "HC-SR04")
+			(part "HC-SR04")
+			(description "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+			(fields
+				(field
+					(name "Reference") "U")
+				(field
+					(name "Value") "HC-SR04")
+				(field
+					(name "Footprint") "HC-SR04:XCVR_HC-SR04")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description") "Ultrasonic Sensor Module,Rectangular,20-4000 mm,5 V,15 mA,Arduino Compatible | OSEPP HC-SR04")
+				(field
+					(name "MF") "OSEPP")
+				(field
+					(name "Package") "None")
+				(field
+					(name "Price") "None")
+				(field
+					(name "Check_prices") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=eda")
+				(field
+					(name "SnapEDA_Link") "https://www.snapeda.com/parts/HC-SR04/OSEPP/view-part/?ref=snap")
+				(field
+					(name "MP") "HC-SR04")
+				(field
+					(name "Availability") "In Stock")
+				(field
+					(name "MANUFACTURER") "Osepp")
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "VCC")
+					(type "power_in")
+				)
+				(pin
+					(num "2")
+					(name "TRIG")
+					(type "bidirectional")
+				)
+				(pin
+					(num "3")
+					(name "ECHO")
+					(type "bidirectional")
+				)
+				(pin
+					(num "4")
+					(name "GND")
+					(type "power_in")
+				)
+			)
+		)
+		(libpart
+			(lib "Jetson")
+			(part "Jetson_orin_nx_Developer_Kit_CarrierBoard")
+			(fields
+				(field
+					(name "Reference") "U")
+				(field
+					(name "Value") "jetson orin nx")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "+12V")
+					(type "power_in")
+				)
+				(pin
+					(num "2")
+					(name "GND")
+					(type "power_in")
+				)
+				(pin
+					(num "3")
+					(name "USB1")
+					(type "bidirectional")
+				)
+				(pin
+					(num "4")
+					(name "USB2")
+					(type "bidirectional")
+				)
+				(pin
+					(num "5")
+					(name "USB3")
+					(type "bidirectional")
+				)
+				(pin
+					(num "6")
+					(name "USB4")
+					(type "bidirectional")
+				)
+			)
+		)
+		(libpart
+			(lib "MCU_Module")
+			(part "RaspberryPi_Pico_W")
+			(description "Versatile and inexpensive wireless microcontroller module powered by RP2040 dual-core Arm Cortex-M0+ processor up to 133 MHz, 264kB SRAM, 2MB QSPI flash, Infineon CYW43439 2.4GHz 802.11n wireless LAN; also supports Raspberry Pi Pico 2 W")
+			(docs "https://datasheets.raspberrypi.com/picow/pico-w-datasheet.pdf")
+			(footprints
+				(fp "RaspberryPi?Pico?Common*")
+				(fp "RaspberryPi?Pico?W?SMD*")
+			)
+			(fields
+				(field
+					(name "Reference") "A")
+				(field
+					(name "Value") "RaspberryPi_Pico_W")
+				(field
+					(name "Footprint") "Module:RaspberryPi_Pico_W_SMD_HandSolder")
+				(field
+					(name "Datasheet") "https://datasheets.raspberrypi.com/picow/pico-w-datasheet.pdf")
+				(field
+					(name "Description") "Versatile and inexpensive wireless microcontroller module powered by RP2040 dual-core Arm Cortex-M0+ processor up to 133 MHz, 264kB SRAM, 2MB QSPI flash, Infineon CYW43439 2.4GHz 802.11n wireless LAN; also supports Raspberry Pi Pico 2 W")
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "GPIO0")
+					(type "bidirectional")
+				)
+				(pin
+					(num "2")
+					(name "GPIO1")
+					(type "bidirectional")
+				)
+				(pin
+					(num "3")
+					(name "GND")
+					(type "power_out")
+				)
+				(pin
+					(num "4")
+					(name "GPIO2")
+					(type "bidirectional")
+				)
+				(pin
+					(num "5")
+					(name "GPIO3")
+					(type "bidirectional")
+				)
+				(pin
+					(num "6")
+					(name "GPIO4")
+					(type "bidirectional")
+				)
+				(pin
+					(num "7")
+					(name "GPIO5")
+					(type "bidirectional")
+				)
+				(pin
+					(num "8")
+					(name "GND")
+					(type "passive")
+				)
+				(pin
+					(num "9")
+					(name "GPIO6")
+					(type "bidirectional")
+				)
+				(pin
+					(num "10")
+					(name "GPIO7")
+					(type "bidirectional")
+				)
+				(pin
+					(num "11")
+					(name "GPIO8")
+					(type "bidirectional")
+				)
+				(pin
+					(num "12")
+					(name "GPIO9")
+					(type "bidirectional")
+				)
+				(pin
+					(num "13")
+					(name "GND")
+					(type "passive")
+				)
+				(pin
+					(num "14")
+					(name "GPIO10")
+					(type "bidirectional")
+				)
+				(pin
+					(num "15")
+					(name "GPIO11")
+					(type "bidirectional")
+				)
+				(pin
+					(num "16")
+					(name "GPIO12")
+					(type "bidirectional")
+				)
+				(pin
+					(num "17")
+					(name "GPIO13")
+					(type "bidirectional")
+				)
+				(pin
+					(num "18")
+					(name "GND")
+					(type "passive")
+				)
+				(pin
+					(num "19")
+					(name "GPIO14")
+					(type "bidirectional")
+				)
+				(pin
+					(num "20")
+					(name "GPIO15")
+					(type "bidirectional")
+				)
+				(pin
+					(num "21")
+					(name "GPIO16")
+					(type "bidirectional")
+				)
+				(pin
+					(num "22")
+					(name "GPIO17")
+					(type "bidirectional")
+				)
+				(pin
+					(num "23")
+					(name "GND")
+					(type "passive")
+				)
+				(pin
+					(num "24")
+					(name "GPIO18")
+					(type "bidirectional")
+				)
+				(pin
+					(num "25")
+					(name "GPIO19")
+					(type "bidirectional")
+				)
+				(pin
+					(num "26")
+					(name "GPIO20")
+					(type "bidirectional")
+				)
+				(pin
+					(num "27")
+					(name "GPIO21")
+					(type "bidirectional")
+				)
+				(pin
+					(num "28")
+					(name "GND")
+					(type "passive")
+				)
+				(pin
+					(num "29")
+					(name "GPIO22")
+					(type "bidirectional")
+				)
+				(pin
+					(num "30")
+					(name "RUN")
+					(type "passive")
+				)
+				(pin
+					(num "31")
+					(name "GPIO26_ADC0")
+					(type "bidirectional")
+				)
+				(pin
+					(num "32")
+					(name "GPIO27_ADC1")
+					(type "bidirectional")
+				)
+				(pin
+					(num "33")
+					(name "AGND")
+					(type "power_out")
+				)
+				(pin
+					(num "34")
+					(name "GPIO28_ADC2")
+					(type "bidirectional")
+				)
+				(pin
+					(num "35")
+					(name "ADC_VREF")
+					(type "power_in")
+				)
+				(pin
+					(num "36")
+					(name "3V3")
+					(type "power_out")
+				)
+				(pin
+					(num "37")
+					(name "3V3_EN")
+					(type "passive")
+				)
+				(pin
+					(num "38")
+					(name "GND")
+					(type "passive")
+				)
+				(pin
+					(num "39")
+					(name "VSYS")
+					(type "power_in")
+				)
+				(pin
+					(num "40")
+					(name "VBUS")
+					(type "power_out")
+				)
+			)
+		)
+		(libpart
+			(lib "SMCJ30A")
+			(part "SMCJ30A")
+			(fields
+				(field
+					(name "Reference") "D")
+				(field
+					(name "Value") "SMCJ30A")
+				(field
+					(name "Footprint") "SMCJ30A:DIOM6859X262N")
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+				(field
+					(name "DigiKey_Part_Number") "SMCJ30AFSCT-ND")
+				(field
+					(name "SnapEDA_Link") "https://www.snapeda.com/parts/SMCJ30A/taiwan/view-part/?ref=snap")
+				(field
+					(name "MAXIMUM_PACKAGE_HEIGHT") "2.62 mm")
+				(field
+					(name "Package") "SMC-2 Taiwan Semiconductor")
+				(field
+					(name "Check_prices") "https://www.snapeda.com/parts/SMCJ30A/taiwan/view-part/?ref=eda")
+				(field
+					(name "STANDARD") "IPC-7351B")
+				(field
+					(name "PARTREV") "R2102")
+				(field
+					(name "MF") "Taiwan Semiconductor Corporation")
+				(field
+					(name "MP") "SMCJ30A")
+				(field
+					(name "Description_1") "1500W, 30V, Unidirectional, TVS")
+				(field
+					(name "MANUFACTURER") "Taiwan Semiconductor")
+			)
+			(pins
+				(pin
+					(num "A")
+					(name "")
+					(type "passive")
+				)
+				(pin
+					(num "C")
+					(name "")
+					(type "passive")
+				)
+			)
+		)
+		(libpart
+			(lib "Signal Conversion Module")
+			(part "DB9 to USB")
+			(fields
+				(field
+					(name "Reference") "U")
+				(field
+					(name "Value") "DB9 to USB")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(pins
+				(pin
+					(num "")
+					(name "GND")
+					(type "output")
+				)
+				(pin
+					(num "1")
+					(name "RX")
+					(type "input")
+				)
+				(pin
+					(num "2")
+					(name "TX")
+					(type "output")
+				)
+				(pin
+					(num "4")
+					(name "USB")
+					(type "output")
+				)
+			)
+		)
+		(libpart
+			(lib "Wireless Charging Module")
+			(part "Wireless_Charging_Module")
+			(docs "https://zanrobot.com/shop/wirelesspowermodule/")
+			(fields
+				(field
+					(name "Reference") "U")
+				(field
+					(name "Value") "48V　無線充電模組")
+				(field
+					(name "Footprint") "module")
+				(field
+					(name "Datasheet") "https://zanrobot.com/shop/wirelesspowermodule/")
+				(field
+					(name "Description")
+				)
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "OUT+")
+					(type "power_out")
+				)
+				(pin
+					(num "2")
+					(name "OUT-")
+					(type "power_out")
+				)
+			)
+		)
+		(libpart
+			(lib "lidar")
+			(part "A2M12")
+			(fields
+				(field
+					(name "Reference") "U")
+				(field
+					(name "Value") "A2M12")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "USB")
+					(type "bidirectional")
+				)
+			)
+		)
+		(libpart
+			(lib "motor driver")
+			(part "AGV-BLD-2S")
+			(fields
+				(field
+					(name "Reference") "U")
+				(field
+					(name "Value") "AGV-BLD-2S")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "+24V")
+					(type "power_in")
+				)
+				(pin
+					(num "2")
+					(name "GND")
+					(type "power_in")
+				)
+				(pin
+					(num "20")
+					(name "SGND")
+					(type "output")
+				)
+				(pin
+					(num "21")
+					(name "RS232-TX")
+					(type "output")
+				)
+				(pin
+					(num "22")
+					(name "RS232-RX")
+					(type "input")
+				)
+			)
+		)
+		(libpart
+			(lib "power sencer")
+			(part "INA226_Module")
+			(fields
+				(field
+					(name "Reference") "U")
+				(field
+					(name "Value") "INA226_Module")
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(pins
+				(pin
+					(num "1")
+					(name "IN+")
+					(type "input")
+				)
+				(pin
+					(num "2")
+					(name "IN-")
+					(type "input")
+				)
+				(pin
+					(num "3")
+					(name "VBUS")
+					(type "input")
+				)
+				(pin
+					(num "4")
+					(name "ALE")
+					(type "output")
+				)
+				(pin
+					(num "5")
+					(name "SCL")
+					(type "input")
+				)
+				(pin
+					(num "6")
+					(name "SDA")
+					(type "bidirectional")
+				)
+				(pin
+					(num "7")
+					(name "GND")
+					(type "power_in")
+				)
+				(pin
+					(num "8")
+					(name "VCC")
+					(type "power_in")
+				)
+			)
+		)
+	)
+	(libraries
+		(library
+			(logical "Buck Converter")
+			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/Buck Converter.kicad_sym")
+		)
+		(library
+			(logical "Connector")
+			(uri "${KICAD10_SYMBOL_DIR}/Connector.kicad_sym")
+		)
+		(library
+			(logical "Connector_Generic")
+			(uri "${KICAD10_SYMBOL_DIR}/Connector_Generic.kicad_sym")
+		)
+		(library
+			(logical "Device")
+			(uri "${KICAD10_SYMBOL_DIR}/Device.kicad_sym")
+		)
+		(library
+			(logical "HC-SR04")
+			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/HC-SR04/HC-SR04.kicad_sym")
+		)
+		(library
+			(logical "Jetson")
+			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/Jetson.kicad_sym")
+		)
+		(library
+			(logical "MCU_Module")
+			(uri "${KICAD10_SYMBOL_DIR}/MCU_Module.kicad_sym")
+		)
+		(library
+			(logical "SMCJ30A")
+			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/SMCJ30A/SMCJ30A.kicad_sym")
+		)
+		(library
+			(logical "Signal Conversion Module")
+			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/Signal Conversion Module.kicad_sym")
+		)
+		(library
+			(logical "Wireless Charging Module")
+			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/Wireless Charging Module.kicad_sym")
+		)
+		(library
+			(logical "lidar")
+			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/lidar.kicad_sym")
+		)
+		(library
+			(logical "motor driver")
+			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/motor driver.kicad_sym")
+		)
+		(library
+			(logical "power sencer")
+			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/power sencer.kicad_sym")
+		)
+	)
+	(nets
+		(net
+			(code "1")
+			(name "/+3V3")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "36")
+				(pinfunction "3V3_36")
+				(pintype "power_out")
+			)
+			(node
+				(ref "C10")
+				(pin "1")
+				(pintype "passive")
+			)
+			(node
+				(ref "C2")
+				(pin "1")
+				(pintype "passive")
+			)
+			(node
+				(ref "C3")
+				(pin "1")
+				(pintype "passive")
+			)
+			(node
+				(ref "C4")
+				(pin "1")
+				(pintype "passive")
+			)
+			(node
+				(ref "C5")
+				(pin "1")
+				(pintype "passive")
+			)
+			(node
+				(ref "C6")
+				(pin "1")
+				(pintype "passive")
+			)
+			(node
+				(ref "C7")
+				(pin "1")
+				(pintype "passive")
+			)
+			(node
+				(ref "C8")
+				(pin "1")
+				(pintype "passive")
+			)
+			(node
+				(ref "C9")
+				(pin "1")
+				(pintype "passive")
+			)
+			(node
+				(ref "U11")
+				(pin "1")
+				(pinfunction "VCC_1")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U12")
+				(pin "1")
+				(pinfunction "VCC_1")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U13")
+				(pin "1")
+				(pinfunction "VCC_1")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U14")
+				(pin "1")
+				(pinfunction "VCC_1")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U15")
+				(pin "1")
+				(pinfunction "VCC_1")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U16")
+				(pin "1")
+				(pinfunction "VCC_1")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U17")
+				(pin "1")
+				(pinfunction "VCC_1")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U18")
+				(pin "1")
+				(pinfunction "VCC_1")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U6")
+				(pin "8")
+				(pinfunction "VCC_8")
+				(pintype "power_in")
+			)
+		)
+		(net
+			(code "2")
+			(name "/+12V")
+			(class "Default")
+			(node
+				(ref "U5")
+				(pin "3")
+				(pinfunction "OUT+_3")
+				(pintype "power_out")
+			)
+			(node
+				(ref "U8")
+				(pin "1")
+				(pinfunction "+12V_1")
+				(pintype "power_in")
+			)
+		)
+		(net
+			(code "3")
+			(name "/12V_FUSED")
+			(class "Default")
+			(node
+				(ref "F4")
+				(pin "1")
+				(pintype "passive")
+			)
+			(node
+				(ref "U5")
+				(pin "1")
+				(pinfunction "IN+_1")
+				(pintype "power_in")
+			)
+		)
+		(net
+			(code "4")
+			(name "/BATT+")
+			(class "Default")
+			(node
+				(ref "BT1")
+				(pin "1")
+				(pinfunction "+_1")
+				(pintype "passive")
+			)
+			(node
+				(ref "F3")
+				(pin "1")
+				(pintype "passive")
+			)
+			(node
+				(ref "J3")
+				(pin "1")
+				(pinfunction "Pin_1_1")
+				(pintype "passive")
+			)
+		)
+		(net
+			(code "5")
+			(name "/BATT+_FUSED")
+			(class "Default")
+			(node
+				(ref "F3")
+				(pin "2")
+				(pintype "passive")
+			)
+			(node
+				(ref "R1")
+				(pin "4")
+				(pintype "passive")
+			)
+		)
+		(net
+			(code "6")
+			(name "/BUS_12V")
+			(class "Default")
+			(node
+				(ref "F4")
+				(pin "2")
+				(pintype "passive")
+			)
+			(node
+				(ref "J2")
+				(pin "5")
+				(pinfunction "Pin_5_5")
+				(pintype "passive")
+			)
+		)
+		(net
+			(code "7")
+			(name "/BUS_CHG_A")
+			(class "Default")
+			(node
+				(ref "F1")
+				(pin "2")
+				(pintype "passive")
+			)
+			(node
+				(ref "J2")
+				(pin "3")
+				(pinfunction "Pin_3_3")
+				(pintype "passive")
+			)
+		)
+		(net
+			(code "8")
+			(name "/BUS_CHG_B")
+			(class "Default")
+			(node
+				(ref "F2")
+				(pin "2")
+				(pintype "passive")
+			)
+			(node
+				(ref "J2")
+				(pin "4")
+				(pinfunction "Pin_4_4")
+				(pintype "passive")
+			)
+		)
+		(net
+			(code "9")
+			(name "/BUS_MOTOR")
+			(class "Default")
+			(node
+				(ref "C1")
+				(pin "1")
+				(pintype "passive")
+			)
+			(node
+				(ref "D3")
+				(pin "C")
+				(pintype "passive")
+			)
+			(node
+				(ref "J2")
+				(pin "6")
+				(pinfunction "Pin_6_6")
+				(pintype "passive")
+			)
+			(node
+				(ref "U7")
+				(pin "1")
+				(pinfunction "+24V_1")
+				(pintype "power_in")
+			)
+		)
+		(net
+			(code "10")
+			(name "/BUS_SENSE")
+			(class "Default")
+			(node
+				(ref "J2")
+				(pin "2")
+				(pinfunction "Pin_2_2")
+				(pintype "passive")
+			)
+			(node
+				(ref "U6")
+				(pin "3")
+				(pinfunction "VBUS_3")
+				(pintype "input")
+			)
+		)
+		(net
+			(code "11")
+			(name "/BUS_SHUNT")
+			(class "Default")
+			(node
+				(ref "J2")
+				(pin "1")
+				(pinfunction "Pin_1_1")
+				(pintype "passive")
+			)
+			(node
+				(ref "R1")
+				(pin "1")
+				(pintype "passive")
+			)
+		)
+		(net
+			(code "12")
+			(name "/CHG_A_BUCK_OUT")
+			(class "Default")
+			(node
+				(ref "D1")
+				(pin "2")
+				(pinfunction "A_2")
+				(pintype "passive")
+			)
+			(node
+				(ref "U3")
+				(pin "3")
+				(pinfunction "OUT+_3")
+				(pintype "power_out")
+			)
+		)
+		(net
+			(code "13")
+			(name "/CHG_A_DIODE_OUT")
+			(class "Default")
+			(node
+				(ref "D1")
+				(pin "1")
+				(pinfunction "K_1")
+				(pintype "passive")
+			)
+			(node
+				(ref "F1")
+				(pin "1")
+				(pintype "passive")
+			)
+		)
+		(net
+			(code "14")
+			(name "/CHG_B_BUCK_OUT")
+			(class "Default")
+			(node
+				(ref "D2")
+				(pin "2")
+				(pinfunction "A_2")
+				(pintype "passive")
+			)
+			(node
+				(ref "U4")
+				(pin "3")
+				(pinfunction "OUT+_3")
+				(pintype "power_out")
+			)
+		)
+		(net
+			(code "15")
+			(name "/CHG_B_DIODE_OUT")
+			(class "Default")
+			(node
+				(ref "D2")
+				(pin "1")
+				(pinfunction "K_1")
+				(pintype "passive")
+			)
+			(node
+				(ref "F2")
+				(pin "1")
+				(pintype "passive")
+			)
+		)
+		(net
+			(code "16")
+			(name "/GND_12V")
+			(class "Default")
+			(node
+				(ref "J1")
+				(pin "5")
+				(pinfunction "Pin_5_5")
+				(pintype "passive")
+			)
+			(node
+				(ref "U5")
+				(pin "2")
+				(pinfunction "IN-_2")
+				(pintype "power_in")
+			)
+		)
+		(net
+			(code "17")
+			(name "/GND_BATT")
+			(class "Default")
+			(node
+				(ref "BT1")
+				(pin "2")
+				(pinfunction "-_2")
+				(pintype "passive")
+			)
+			(node
+				(ref "J1")
+				(pin "2")
+				(pinfunction "Pin_2_2")
+				(pintype "passive")
+			)
+			(node
+				(ref "J3")
+				(pin "2")
+				(pinfunction "Pin_2_2")
+				(pintype "passive")
+			)
+		)
+		(net
+			(code "18")
+			(name "/GND_CHG_A")
+			(class "Default")
+			(node
+				(ref "J1")
+				(pin "3")
+				(pinfunction "Pin_3_3")
+				(pintype "passive")
+			)
+			(node
+				(ref "U3")
+				(pin "4")
+				(pinfunction "OUT-_4")
+				(pintype "power_out")
+			)
+		)
+		(net
+			(code "19")
+			(name "/GND_CHG_B")
+			(class "Default")
+			(node
+				(ref "J1")
+				(pin "4")
+				(pinfunction "Pin_4_4")
+				(pintype "passive")
+			)
+			(node
+				(ref "U4")
+				(pin "4")
+				(pinfunction "OUT-_4")
+				(pintype "power_out")
+			)
+		)
+		(net
+			(code "20")
+			(name "/GND_JETSON")
+			(class "Default")
+			(node
+				(ref "U5")
+				(pin "4")
+				(pinfunction "OUT-_4")
+				(pintype "power_out")
+			)
+			(node
+				(ref "U8")
+				(pin "2")
+				(pinfunction "GND_2")
+				(pintype "power_in")
+			)
+		)
+		(net
+			(code "21")
+			(name "/GND_MOTOR")
+			(class "Default")
+			(node
+				(ref "C1")
+				(pin "2")
+				(pintype "passive")
+			)
+			(node
+				(ref "D3")
+				(pin "A")
+				(pintype "passive")
+			)
+			(node
+				(ref "J1")
+				(pin "1")
+				(pinfunction "Pin_1_1")
+				(pintype "passive")
+			)
+			(node
+				(ref "U7")
+				(pin "2")
+				(pinfunction "GND_2")
+				(pintype "power_in")
+			)
+		)
+		(net
+			(code "22")
+			(name "/GND_PICO")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "13")
+				(pinfunction "GND_13")
+				(pintype "passive")
+			)
+			(node
+				(ref "A1")
+				(pin "18")
+				(pinfunction "GND_18")
+				(pintype "passive")
+			)
+			(node
+				(ref "A1")
+				(pin "23")
+				(pinfunction "GND_23")
+				(pintype "passive")
+			)
+			(node
+				(ref "A1")
+				(pin "28")
+				(pinfunction "GND_28")
+				(pintype "passive")
+			)
+			(node
+				(ref "A1")
+				(pin "3")
+				(pinfunction "GND_3")
+				(pintype "power_out")
+			)
+			(node
+				(ref "A1")
+				(pin "33")
+				(pinfunction "AGND_33")
+				(pintype "power_out")
+			)
+			(node
+				(ref "A1")
+				(pin "38")
+				(pinfunction "GND_38")
+				(pintype "passive")
+			)
+			(node
+				(ref "A1")
+				(pin "8")
+				(pinfunction "GND_8")
+				(pintype "passive")
+			)
+			(node
+				(ref "C10")
+				(pin "2")
+				(pintype "passive")
+			)
+			(node
+				(ref "C2")
+				(pin "2")
+				(pintype "passive")
+			)
+			(node
+				(ref "C3")
+				(pin "2")
+				(pintype "passive")
+			)
+			(node
+				(ref "C4")
+				(pin "2")
+				(pintype "passive")
+			)
+			(node
+				(ref "C5")
+				(pin "2")
+				(pintype "passive")
+			)
+			(node
+				(ref "C6")
+				(pin "2")
+				(pintype "passive")
+			)
+			(node
+				(ref "C7")
+				(pin "2")
+				(pintype "passive")
+			)
+			(node
+				(ref "C8")
+				(pin "2")
+				(pintype "passive")
+			)
+			(node
+				(ref "C9")
+				(pin "2")
+				(pintype "passive")
+			)
+			(node
+				(ref "U11")
+				(pin "4")
+				(pinfunction "GND_4")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U12")
+				(pin "4")
+				(pinfunction "GND_4")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U13")
+				(pin "4")
+				(pinfunction "GND_4")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U14")
+				(pin "4")
+				(pinfunction "GND_4")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U15")
+				(pin "4")
+				(pinfunction "GND_4")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U16")
+				(pin "4")
+				(pinfunction "GND_4")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U17")
+				(pin "4")
+				(pinfunction "GND_4")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U18")
+				(pin "4")
+				(pinfunction "GND_4")
+				(pintype "power_in")
+			)
+			(node
+				(ref "U6")
+				(pin "7")
+				(pinfunction "GND_7")
+				(pintype "power_in")
+			)
+		)
+		(net
+			(code "23")
+			(name "/I2C_SCL")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "22")
+				(pinfunction "GPIO17_22")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U6")
+				(pin "5")
+				(pinfunction "SCL_5")
+				(pintype "input")
+			)
+		)
+		(net
+			(code "24")
+			(name "/I2C_SDA")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "21")
+				(pinfunction "GPIO16_21")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U6")
+				(pin "6")
+				(pinfunction "SDA_6")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "25")
+			(name "/INA226_ALERT")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "24")
+				(pinfunction "GPIO18_24")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U6")
+				(pin "4")
+				(pinfunction "ALE_4")
+				(pintype "output")
+			)
+		)
+		(net
+			(code "26")
+			(name "/RS232_RX")
+			(class "Default")
+			(node
+				(ref "U10")
+				(pin "2")
+				(pinfunction "TX_2")
+				(pintype "output")
+			)
+			(node
+				(ref "U7")
+				(pin "22")
+				(pinfunction "RS232-RX_22")
+				(pintype "input")
+			)
+		)
+		(net
+			(code "27")
+			(name "/RS232_TX")
+			(class "Default")
+			(node
+				(ref "U10")
+				(pin "1")
+				(pinfunction "RX_1")
+				(pintype "input")
+			)
+			(node
+				(ref "U7")
+				(pin "21")
+				(pinfunction "RS232-TX_21")
+				(pintype "output")
+			)
+		)
+		(net
+			(code "28")
+			(name "/RX_A+")
+			(class "Default")
+			(node
+				(ref "U2")
+				(pin "1")
+				(pinfunction "OUT+_1")
+				(pintype "power_out")
+			)
+			(node
+				(ref "U3")
+				(pin "1")
+				(pinfunction "IN+_1")
+				(pintype "power_in")
+			)
+		)
+		(net
+			(code "29")
+			(name "/RX_A-")
+			(class "Default")
+			(node
+				(ref "U2")
+				(pin "2")
+				(pinfunction "OUT-_2")
+				(pintype "power_out")
+			)
+			(node
+				(ref "U3")
+				(pin "2")
+				(pinfunction "IN-_2")
+				(pintype "power_in")
+			)
+		)
+		(net
+			(code "30")
+			(name "/RX_B+")
+			(class "Default")
+			(node
+				(ref "U1")
+				(pin "1")
+				(pinfunction "OUT+_1")
+				(pintype "power_out")
+			)
+			(node
+				(ref "U4")
+				(pin "1")
+				(pinfunction "IN+_1")
+				(pintype "power_in")
+			)
+		)
+		(net
+			(code "31")
+			(name "/RX_B-")
+			(class "Default")
+			(node
+				(ref "U1")
+				(pin "2")
+				(pinfunction "OUT-_2")
+				(pintype "power_out")
+			)
+			(node
+				(ref "U4")
+				(pin "2")
+				(pinfunction "IN-_2")
+				(pintype "power_in")
+			)
+		)
+		(net
+			(code "32")
+			(name "/SGND")
+			(class "Default")
+			(node
+				(ref "U10")
+				(pin "")
+				(pinfunction "GND_")
+				(pintype "output")
+			)
+			(node
+				(ref "U7")
+				(pin "20")
+				(pinfunction "SGND_20")
+				(pintype "output")
+			)
+		)
+		(net
+			(code "33")
+			(name "/SHUNT_SENSE+")
+			(class "Default")
+			(node
+				(ref "R1")
+				(pin "3")
+				(pintype "passive")
+			)
+			(node
+				(ref "U6")
+				(pin "1")
+				(pinfunction "IN+_1")
+				(pintype "input")
+			)
+		)
+		(net
+			(code "34")
+			(name "/SHUNT_SENSE-")
+			(class "Default")
+			(node
+				(ref "R1")
+				(pin "2")
+				(pintype "passive")
+			)
+			(node
+				(ref "U6")
+				(pin "2")
+				(pinfunction "IN-_2")
+				(pintype "input")
+			)
+		)
+		(net
+			(code "35")
+			(name "/US1_ECHO")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "2")
+				(pinfunction "GPIO1_2")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U11")
+				(pin "3")
+				(pinfunction "ECHO_3")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "36")
+			(name "/US1_TRIG")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "1")
+				(pinfunction "GPIO0_1")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U11")
+				(pin "2")
+				(pinfunction "TRIG_2")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "37")
+			(name "/US2_ECHO")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "5")
+				(pinfunction "GPIO3_5")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U12")
+				(pin "3")
+				(pinfunction "ECHO_3")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "38")
+			(name "/US2_TRIG")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "4")
+				(pinfunction "GPIO2_4")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U12")
+				(pin "2")
+				(pinfunction "TRIG_2")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "39")
+			(name "/US3_ECHO")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "7")
+				(pinfunction "GPIO5_7")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U13")
+				(pin "3")
+				(pinfunction "ECHO_3")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "40")
+			(name "/US3_TRIG")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "6")
+				(pinfunction "GPIO4_6")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U13")
+				(pin "2")
+				(pinfunction "TRIG_2")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "41")
+			(name "/US4_ECHO")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "10")
+				(pinfunction "GPIO7_10")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U14")
+				(pin "3")
+				(pinfunction "ECHO_3")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "42")
+			(name "/US4_TRIG")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "9")
+				(pinfunction "GPIO6_9")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U14")
+				(pin "2")
+				(pinfunction "TRIG_2")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "43")
+			(name "/US5_ECHO")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "12")
+				(pinfunction "GPIO9_12")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U15")
+				(pin "3")
+				(pinfunction "ECHO_3")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "44")
+			(name "/US5_TRIG")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "11")
+				(pinfunction "GPIO8_11")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U15")
+				(pin "2")
+				(pinfunction "TRIG_2")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "45")
+			(name "/US6_ECHO")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "15")
+				(pinfunction "GPIO11_15")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U16")
+				(pin "3")
+				(pinfunction "ECHO_3")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "46")
+			(name "/US6_TRIG")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "14")
+				(pinfunction "GPIO10_14")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U16")
+				(pin "2")
+				(pinfunction "TRIG_2")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "47")
+			(name "/US7_ECHO")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "17")
+				(pinfunction "GPIO13_17")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U17")
+				(pin "3")
+				(pinfunction "ECHO_3")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "48")
+			(name "/US7_TRIG")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "16")
+				(pinfunction "GPIO12_16")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U17")
+				(pin "2")
+				(pinfunction "TRIG_2")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "49")
+			(name "/US8_ECHO")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "20")
+				(pinfunction "GPIO15_20")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U18")
+				(pin "3")
+				(pinfunction "ECHO_3")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "50")
+			(name "/US8_TRIG")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "19")
+				(pinfunction "GPIO14_19")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U18")
+				(pin "2")
+				(pinfunction "TRIG_2")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "51")
+			(name "/USB_LIDAR")
+			(class "Default")
+			(node
+				(ref "U8")
+				(pin "6")
+				(pinfunction "USB4_6")
+				(pintype "bidirectional")
+			)
+			(node
+				(ref "U9")
+				(pin "1")
+				(pinfunction "USB_1")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "52")
+			(name "/USB_RS232")
+			(class "Default")
+			(node
+				(ref "U10")
+				(pin "4")
+				(pinfunction "USB_4")
+				(pintype "output")
+			)
+			(node
+				(ref "U8")
+				(pin "4")
+				(pinfunction "USB2_4")
+				(pintype "bidirectional")
+			)
+		)
+		(net
+			(code "53")
+			(name "unconnected-(A1-3V3_EN-Pad37)")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "37")
+				(pinfunction "3V3_EN_37")
+				(pintype "passive+no_connect")
+			)
+		)
+		(net
+			(code "54")
+			(name "unconnected-(A1-ADC_VREF-Pad35)")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "35")
+				(pinfunction "ADC_VREF_35")
+				(pintype "power_in+no_connect")
+			)
+		)
+		(net
+			(code "55")
+			(name "unconnected-(A1-GPIO19-Pad25)")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "25")
+				(pinfunction "GPIO19_25")
+				(pintype "bidirectional+no_connect")
+			)
+		)
+		(net
+			(code "56")
+			(name "unconnected-(A1-GPIO20-Pad26)")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "26")
+				(pinfunction "GPIO20_26")
+				(pintype "bidirectional+no_connect")
+			)
+		)
+		(net
+			(code "57")
+			(name "unconnected-(A1-GPIO21-Pad27)")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "27")
+				(pinfunction "GPIO21_27")
+				(pintype "bidirectional+no_connect")
+			)
+		)
+		(net
+			(code "58")
+			(name "unconnected-(A1-GPIO22-Pad29)")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "29")
+				(pinfunction "GPIO22_29")
+				(pintype "bidirectional+no_connect")
+			)
+		)
+		(net
+			(code "59")
+			(name "unconnected-(A1-GPIO26_ADC0-Pad31)")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "31")
+				(pinfunction "GPIO26_ADC0_31")
+				(pintype "bidirectional+no_connect")
+			)
+		)
+		(net
+			(code "60")
+			(name "unconnected-(A1-GPIO27_ADC1-Pad32)")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "32")
+				(pinfunction "GPIO27_ADC1_32")
+				(pintype "bidirectional+no_connect")
+			)
+		)
+		(net
+			(code "61")
+			(name "unconnected-(A1-GPIO28_ADC2-Pad34)")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "34")
+				(pinfunction "GPIO28_ADC2_34")
+				(pintype "bidirectional+no_connect")
+			)
+		)
+		(net
+			(code "62")
+			(name "unconnected-(A1-RUN-Pad30)")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "30")
+				(pinfunction "RUN_30")
+				(pintype "passive+no_connect")
+			)
+		)
+		(net
+			(code "63")
+			(name "unconnected-(A1-VBUS-Pad40)")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "40")
+				(pinfunction "VBUS_40")
+				(pintype "power_out+no_connect")
+			)
+		)
+		(net
+			(code "64")
+			(name "unconnected-(A1-VSYS-Pad39)")
+			(class "Default")
+			(node
+				(ref "A1")
+				(pin "39")
+				(pinfunction "VSYS_39")
+				(pintype "power_in+no_connect")
+			)
+		)
+		(net
+			(code "65")
+			(name "unconnected-(U8-USB1-Pad3)")
+			(class "Default")
+			(node
+				(ref "U8")
+				(pin "3")
+				(pinfunction "USB1_3")
+				(pintype "bidirectional+no_connect")
+			)
+		)
+		(net
+			(code "66")
+			(name "unconnected-(U8-USB3-Pad5)")
+			(class "Default")
+			(node
+				(ref "U8")
+				(pin "5")
+				(pinfunction "USB3_5")
+				(pintype "bidirectional+no_connect")
+			)
+		)
+	)
+)

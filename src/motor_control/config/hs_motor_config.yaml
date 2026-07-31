@@ -17,7 +17,7 @@ hs_motor_controller:
     # Nav2 的巡航速度另由 nav2_params.yaml 的 desired_linear_vel 決定，
     # 因此提高此上限只會讓遙控變快，導航速度不受影響。
     # 機械餘裕：max_rpm 3000 → 輪速上限約 1.02 m/s，目前用不到兩成。
-    max_linear_vel: 0.1125     # 最大線速度 (m/s) — 2026-07-24 自 0.075 再提 1.5 倍
+    max_linear_vel: 0.16875    # 最大線速度 (m/s) — 2026-07-29 自 0.1125 再提 1.5 倍
     max_angular_vel: 0.6       # 最大角速度 (rad/s) — 原 0.4 的 1.5 倍
     min_rpm: 100.0             # 最小馬達 RPM (根據 AGV-BLD-2S 手冊)
     max_rpm: 3000.0            # 最大馬達 RPM

@@ -58,7 +58,7 @@ class Settings(BaseModel):
     battery_max_v: float = 29.4
 
     # --- 手動移動速度 ---
-    manual_linear_speed: float = 0.15
+    manual_linear_speed: float = 0.16875
     manual_angular_speed: float = 0.5
     manual_publish_hz: float = 10.0
 
@@ -91,7 +91,7 @@ class Settings(BaseModel):
             bind_host=os.environ.get('ROBOT_API_HOST', '0.0.0.0'),
             battery_min_v=float(os.environ.get('ROBOT_BATTERY_MIN_V', '21.0')),
             battery_max_v=float(os.environ.get('ROBOT_BATTERY_MAX_V', '29.4')),
-            manual_linear_speed=float(os.environ.get('ROBOT_MANUAL_LINEAR', '0.15')),
+            manual_linear_speed=float(os.environ.get('ROBOT_MANUAL_LINEAR', '0.16875')),
             manual_angular_speed=float(os.environ.get('ROBOT_MANUAL_ANGULAR', '0.5')),
             manual_publish_hz=float(os.environ.get('ROBOT_MANUAL_HZ', '10.0')),
             robot_radius_m=float(os.environ.get('ROBOT_RADIUS_M', '0.25')),

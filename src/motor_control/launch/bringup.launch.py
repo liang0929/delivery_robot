@@ -422,6 +422,16 @@ def _build_web_nodes(cfg: _BringupConfig) -> list:
         prefix=get_cpu_prefix('web', cfg.cpu_affinity_enabled)
     )
 
+    # rosapi: rosbridge 客戶端（如 ros-mcp）靠 /rosapi/* services 查詢
+    # topics/nodes，只跑 rosbridge_websocket 不會有這些 services
+    rosapi_node = Node(
+        package='rosapi',
+        executable='rosapi_node',
+        name='rosapi',
+        output='screen',
+        prefix=get_cpu_prefix('web', cfg.cpu_affinity_enabled)
+    )
+
     # API Server
     web_prefix_list = get_cpu_prefix_list('web', cfg.cpu_affinity_enabled)
     api_cmd = web_prefix_list + ['ros2', 'run', 'robot_api_server', 'api_server']
@@ -434,7 +444,7 @@ def _build_web_nodes(cfg: _BringupConfig) -> list:
         respawn_delay=2.0
     )
 
-    return [TimerAction(period=3.0, actions=[rosbridge_node, api_server])]
+    return [TimerAction(period=3.0, actions=[rosbridge_node, rosapi_node, api_server])]
 
 
 def launch_setup(context, *args, **kwargs):

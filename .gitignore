@@ -24,8 +24,27 @@ src/robot_localization/
 
 # Map files (can be regenerated)
 src/map/
+map/
+
+# Runtime logs
+logs/
+
+# Playwright MCP temp output
+.playwright-mcp/
+
+# Playwright test artifacts
+tests/e2e/test-results/
 # Added by code-review-graph
 .code-review-graph/
 
 # 本機環境變數（機器特定，見 .env.example）
 .env
+
+# aidev 工作區（純本機協調用）
+.aidev/
+
+# 本機 MCP server 設定
+.mcp.json
+
+# pptx 轉檔備份
+docs/.pptx_backup/

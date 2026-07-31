@@ -31,11 +31,13 @@
 
 ### USB 設備固定路徑
 
-為避免 USB 設備編號變動，已設定 udev 規則建立固定符號連結：
+為避免 USB 設備編號變動，系統已安裝 udev 規則（`/etc/udev/rules.d/99-robot-devices.rules`）建立固定符號連結：
 
 ```bash
-# 安裝 udev 規則
-sudo cp 99-robot-usb.rules /etc/udev/rules.d/
+# 確認符號連結存在
+ls -l /dev/motor /dev/lidar
+
+# 修改規則後重新載入
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 ```
@@ -152,8 +154,8 @@ ros2 launch motor_control bringup.launch.py
 此指令會啟動：
 - 馬達控制器、LiDAR、IMU、EKF 狀態估算
 - rosbridge WebSocket 通訊
-- API Server (REST API)
-- 靜態 TF 發布器
+- API Server（REST 5000 / WebSocket 事件 5001）
+- robot_state_publisher（URDF TF；未偵測到 URDF 時退回靜態 TF）
 
 啟動後，開啟前端開發伺服器：
 ```bash
@@ -233,12 +235,13 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 
 4. **儲存地圖**:
    ```bash
-   ros2 run nav2_map_server map_saver_cli -f src/map/map
+   ros2 run nav2_map_server map_saver_cli -f map/<地圖名稱>
    ```
+   > 地圖統一存放於專案根目錄的 `map/`（API server 的 `ROBOT_MAP_PATH` 預設也指向這裡）。
 
 **SLAM 參數調整：**
 SLAM Toolbox 參數配置檔位於 `src/nav2/config/slam_toolbox_params.yaml`，可調整：
-- `resolution`: 地圖解析度（預設 0.025m）
+- `resolution`: 地圖解析度（預設 0.05m）
 - `max_laser_range`: LiDAR 最大有效範圍
 - `do_loop_closing`: 迴環檢測開關
 
@@ -291,7 +294,7 @@ make sim-corridor # 走廊場景
 **使用 ROS2 Launch：**
 
 ```bash
-ros2 launch motor_control bringup.launch.py simulation_mode:=true
+ros2 launch motor_control bringup.launch.py simulation:=true
 ```
 
 模擬模式會自動啟動以下 Mock 節點取代實體硬體：
@@ -304,18 +307,18 @@ ros2 launch motor_control bringup.launch.py simulation_mode:=true
 
 ### 5.2. 模擬環境配置
 
-Mock LiDAR 預設模擬 5m × 5m 的房間環境，可透過參數調整：
+Mock LiDAR 預設模擬 5m × 5m 的方形房間，可透過 `sim_scene` 參數切換場景：
 
 ```bash
-ros2 launch motor_control bringup.launch.py simulation_mode:=true \
-    mock_lidar_room_width:=8.0 \
-    mock_lidar_room_height:=6.0
+ros2 launch motor_control bringup.launch.py simulation:=true sim_scene:=corridor
 ```
 
 | 參數 | 預設值 | 說明 |
 |------|--------|------|
-| `mock_lidar_room_width` | 5.0 | 模擬房間寬度（米） |
-| `mock_lidar_room_height` | 5.0 | 模擬房間高度（米） |
+| `sim_scene` | `room` | 模擬場景：`room`（方形房間）/ `corridor`（走廊）/ `empty`（空曠） |
+
+> 房間尺寸由 mock_lidar 節點的 `room_width` / `room_height` 參數決定（預設各 5.0 m），
+> 目前無法經由 bringup launch 覆寫，需直接以節點參數指定。
 
 ### 5.3. 模擬模式下的功能測試
 
@@ -391,16 +394,21 @@ ros2 run imu_bno055 bno055_i2c_node --ros-args -p device:=/dev/i2c-7 -p address:
 
 ### API Server 端點
 
+Robot API 遵循 **Winstec Robot API v1.1**（完整規格見 `docs/winstec_api_v1.1.md`）：
+
+- REST：port **5000**，路徑前綴一律 `/v1/robot`
+- WebSocket 事件推播：port **5001**（`robot_info` 每秒推播 + 事件式訊息）
+
 | 端點 | 方法 | 說明 |
 |------|------|------|
-| `/robot/start` | POST | 啟動機器人核心 |
-| `/robot/stop` | POST | 停止機器人核心 |
-| `/robot/start_lidar` | POST | 啟動 LiDAR 馬達 |
-| `/robot/status` | GET | 取得機器人狀態 |
-| `/slam/start` | POST | 開始 SLAM 建圖 |
-| `/slam/stop` | POST | 停止 SLAM 建圖 |
-| `/slam/save_map` | POST | 儲存地圖 |
-| `/slam/status` | GET | 取得 SLAM 狀態 |
-| `/navigate_to_goal` | POST | 發送導航目標 |
-| `/navigation/cancel` | POST | 取消導航 |
-| `/navigation/status` | GET | 取得導航狀態 |
+| `/v1/robot/info` | GET | 取得 op_mode / status / battery / location |
+| `/v1/robot/move`、`/v1/robot/move/{pointId}` | POST | 導航至座標或既有點位 |
+| `/v1/robot/manual/move` | POST | 手動移動（forward/backward/left/right/stop） |
+| `/v1/robot/stop` | POST | 軟停止並取消導航 |
+| `/v1/robot/relocate/location`、`/v1/robot/relocate/{pointId}` | POST | 設定機器人位姿 |
+| `/v1/robot/shutdown` | POST | 關機 |
+| `/v1/robot/points`、`/v1/robot/virtual-walls`、`/v1/robot/groups` | CRUD | 點位、虛擬牆與群組管理 |
+| `/v1/robot/edits/commit`、`/v1/robot/edits/discard` | POST | 編輯交易的提交與捨棄 |
+| `/v1/robot/mode`、`/v1/robot/maps/*` | — | 本專案擴充：模式切換與地圖管理 |
+
+互動式 API 文件（Swagger UI）：`http://<機器人IP>:5000/docs`

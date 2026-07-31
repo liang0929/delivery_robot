@@ -278,7 +278,7 @@ AA + 地址 + 回傳類型 + 故障清除 + 保留 + A控制 + B控制 + A方向
 ## 5. 通訊協議
 
 對外介面遵循 **Winstec Robot API v1.1**，完整規格與實作決策見
-`docs/winstec_api_v1.1.md`，原始文件為 `Winstec_RobotAPI_V1.1.pdf`。
+`docs/winstec_api_v1.1.md`，原始文件為 `docs/Winstec_RobotAPI_V1.1.pdf`。
 
 ### 5.1 REST API (Port 5000)
 

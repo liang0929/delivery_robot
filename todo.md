@@ -1,6 +1,10 @@
 # 專案待修復問題清單
 
-> 最後更新: 2026-01-27 (新增 Jetson 優化項目 42-52，完成 42)
+> 最後更新: 2026-07-22（修正過時檔案路徑）
+>
+> 注意：歷史項目（20、23、28、29 等）提到的 `modbus_motor_controller.py`
+> 已於後續重構移除，相關修復記錄僅供追溯；前端亦於 2026-07 重寫
+> （commit `b01dd11`），舊 `services/` 路徑不再存在。
 
 ---
 
@@ -168,7 +172,7 @@
 - **修復**: 在 `cmd_vel_callback()` 中添加 `math.isnan()` 和 `math.isinf()` 檢查
 
 ### 14. 前端 API 返回未驗證
-- **位置**: `src/robot_web_frontend/src/services/api.service.ts`
+- **位置**: `src/robot_web_frontend/src/api/client.ts`（前端重寫後的 fetch 封裝；原 `services/api.service.ts` 已移除）
 - **問題**: API 調用未驗證返回結構
 - **建議**: 增加運行時類型驗證
 - [ ] 待優化
@@ -186,8 +190,8 @@
 - **修復**: 新增 `lidar_port` 和 `imu_device` launch 參數
 
 ### 17. 健康檢查頻率
-- **位置**: `src/robot_api_server/robot_api_server/main.py:64`
-- **問題**: 每 2 秒檢查一次可能過於頻繁
+- **位置**: `src/robot_api_server/robot_api_server/main.py`（重寫後為 `_mission_monitor_loop`，0.5 秒輪詢；健康監控在 `state.start_health_monitor()`）
+- **問題**: 輪詢間隔可能過於頻繁
 - **建議**: 考慮增加間隔或使用事件驅動
 - [ ] 待評估
 

@@ -217,7 +217,7 @@
       "internal_id": "",
       "mfg": "",
       "mpn": "",
-      "sch_revision": ""
+      "sch_revision": "v1.0"
     },
     "layer_pairs": [],
     "layer_presets": [],
@@ -237,7 +237,16 @@
     "equivalence_files": []
   },
   "erc": {
-    "erc_exclusions": [],
+    "erc_exclusions": [
+      [
+        "pin_to_pin|2108200|469900|e237d54a-ac8f-4cfd-a56f-b4f4a177e68b|17222c30-5dfd-4098-8d53-bfab5c3367c4|/a73104fb-f57f-47f0-9271-a0983880509c|/a73104fb-f57f-47f0-9271-a0983880509c|/a73104fb-f57f-47f0-9271-a0983880509c",
+        ""
+      ],
+      [
+        "pin_to_pin|2413000|2273300|739e0951-24bf-4675-874c-193156f47e65|095673c4-a494-46a6-8610-bb53321857bd|/a73104fb-f57f-47f0-9271-a0983880509c|/a73104fb-f57f-47f0-9271-a0983880509c|/a73104fb-f57f-47f0-9271-a0983880509c",
+        ""
+      ]
+    ],
     "meta": {
       "version": 0
     },
@@ -658,7 +667,7 @@
         "uuid": "a73104fb-f57f-47f0-9271-a0983880509c"
       }
     ],
-    "used_designators": "U11-18",
+    "used_designators": "U11-19,R2",
     "variants": []
   },
   "sheets": [

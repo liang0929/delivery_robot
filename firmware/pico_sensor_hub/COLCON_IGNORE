@@ -1,0 +1,4 @@
+# 這個目錄是 Raspberry Pi Pico 的交叉編譯韌體，不是 ROS 2 package。
+# 沒有這個檔案的話 colcon 會因為 CMakeLists.txt 把它當成 CMake package，
+# 而且會跟 src/pico_sensor_hub（ROS 端的橋接節點）撞名。
+# 韌體的建置流程見本目錄 README.md 第 2 節。

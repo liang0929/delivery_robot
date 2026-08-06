@@ -1,0 +1,6 @@
+# CMake / Ninja 建置產出
+build/
+
+# Python 位元碼（picoterm.py 執行時產生）
+__pycache__/
+*.pyc

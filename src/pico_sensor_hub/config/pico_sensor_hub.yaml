@@ -1,0 +1,24 @@
+# pico_sensor_hub 節點參數
+#
+# 預設值與 pico_sensor_node.py 的 declare_parameter 一致。
+pico_sensor_hub:
+  ros__parameters:
+    # udev 固定節點，見 firmware/pico_sensor_hub/README.md 3.3。
+    # 沒裝 udev rule 時才需要改成 /dev/ttyACM0（會隨重新列舉漂移）。
+    port: /dev/pico_sensor_hub
+    baudrate: 115200
+
+    # Range 訊息的 frame_id 前綴，實際 frame 為 <prefix><通道 slug>，
+    # 例如 ultrasonic_front_left。
+    frame_prefix: ultrasonic_
+
+    # HC-SR04 規格（韌體 README 6.2）
+    field_of_view: 0.26   # rad，約 15°
+    min_range: 0.02       # m
+    max_range: 4.0        # m
+
+    # 斷線重連：開埠失敗或讀取例外後的重試間隔（秒）
+    reconnect_period: 1.0
+    # 連著但這麼久沒有有效資料就主動斷開重連（秒）。
+    # 韌體 $US 是 10 Hz，3 秒等於連掉 30 幀，不可能是正常抖動。
+    data_timeout: 3.0

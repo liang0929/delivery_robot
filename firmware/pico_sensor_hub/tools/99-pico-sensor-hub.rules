@@ -1,0 +1,19 @@
+# pico_sensor_hub — 固定裝置節點
+#
+# 為什麼需要：Pico 每次重新列舉（重新燒錄、拔插、USB 重置）都可能換到
+# /dev/ttyACM0 ↔ /dev/ttyACM1，寫死路徑的消費者（ROS 節點、picoterm）會隨機斷線。
+# 本規則建立穩定符號連結 /dev/pico_sensor_hub 指向當下真正的 ACM 節點。
+#
+# 匹配依據（實測值，來源 `udevadm info -a -n /dev/ttyACM1`）：
+#   idVendor  2e8a  = Raspberry Pi
+#   idProduct 0009  = RP2040/RP2350 CDC（韌體正常執行中）
+#                     注意 0x000f 是 BOOTSEL 大量儲存裝置，不是 tty，不會命中本規則。
+#
+# 權限沿用核心預設的 dialout 群組（不放寬成 0666）：使用者與 ROS 節點都以
+# 已加入 dialout 的帳號執行，不需要全域可寫。
+#
+# 車上若同時掛兩顆以上 Pico，VID/PID 會撞號 —— 屆時加上序號欄位區分，例如：
+#   ATTRS{serial}=="65544C17E3DA1158"
+# （這顆板子的序號，`udevadm info -a -n /dev/ttyACM* | grep serial` 可查）
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="0009", \
+    SYMLINK+="pico_sensor_hub", GROUP="dialout", MODE="0660"

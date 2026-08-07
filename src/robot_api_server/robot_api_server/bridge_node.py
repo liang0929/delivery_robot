@@ -91,6 +91,10 @@ class RosBridge:
         self._battery_voltage: Optional[float] = None
         # 上次收到 /battery/state 的單調時戳；None＝從未收過。
         self._battery_rx_at: Optional[float] = None
+        # 是否已進入「曾收訊但已過期」狀態。純粹是 log 節流用的閂：讀取端
+        # 每次呼叫都會重新判定過期，若不記住已印過，持續失聯期間每一次
+        # /robot/info 都會噴一則 warning。不影響任何對外欄位。
+        self._battery_stale_logged = False
         self._latest_map = None
         self._scan_count = 0  # 就緒探測用：確認 /scan 確實在發布
         self._latest_pose: Optional[Tuple[float, float, float]] = None  # (x_m, y_m, yaw_rad)
@@ -246,10 +250,25 @@ class RosBridge:
 
         rx_at = self._clock()
         with self._lock:
+            # 恢復在「收到訊息」這一刻就成立，不必等下一次讀取——訊息本身
+            # 就是上游回來的證據。判定與清閂都在鎖內，並發收訊只會印一則。
+            outage_sec = (
+                rx_at - self._battery_rx_at
+                if self._battery_stale_logged and self._battery_rx_at is not None
+                else None
+            )
+            self._battery_stale_logged = False
             self._battery_state = state
             self._battery_stop_latched = latched
             self._battery_voltage = voltage
             self._battery_rx_at = rx_at
+        # 出鎖才寫 log：logging handler 可能阻塞（檔案 / journal），不該把
+        # ROS callback 執行緒的鎖持有時間交給 I/O。
+        if outage_sec is not None:
+            logger.info(
+                f"/battery/state recovered after {outage_sec:.1f}s without messages; "
+                f"battery protection state is live again (state={state.value})"
+            )
 
     def _on_map(self, msg: "OccupancyGrid") -> None:
         with self._lock:
@@ -344,16 +363,35 @@ class RosBridge:
             走系統時間，ROS clock 在此並不會帶來 sim 相容性，只多一層耦合。
         真要在模擬環境跑，收訊時戳與判定時鐘同源即可（兩邊都改），不影響
         本判定的形狀。
+
+        過期是靜默退化（對外只看到 unknown），維運端無從得知 bridge 何時
+        失聯，因此在 fresh→stale 轉換印一則 warning；恢復的 info 在
+        ``_on_battery_state``。只在轉換點印＝節流，持續失聯不會洗版。
         """
         timeout = self._battery_state_timeout_sec
+        stale_since_sec = None
         with self._lock:
             rx_at = self._battery_rx_at
             # timeout <= 0＝停用過期判定（現場緊急關閉用），退回舊行為
             fresh = rx_at is not None and (
                 timeout <= 0 or (self._clock() - rx_at) <= timeout)
             if fresh:
-                return self._battery_state, self._battery_stop_latched, self._battery_voltage
-        return BatteryState.UNKNOWN, False, None
+                snapshot = (
+                    self._battery_state, self._battery_stop_latched, self._battery_voltage)
+            else:
+                snapshot = (BatteryState.UNKNOWN, False, None)
+                # rx_at is None＝從未收過（沒裝 battery_guard），那是常態不是
+                # 事件，不印；閂在鎖內翻轉，多執行緒同時讀也只有一個印得到。
+                if rx_at is not None and not self._battery_stale_logged:
+                    self._battery_stale_logged = True
+                    stale_since_sec = self._clock() - rx_at
+        if stale_since_sec is not None:
+            logger.warning(
+                f"/battery/state stale: no message for {stale_since_sec:.1f}s "
+                f"(timeout {timeout:.1f}s); battery protection state reported as unknown "
+                f"until battery_guard resumes"
+            )
+        return snapshot
 
     def battery_state(self) -> BatteryState:
         """低電壓保護狀態；沒有 battery_guard（或它已失聯）時為 UNKNOWN。"""

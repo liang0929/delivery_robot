@@ -1,12 +1,14 @@
 """`/battery/state` 消費端的離線測試（不需要 ROS 執行期，也不起節點）。
 
-涵蓋三件事：
+涵蓋四件事：
 
 1. ``RosBridge._on_battery_state`` 的解析——這是唯一把上游 DiagnosticStatus
    翻成 API 語意的地方，翻錯的後果是「電池已鎖存停機，UI 卻顯示正常」。
 2. 過期（staleness）判定——battery_guard 掛掉後不能停在最後一次的 ``ok``，
    否則操作者以為低電壓保護還在線，實際上早就沒了。
-3. ``robot_info`` 推播負載真的帶上新欄位，且舊欄位一個都沒少（前端唯一的
+3. 失聯 / 恢復的 log 節流——退化本身是靜默的，維運端只能靠 log 判讀
+   bridge 失聯時段；但每次讀取都印會把 journal 洗掉，所以只准在轉換點印。
+4. ``robot_info`` 推播負載真的帶上新欄位，且舊欄位一個都沒少（前端唯一的
    即時通道，欄位掉了等於整個 UI 空掉）。
 
 msg 用簡單的假物件而非真的 ``diagnostic_msgs``：本模組只讀 ``level`` 與
@@ -14,6 +16,7 @@ msg 用簡單的假物件而非真的 ``diagnostic_msgs``：本模組只讀 ``le
 這類邊界情境好寫。
 """
 
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -232,6 +235,135 @@ def test_non_positive_timeout_disables_expiry(clock):
 def test_default_timeout_comes_from_config(clock):
     """預設值必須接上 config（可由 ROBOT_BATTERY_STATE_TIMEOUT 調），不是寫死。"""
     assert RosBridge(clock=clock)._battery_state_timeout_sec == BATTERY_STATE_TIMEOUT_SEC
+
+
+# ---------------------------------------------------------------------
+# 失聯 log：只在狀態轉換時印，持續失聯不洗版
+# ---------------------------------------------------------------------
+
+#: log 判讀的對象是 bridge_node 自己的 logger（get_logger(__name__)）。
+BRIDGE_LOGGER = 'robot_api_server.bridge_node'
+
+
+class _Collector(logging.Handler):
+    """把紀錄留在記憶體，依級別分類。
+
+    斷言的是「印幾則、什麼級別」——節流壞掉的症狀是數量爆掉，不是內容變了。
+    """
+
+    def __init__(self):
+        super().__init__(level=logging.DEBUG)
+        self.records = []
+
+    def emit(self, record):
+        self.records.append(record)
+
+    def _of(self, level):
+        return [r for r in self.records if r.levelname == level]
+
+    @property
+    def warnings(self):
+        return self._of('WARNING')
+
+    @property
+    def infos(self):
+        return self._of('INFO')
+
+
+@pytest.fixture
+def battery_logs():
+    """直接把 handler 掛在 bridge_node 的 logger 上收紀錄。
+
+    這裡刻意不用 pytest 的 ``caplog``：測試執行期會載入 ROS 的
+    ``launch.logging``，它用 ``setLoggerClass`` 換掉 Logger 類別，之後建立的
+    logger 一律 ``propagate=False``（launch 自己接管輸出）。caplog 的 handler
+    掛在 root，收不到不往上傳的紀錄，斷言會全部落空。掛在目標 logger 上就與
+    propagate 無關，也不受其他測試的 root 設定影響。
+    """
+    logger = logging.getLogger(BRIDGE_LOGGER)
+    handler = _Collector()
+    previous_level = logger.level
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
+    try:
+        yield handler
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(previous_level)
+
+
+def test_expiry_logs_one_warning(bridge, clock, battery_logs):
+    """fresh→stale 轉換印一則 warning，且要能從內容判讀失聯多久。"""
+    bridge._on_battery_state(make_status(level=0, state='OK'))
+    clock.advance(TIMEOUT + 1.0)
+    assert bridge.battery_state() == BatteryState.UNKNOWN
+
+    assert len(battery_logs.warnings) == 1
+    assert '6.0s' in battery_logs.warnings[0].getMessage()
+
+
+def test_persistent_staleness_does_not_repeat_warning(bridge, clock, battery_logs):
+    """持續失聯期間反覆讀取只能有那一則——每次讀都印會把 journal 洗掉。"""
+    bridge._on_battery_state(make_status(level=0, state='OK'))
+    clock.advance(TIMEOUT + 1.0)
+    for _ in range(20):
+        bridge.battery_state()
+        bridge.battery_stop_latched()
+        bridge.battery_guard_voltage()
+        clock.advance(1.0)
+
+    assert len(battery_logs.warnings) == 1
+
+
+def test_recovery_logs_one_info(bridge, clock, battery_logs):
+    """stale→fresh 轉換印一則 info（收到訊息即成立，不必等下一次讀取）。"""
+    bridge._on_battery_state(make_status(level=0, state='OK'))
+    clock.advance(TIMEOUT + 1.0)
+    bridge.battery_state()  # 觸發過期偵測
+
+    bridge._on_battery_state(make_status(level=0, state='OK'))
+    assert len(battery_logs.infos) == 1
+    assert '6.0s' in battery_logs.infos[0].getMessage()
+
+    # 恢復後持續正常收訊不再印
+    for _ in range(10):
+        clock.advance(0.5)
+        bridge._on_battery_state(make_status(level=0, state='OK'))
+        bridge.battery_state()
+    assert len(battery_logs.infos) == 1
+    assert len(battery_logs.warnings) == 1
+
+
+def test_second_outage_logs_again(bridge, clock, battery_logs):
+    """閂必須在恢復時清掉，否則第二次失聯就再也沒有 log 可查。"""
+    for _ in range(2):
+        bridge._on_battery_state(make_status(level=0, state='OK'))
+        clock.advance(TIMEOUT + 1.0)
+        bridge.battery_state()
+
+    assert len(battery_logs.warnings) == 2
+    assert len(battery_logs.infos) == 1  # 中間那次恢復
+
+
+def test_never_received_logs_nothing(bridge, clock, battery_logs):
+    """沒裝 battery_guard 是常態不是事件，不能一開機就噴 warning。"""
+    clock.advance(TIMEOUT * 100)
+    for _ in range(5):
+        assert bridge.battery_state() == BatteryState.UNKNOWN
+
+    assert battery_logs.warnings == []
+    assert battery_logs.infos == []
+
+
+def test_disabled_expiry_logs_nothing(clock, battery_logs):
+    """停用過期判定時不會過期，自然也不該有失聯 log。"""
+    bridge = RosBridge(battery_state_timeout_sec=0.0, clock=clock)
+    bridge._on_battery_state(make_status(level=0, state='OK'))
+    clock.advance(86400.0)
+    assert bridge.battery_state() == BatteryState.OK
+
+    assert battery_logs.warnings == []
+    assert battery_logs.infos == []
 
 
 # ---------------------------------------------------------------------

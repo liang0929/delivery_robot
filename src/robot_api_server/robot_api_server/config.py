@@ -73,6 +73,15 @@ class Settings(BaseModel):
     # 等待 Nav2 就緒的上限。冷啟動時全部節點 active 約需 10-20 秒，留足餘裕。
     nav2_ready_timeout_sec: float = 40.0
 
+    # --- /battery/state 過期判定 ---
+    # battery_guard 以 publish_rate_hz=2.0 週期發布（見
+    # motor_control/config/battery_guard.yaml），不是只在狀態變化時發，
+    # 所以「超過這段時間沒收到新訊息」是上游死掉的可靠訊號。5 秒 = 10 個
+    # 發布週期，容忍排程抖動與 DDS 重傳，又能在操作者反應時間內把 UI 退回
+    # unknown——保留凍結的 ok 會讓人以為低電壓保護還在線。
+    # 設為 0 或負值＝停用過期判定（保留最後一次狀態，即舊行為）。
+    battery_state_timeout_sec: float = 5.0
+
     @classmethod
     def from_env(cls) -> "Settings":
         workspace_root = _get_workspace_root()
@@ -98,6 +107,8 @@ class Settings(BaseModel):
             allowed_origins=allowed_origins,
             allow_credentials=not allow_all_origins,
             nav2_ready_timeout_sec=float(os.environ.get('ROBOT_NAV2_READY_TIMEOUT', '40')),
+            battery_state_timeout_sec=float(
+                os.environ.get('ROBOT_BATTERY_STATE_TIMEOUT', '5.0')),
         )
 
     def ensure_map_path(self) -> None:
@@ -130,5 +141,6 @@ ALLOW_ALL_ORIGINS = '*' in ALLOWED_ORIGINS
 ALLOW_CREDENTIALS = settings.allow_credentials
 
 NAV2_READY_TIMEOUT_SEC = settings.nav2_ready_timeout_sec
+BATTERY_STATE_TIMEOUT_SEC = settings.battery_state_timeout_sec
 
 logger.info(f"Map path: {MAP_PATH}; HTTP {BIND_HOST}:{HTTP_PORT}; WS {BIND_HOST}:{WS_PORT}")

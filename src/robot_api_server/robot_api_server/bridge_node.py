@@ -17,8 +17,8 @@ from typing import Callable, Optional, Tuple
 from uuid import uuid4
 
 from .config import (
-    BATTERY_MAX_V, BATTERY_MIN_V, MANUAL_ANGULAR_SPEED, MANUAL_LINEAR_SPEED,
-    MANUAL_PUBLISH_HZ, NAV2_READY_TIMEOUT_SEC,
+    BATTERY_MAX_V, BATTERY_MIN_V, BATTERY_STATE_TIMEOUT_SEC, MANUAL_ANGULAR_SPEED,
+    MANUAL_LINEAR_SPEED, MANUAL_PUBLISH_HZ, NAV2_READY_TIMEOUT_SEC,
 )
 from .conversions import (
     m_to_cm, quaternion_to_yaw, voltage_to_battery, yaw_to_deg, yaw_to_quaternion,
@@ -64,7 +64,18 @@ class RosBridge:
 
     NODE_NAME = 'robot_api_bridge'
 
-    def __init__(self, on_e_stop_changed: Optional[Callable[[bool], None]] = None):
+    def __init__(
+        self,
+        on_e_stop_changed: Optional[Callable[[bool], None]] = None,
+        battery_state_timeout_sec: float = BATTERY_STATE_TIMEOUT_SEC,
+        clock: Callable[[], float] = time.monotonic,
+    ):
+        # 過期判定用單調時鐘：量的是「距上次收訊多久」，不是牆上時間。
+        # 用 time.monotonic() 而非 ROS clock 的理由見 _battery_snapshot。
+        # clock 可注入純粹是為了測試能瞬間跳過 timeout，不必真的 sleep。
+        self._clock = clock
+        self._battery_state_timeout_sec = float(battery_state_timeout_sec)
+
         self._lock = threading.Lock()
         self._node = None
         self._executor = None
@@ -78,6 +89,8 @@ class RosBridge:
         self._battery_state: BatteryState = BatteryState.UNKNOWN
         self._battery_stop_latched = False
         self._battery_voltage: Optional[float] = None
+        # 上次收到 /battery/state 的單調時戳；None＝從未收過。
+        self._battery_rx_at: Optional[float] = None
         self._latest_map = None
         self._scan_count = 0  # 就緒探測用：確認 /scan 確實在發布
         self._latest_pose: Optional[Tuple[float, float, float]] = None  # (x_m, y_m, yaw_rad)
@@ -231,10 +244,12 @@ class RosBridge:
             except ValueError:
                 logger.debug(f"Unparsable battery voltage in /battery/state: {raw_voltage!r}")
 
+        rx_at = self._clock()
         with self._lock:
             self._battery_state = state
             self._battery_stop_latched = latched
             self._battery_voltage = voltage
+            self._battery_rx_at = rx_at
 
     def _on_map(self, msg: "OccupancyGrid") -> None:
         with self._lock:
@@ -310,15 +325,43 @@ class RosBridge:
         with self._lock:
             return self._voltage
 
-    def battery_state(self) -> BatteryState:
-        """低電壓保護狀態；沒有 battery_guard 時為 UNKNOWN。"""
+    def _battery_snapshot(self) -> Tuple[BatteryState, bool, Optional[float]]:
+        """取電池保護狀態，逾時未收訊就退回「未知」。
+
+        battery_guard 是**週期**發布（``publish_rate_hz: 2.0``），不是變化時
+        才發，所以「久未收訊」＝上游不在了，是可靠訊號。此時必須退回
+        UNKNOWN：保留最後一次的 ``ok`` 會讓操作者以為低電壓保護還在線，而
+        監視鏈「靜默失效時顯示得比實際樂觀」比誤報嚴重。
+
+        從未收過訊息時（``_battery_rx_at is None``）維持上一輪的語意——同樣
+        是 UNKNOWN，只是不經過過期判定，行為與時鐘完全無關。
+
+        時鐘用 ``time.monotonic()`` 而非 ROS clock：
+        (1) 量的是經過時間，不能被 NTP 校時或系統時間調整拉歪；
+        (2) 這三個 getter 由 FastAPI 執行緒呼叫，degraded 模式下根本沒有
+            node，拿 ``node.get_clock()`` 會壞；
+        (3) api_server.launch.py 沒有宣告 ``use_sim_time``，bridge 節點永遠
+            走系統時間，ROS clock 在此並不會帶來 sim 相容性，只多一層耦合。
+        真要在模擬環境跑，收訊時戳與判定時鐘同源即可（兩邊都改），不影響
+        本判定的形狀。
+        """
+        timeout = self._battery_state_timeout_sec
         with self._lock:
-            return self._battery_state
+            rx_at = self._battery_rx_at
+            # timeout <= 0＝停用過期判定（現場緊急關閉用），退回舊行為
+            fresh = rx_at is not None and (
+                timeout <= 0 or (self._clock() - rx_at) <= timeout)
+            if fresh:
+                return self._battery_state, self._battery_stop_latched, self._battery_voltage
+        return BatteryState.UNKNOWN, False, None
+
+    def battery_state(self) -> BatteryState:
+        """低電壓保護狀態；沒有 battery_guard（或它已失聯）時為 UNKNOWN。"""
+        return self._battery_snapshot()[0]
 
     def battery_stop_latched(self) -> bool:
         """battery_guard 是否已鎖存停機（充電後重啟才會解除）。"""
-        with self._lock:
-            return self._battery_stop_latched
+        return self._battery_snapshot()[1]
 
     def battery_guard_voltage(self) -> Optional[float]:
         """battery_guard 仲裁後的電壓。
@@ -326,9 +369,11 @@ class RosBridge:
         與 ``voltage()``（原始 ``/motor/voltage``）刻意分開：前者已濾波並取
         多來源最小值，是保護判定的依據；後者是 UI 一直在顯示的即時讀值。
         目前只作為診斷用，不進 robot_info。
+
+        與 state / stop_latched 一起過期：三者同源，只讓其中兩個退回未知會
+        變成「狀態未知但電壓還在」的自相矛盾讀數。
         """
-        with self._lock:
-            return self._battery_voltage
+        return self._battery_snapshot()[2]
 
     def pose(self) -> Optional[Tuple[float, float, float]]:
         """回傳 (x_m, y_m, yaw_rad)，取不到時回 None"""

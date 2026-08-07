@@ -1,3 +1,12 @@
+"""手動用的序列埠監聽腳本（不是 pytest 測試）。
+
+用法：`python3 test/manual_serial_connect.py`，Ctrl-C 結束。
+
+檔名刻意不以 `test_` 開頭：它在 import 時就會開啟 /dev/ttyTHS1 並進入
+無窮迴圈，被 pytest 收集到的話 `colcon test` 會直接卡死（在 Jetson 上該
+裝置節點存在，不會拋例外結束）。
+"""
+
 import serial  # 引用pySerial模組
 import json
 COM_PORT = '/dev/ttyTHS1'    # 指定通訊埠名稱

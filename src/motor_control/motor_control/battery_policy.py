@@ -53,9 +53,9 @@ DEFAULT_SOURCES = (SOURCE_MOTOR, SOURCE_PICO)
 class BatteryPolicyConfig:
     """門檻與時間常數。預設值與 config/battery_guard.yaml 一致。
 
-    6S 鋰電（3.7V × 6 = 22.2V 標稱）：
-      - warn_voltage 22.4V ≈ 每串 3.73V，剩餘電量已不多，該回充電座。
-      - shutdown_voltage 21.7V ≈ 每串 3.62V，再放下去進入陡降段，過放傷電池。
+    7S 鋰電（3.7V × 7 = 25.9V 標稱）：
+      - warn_voltage 22.4V ≈ 每串 3.2V，剩餘電量已不多，該回充電座。
+      - shutdown_voltage 21.7V ≈ 每串 3.1V，再放下去進入陡降段，過放傷電池。
     """
 
     warn_voltage: float = 22.4

@@ -41,7 +41,7 @@ class MockPicoSensor(Node):
         # 模擬「沒接感測器」與「通道故障」的通道索引（0–7）
         self.declare_parameter('timeout_channels', [3])
         self.declare_parameter('fault_channels', [6])
-        self.declare_parameter('battery_voltage', 25.2)     # 7S 滿電約 29.4V，這裡取中段
+        self.declare_parameter('battery_voltage', 25.2)     # 7S 充電上限 28.0V，這裡取中段
         self.declare_parameter('power_invalid', False)      # True 時模擬 INA226 讀取無效
 
         # 獲取參數

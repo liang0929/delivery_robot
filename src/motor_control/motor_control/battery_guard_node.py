@@ -197,7 +197,7 @@ class BatteryGuardNode(Node):
         msg.level = _STATE_TO_LEVEL[decision.state]
         msg.name = 'battery_guard'
         msg.message = decision.reason
-        msg.hardware_id = '6S_LIPO'
+        msg.hardware_id = '7S_LIION'
 
         values = [
             KeyValue(key='state', value=decision.state),

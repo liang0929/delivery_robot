@@ -88,9 +88,7 @@ def build_battery_state(reading, cell_count=0, stamp=None):
     msg.power_supply_status = _STATUS_TO_MSG[reading.status]
     msg.power_supply_health = BatteryState.POWER_SUPPLY_HEALTH_UNKNOWN
     # 7S 18650 鋰離子（docs/power_design.md §2「7S 18650 Li-ion，標稱 25.9V」），
-    # 所以是 LION 不是 LIPO。battery_guard 的 hardware_id='6S_LIPO' 與文件、
-    # 與 robot_api_server/config.py:54 的 7S 換算都對不上，是既有筆誤；
-    # 本單禁區不動 battery_guard，已列入報告的殘留問題。
+    # 所以是 LION 不是 LIPO。battery_guard 的 hardware_id 亦為 '7S_LIION'。
     msg.power_supply_technology = BatteryState.POWER_SUPPLY_TECHNOLOGY_LION
 
     msg.cell_voltage = [math.nan] * int(cell_count)

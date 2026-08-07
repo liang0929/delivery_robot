@@ -136,6 +136,9 @@ class HSMotorController(BaseMotorNode):
         # E-Stop 訂閱 (TRANSIENT_LOCAL 確保收到 latched 狀態；含 e_stop_active 初始化)
         self._setup_e_stop_subscription()
 
+        # 安全停機訂閱 (/safety/stop，battery_guard 等軟體保護；含 safety_stop_active 初始化)
+        self._setup_safety_stop_subscription()
+
         # 故障清除 service（呼叫後下一包帶 clear_fault=1）
         self.pending_clear_fault = False
         self.clear_fault_srv = self.create_service(
@@ -311,13 +314,14 @@ class HSMotorController(BaseMotorNode):
         # 使用鎖保護讀取共享狀態，獲取快照
         with self.state_lock:
             e_stop = self.e_stop_active
+            safety_stop = self.safety_stop_active
             dir_a = self.dir_a
             dir_b = self.dir_b
             target_rpm_a = self.target_rpm_a
             target_rpm_b = self.target_rpm_b
 
-        # E-Stop 啟動時：強制制動，RPM 歸零
-        if e_stop:
+        # E-Stop 或安全停機（低電壓等）啟動時：強制制動，RPM 歸零
+        if e_stop or safety_stop:
             motor_control_byte = self.MOTOR_BRAKE
             target_rpm_a = 0
             target_rpm_b = 0
@@ -562,11 +566,34 @@ class HSMotorController(BaseMotorNode):
         elif not msg.data and prev:
             self.get_logger().info('E-Stop released - motors resuming')
 
+    def safety_stop_callback(self, msg: Bool) -> None:
+        """安全停機 (/safety/stop) 回調 — **單向鎖存，只吃 True**。
+
+        收到 False 一律忽略：發布端（battery_guard）本來就只發 True，
+        真的出現 False 只可能是誤發或惡意發布，而「解除低電壓停機」
+        必須是人為充電後重啟節點的決定，不是任何一則訊息能做到的事。
+        """
+        if not msg.data:
+            self.get_logger().warning(
+                '/safety/stop 收到 False，已忽略（安全停機不可由訊息解除）')
+            return
+
+        with self.state_lock:
+            prev = self.safety_stop_active
+            self.safety_stop_active = True
+            # 立即清零目標轉速，不等下一次 control_loop
+            self.target_rpm_a = 0
+            self.target_rpm_b = 0
+
+        if not prev:
+            self.get_logger().error(
+                'SAFETY STOP LATCHED - motors will brake (low voltage / safety guard)')
+
     def cmd_vel_callback(self, msg: Twist) -> None:
         """速度命令回調"""
-        # E-Stop 啟動時拒絕所有速度命令
+        # E-Stop 或安全停機啟動時拒絕所有速度命令
         with self.state_lock:
-            if self.e_stop_active:
+            if self.e_stop_active or self.safety_stop_active:
                 return
 
         # 驗證輸入值（防止 NaN 或無窮大；共用基底的驗證，訊息與行為與抽取前相同）

@@ -17,6 +17,9 @@
   # 無 IMU 模式（BNO055 未接線或故障時）
   ros2 launch motor_control bringup.launch.py enable_imu:=false
 
+  # 停用低電壓保護（僅限實驗室電源供應器供電、電壓低於門檻時）
+  ros2 launch motor_control bringup.launch.py enable_battery_guard:=false
+
 啟動後，可透過 Web 前端選擇：
   - 遙控模式（預設）
   - 建圖模式（Start Mapping）
@@ -50,6 +53,13 @@ ESTOP_BYPASSED_NOTICE = LogInfo(msg=(
     '[bringup] ⚠️  急停已旁路 (enable_estop:=false)：/e_stop 將固定回報未觸發。'
     '此模式下機器人沒有任何緊急停止手段，且手動遙控本來就沒有障礙物偵測，'
     '操作時務必全程目視監控。接上實體急停按鈕後請移除此參數。'
+))
+
+# enable_battery_guard:=false 時的警告。這會移除唯一的低電壓保護。
+BATTERY_GUARD_DISABLED_NOTICE = LogInfo(msg=(
+    '[bringup] ⚠️  低電壓保護已停用 (enable_battery_guard:=false)：'
+    '電池過放不會有任何警告或自動停機，會永久損傷電池。'
+    '僅在以實驗室電源供應器（電壓低於門檻）供電時才使用此模式。'
 ))
 
 # ========== 硬體/服務預設常數 ==========
@@ -163,6 +173,8 @@ class _BringupConfig:
         self.imu_device = LaunchConfiguration('imu_device').perform(context)
         self.enable_imu = LaunchConfiguration('enable_imu').perform(context).lower() == 'true'
         self.enable_estop = LaunchConfiguration('enable_estop').perform(context).lower() == 'true'
+        self.enable_battery_guard = (
+            LaunchConfiguration('enable_battery_guard').perform(context).lower() == 'true')
         self.gpio_pin = int(LaunchConfiguration('gpio_pin').perform(context))
         self.imu_address = int(LaunchConfiguration('imu_address').perform(context))
         self.lidar_baudrate = int(LaunchConfiguration('lidar_baudrate').perform(context))
@@ -171,6 +183,8 @@ class _BringupConfig:
         # 套件路徑
         motor_control_dir = get_package_share_directory('motor_control')
         self.motor_config = os.path.join(motor_control_dir, 'config', 'hs_motor_config.yaml')
+        self.battery_config = os.path.join(
+            motor_control_dir, 'config', 'battery_guard.yaml')
 
         # URDF 路徑
         try:
@@ -388,6 +402,31 @@ def _build_sim_nodes(cfg: _BringupConfig) -> list:
     return nodes
 
 
+def _build_safety_nodes(cfg: _BringupConfig) -> list:
+    """低電壓保護 battery_guard（核心 2-3）。
+
+    真實硬體與模擬模式都啟動：模擬模式下 /motor/voltage 與 /pico/voltage
+    沒有發布者，節點會停在 UNKNOWN 不觸發停機（見 battery_policy），
+    但保留節點在場才能用 `ros2 topic pub` 灌電壓波形驗證整條保護路徑。
+    """
+    nodes = []
+    if not cfg.enable_battery_guard:
+        nodes.append(BATTERY_GUARD_DISABLED_NOTICE)
+        return nodes
+
+    nodes.append(Node(
+        package='motor_control',
+        executable='battery_guard',
+        name='battery_guard',
+        output='screen',
+        parameters=[cfg.battery_config, {'use_sim_time': cfg.use_sim_time}],
+        prefix=get_cpu_prefix('sensor', cfg.cpu_affinity_enabled),
+        respawn=True,
+        respawn_delay=2.0
+    ))
+    return nodes
+
+
 def _build_localization_nodes(cfg: _BringupConfig) -> list:
     """EKF 定位融合 (延遲 2 秒，核心 4-5)。"""
     ekf_node = Node(
@@ -466,6 +505,9 @@ def launch_setup(context, *args, **kwargs):
     if cfg.simulation:
         nodes.extend(_build_sim_nodes(cfg))
 
+    # ========== 安全（低電壓保護） ==========
+    nodes.extend(_build_safety_nodes(cfg))
+
     # ========== EKF 定位融合 ==========
     nodes.extend(_build_localization_nodes(cfg))
 
@@ -496,6 +538,8 @@ def generate_launch_description():
                              description='啟用 IMU (false 時 EKF 僅用輪式里程計推算航向)'),
         DeclareLaunchArgument('enable_estop', default_value='true',
                              description='啟用實體急停按鈕 (false 時旁路，未接按鈕才可使用)'),
+        DeclareLaunchArgument('enable_battery_guard', default_value='true',
+                             description='啟用低電壓保護 (22.4V 警告 / 21.7V 停機)'),
         DeclareLaunchArgument('cpu_affinity', default_value='true',
                              description='啟用 CPU 親和性綁定 (Jetson Orin NX 優化)'),
         DeclareLaunchArgument('gpio_pin', default_value=str(DEFAULT_ESTOP_GPIO_PIN),

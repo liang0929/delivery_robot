@@ -73,6 +73,9 @@ class MockMotorController(BaseMotorNode):
         # E-Stop 訂閱 (TRANSIENT_LOCAL 確保收到 latched 狀態；含 e_stop_active 初始化)
         self._setup_e_stop_subscription()
 
+        # 安全停機訂閱 (/safety/stop，battery_guard 等軟體保護；含 safety_stop_active 初始化)
+        self._setup_safety_stop_subscription()
+
         # 里程計狀態
         self.odom_x = 0.0
         self.odom_y = 0.0
@@ -115,10 +118,31 @@ class MockMotorController(BaseMotorNode):
         elif prev:
             self.get_logger().info('E-Stop released - accepting commands')
 
+    def safety_stop_callback(self, msg: Bool) -> None:
+        """安全停機 (/safety/stop) 回調 — 單向鎖存，只吃 True
+
+        行為與 HSMotorController.safety_stop_callback 對齊（收 False 忽略、
+        鎖存後歸零、只在第一次轉換時 log），差別僅在 mock 歸零的是速度命令
+        而非 target_rpm，且不需要 state_lock。
+        """
+        if not msg.data:
+            self.get_logger().warning(
+                '/safety/stop 收到 False，已忽略（安全停機不可由訊息解除）')
+            return
+
+        prev = self.safety_stop_active
+        self.safety_stop_active = True
+        self.current_linear_x = 0.0
+        self.current_angular_z = 0.0
+
+        if not prev:
+            self.get_logger().error(
+                'SAFETY STOP LATCHED - velocities zeroed (low voltage / safety guard)')
+
     def cmd_vel_callback(self, msg: Twist) -> None:
         """速度命令回調"""
-        # E-Stop 啟動時拒絕所有速度命令
-        if self.e_stop_active:
+        # E-Stop 或安全停機啟動時拒絕所有速度命令
+        if self.e_stop_active or self.safety_stop_active:
             return
 
         # 驗證輸入值（防止 NaN 或無窮大；共用基底的驗證，訊息與行為與抽取前相同）
@@ -182,8 +206,8 @@ class MockMotorController(BaseMotorNode):
         if dt <= 0:
             return
 
-        # E-Stop 啟動時速度歸零
-        if self.e_stop_active:
+        # E-Stop 或安全停機啟動時速度歸零
+        if self.e_stop_active or self.safety_stop_active:
             self.current_linear_x = 0.0
             self.current_angular_z = 0.0
 

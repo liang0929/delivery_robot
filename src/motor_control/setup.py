@@ -16,7 +16,8 @@ setup(
         ]),
         ('share/' + package_name + '/config', [
             'config/hs_motor_config.yaml',
-            'config/tf_config.yaml'
+            'config/tf_config.yaml',
+            'config/battery_guard.yaml'
         ]),
     ],
     install_requires=['setuptools', 'pyserial'],
@@ -36,6 +37,8 @@ setup(
             'mock_imu = motor_control.mock_imu:main',
             # E-Stop 節點
             'e_stop_node = motor_control.e_stop_node:main',
+            # 低電壓保護節點
+            'battery_guard = motor_control.battery_guard_node:main',
         ],
     },
 )

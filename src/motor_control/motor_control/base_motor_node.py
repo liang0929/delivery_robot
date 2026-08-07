@@ -4,6 +4,7 @@
     - cmd_vel 的 NaN/Inf 驗證（含警告訊息文字）
     - 標準 QoS profile 建構（cmd_vel/odom 等使用的 RELIABLE/VOLATILE profile）
     - E-Stop 訂閱建立（含其 QoS：TRANSIENT_LOCAL，確保收到 latched 狀態）
+    - 安全停機 (/safety/stop) 訂閱建立（QoS 同 E-Stop）
     - cmd_vel watchdog 的純時間判斷（是否逾時，不含逾時後的動作）
 
 刻意 **不** 共用的部分（兩邊行為本就不同，抽出來會造成行為偏移）：
@@ -19,6 +20,11 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool
+
+# 低電壓等軟體保護的停機命令（battery_guard 發布）。
+# 刻意與 /e_stop 分開：/e_stop 是實體按鈕專屬，按鈕釋放會發 False，
+# 兩者共用同一個 latched topic 會讓「放開按鈕」順手解除低電壓停機。
+SAFETY_STOP_TOPIC = '/safety/stop'
 
 
 class BaseMotorNode(Node):
@@ -53,6 +59,25 @@ class BaseMotorNode(Node):
         self.e_stop_sub = self.create_subscription(
             Bool, '/e_stop', self.e_stop_callback, e_stop_qos)
         self.e_stop_active = False
+
+    def _setup_safety_stop_subscription(self) -> None:
+        """建立 ``/safety/stop`` 訂閱並初始化 ``safety_stop_active = False``。
+
+        QoS 與 ``/e_stop`` 相同（RELIABLE + TRANSIENT_LOCAL, depth 1）：
+        馬達節點在 bringup 是 ``respawn=True``，重啟後必須立刻收到先前已鎖存
+        的停機命令，靠 latched 語意保證，否則低電壓停機會在節點重啟時失效。
+
+        callback 由子類別各自的 ``self.safety_stop_callback`` 提供
+        （真機需 state_lock、mock 不需要，與 e_stop 同理不共用）。
+        """
+        safety_qos = QoSProfile(
+            depth=1,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+        )
+        self.safety_stop_sub = self.create_subscription(
+            Bool, SAFETY_STOP_TOPIC, self.safety_stop_callback, safety_qos)
+        self.safety_stop_active = False
 
     def _validate_cmd_vel(self, msg: Twist) -> bool:
         """驗證 cmd_vel 是否包含 NaN/Inf。

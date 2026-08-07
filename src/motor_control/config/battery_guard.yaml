@@ -1,0 +1,38 @@
+# battery_guard 節點參數（6S 鋰電低電壓保護）
+#
+# 預設值與 battery_guard_node.py 的 PARAMS 一致。
+# 判定邏輯與各參數的交互作用見 motor_control/battery_policy.py 的模組說明。
+battery_guard:
+  ros__parameters:
+    # ===== 門檻 =====
+    # 6S 鋰電（標稱 22.2V = 3.7V × 6）
+    warn_voltage: 22.4        # ≈ 每串 3.73V：電量不多了，該回充電座
+    shutdown_voltage: 21.7    # ≈ 每串 3.62V：再放下去進陡降段，過放永久傷電池
+    # 回升遲滯：電壓要高過「門檻 + 此值」才算脫離該區間。
+    # 在遲滯帶內持續計時不歸零，否則電壓在門檻上下抖動時計時器被反覆重置，
+    # 持續時間條件永遠湊不滿，保護等於沒有。
+    hysteresis_voltage: 0.3
+
+    # ===== 抗誤觸發 =====
+    # 馬達加速瞬間電池內阻造成的電壓 sag 是真的，但不代表電量耗盡。
+    # 兩道防線：filter_window_sec 的滑動平均削尖峰，
+    # 再要求低於門檻「連續」滿 N 秒才動作。
+    warn_duration_sec: 2.0
+    shutdown_duration_sec: 3.0
+    filter_window_sec: 1.0
+
+    # 來源逾時：超過這麼久沒收到樣本就視為該來源消失。
+    # /pico/voltage 在 INA226 讀取無效 (ok=0) 時整組不發布，
+    # 因此「靜默」是正常情況，必須靠逾時降級成單源而不是誤判成低電壓。
+    source_timeout_sec: 2.0
+
+    # ===== 有效值範圍 =====
+    # 這個區間之外的讀值直接丟棄。驅動器封包解析異常時可能吐出 0.0，
+    # 若讓它進門檻比較，3 秒後就會把機器人停死。
+    # 下限刻意遠低於 shutdown_voltage，真正的深度放電仍必須被看見。
+    min_valid_voltage: 5.0
+    max_valid_voltage: 60.0
+
+    # ===== 節奏 =====
+    publish_rate_hz: 2.0      # /battery/state 發布與判定頻率
+    log_throttle_sec: 10.0    # 持續在警告/停機狀態時的重複 log 間隔

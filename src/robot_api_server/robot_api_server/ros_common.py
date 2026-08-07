@@ -34,9 +34,11 @@ QoSProfile = None
 ReliabilityPolicy = None
 Bool = None
 Float32 = None
+DiagnosticStatus = None
 
 try:
     import rclpy
+    from diagnostic_msgs.msg import DiagnosticStatus
     from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Twist
     from nav_msgs.msg import OccupancyGrid
     from rclpy.executors import SingleThreadedExecutor
@@ -93,6 +95,6 @@ __all__ = [
     'ROS_AVAILABLE', 'ROS_IMPORT_ERROR', 'NAV2_AVAILABLE',
     'rclpy', 'PoseStamped', 'PoseWithCovarianceStamped', 'Twist', 'OccupancyGrid',
     'SingleThreadedExecutor', 'DurabilityPolicy', 'QoSProfile', 'ReliabilityPolicy',
-    'Bool', 'Float32', 'BasicNavigator', 'TaskResult',
+    'Bool', 'Float32', 'DiagnosticStatus', 'BasicNavigator', 'TaskResult',
     'ensure_rclpy_initialized',
 ]

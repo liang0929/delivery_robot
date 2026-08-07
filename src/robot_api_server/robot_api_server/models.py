@@ -49,6 +49,17 @@ class WsEvent(str, Enum):
     POWER = "power"
 
 
+#: 🟡 本專案擴充：battery_guard（`/battery/state`）的低電壓保護狀態。
+#: 值刻意用小寫，與 ``op_mode`` / ``status`` 等既有 API 欄位的慣例一致；
+#: 上游 DiagnosticStatus 的 ``state`` KeyValue 是大寫（OK/WARNING/SHUTDOWN/
+#: UNKNOWN），轉換在 ``bridge_node._on_battery_state`` 完成。
+class BatteryState(str, Enum):
+    OK = "ok"               # 電壓正常
+    WARNING = "warning"     # 低於警告門檻，尚可行走
+    SHUTDOWN = "shutdown"   # 低電壓停機（鎖存，需充電後重啟解除）
+    UNKNOWN = "unknown"     # 沒有 /battery/state 資料，或來源全部逾時
+
+
 class Direction(str, Enum):
     STOP = "stop"
     FORWARD = "forward"
@@ -180,6 +191,12 @@ class RobotInfo(BaseModel):
     #: 🟡 本專案擴充：電池母線電壓（V）。取不到 /motor/voltage 時為 None，
     #: 前端以此區分「真的沒電」與「還沒有資料」。
     voltage: Optional[float] = None
+    #: 🟡 本專案擴充：低電壓保護狀態，來自 battery_guard 的 ``/battery/state``。
+    #: 沒有 battery_guard（或還沒收到訊息）時為 ``unknown``。
+    battery_state: BatteryState = BatteryState.UNKNOWN
+    #: 🟡 本專案擴充：停機鎖存旗標。True 代表 battery_guard 已發出
+    #: ``/safety/stop``，機器人不會動；解除方式只有「充電後重啟」。
+    battery_stop_latched: bool = False
     location: Location
 
 

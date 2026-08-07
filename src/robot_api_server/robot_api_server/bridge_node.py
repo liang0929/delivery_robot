@@ -25,14 +25,34 @@ from .conversions import (
 )
 from .imaging import Image, PIL_AVAILABLE
 from .logging_config import get_logger
-from .models import Direction, Location
+from .models import BatteryState, Direction, Location
 from .ros_common import (
-    ROS_AVAILABLE, Bool, DurabilityPolicy, Float32, OccupancyGrid,
+    ROS_AVAILABLE, Bool, DiagnosticStatus, DurabilityPolicy, Float32, OccupancyGrid,
     PoseWithCovarianceStamped, QoSProfile, ReliabilityPolicy, SingleThreadedExecutor,
     Twist, ensure_rclpy_initialized, rclpy,
 )
 
 logger = get_logger(__name__)
+
+#: battery_guard 的 ``state`` KeyValue（motor_control.battery_policy 的
+#: ``STATE_*`` 常數，大寫）→ API 欄位值。上游若新增狀態，這裡對不到就退回
+#: UNKNOWN——寧可顯示「未知」也不要猜成 ok 而讓操作者以為電池沒事。
+_BATTERY_STATE_MAP = {
+    'OK': BatteryState.OK,
+    'WARNING': BatteryState.WARNING,
+    'SHUTDOWN': BatteryState.SHUTDOWN,
+    'UNKNOWN': BatteryState.UNKNOWN,
+}
+
+#: ``state`` KeyValue 缺席時的退路：DiagnosticStatus.level（OK/WARN/ERROR/STALE
+#: = 0/1/2/3）→ API 欄位值。用字面數字而非 ``DiagnosticStatus.OK``，因為
+#: degraded 模式下 ``DiagnosticStatus`` 是 None。
+_LEVEL_TO_BATTERY_STATE = {
+    0: BatteryState.OK,
+    1: BatteryState.WARNING,
+    2: BatteryState.SHUTDOWN,
+    3: BatteryState.UNKNOWN,
+}
 
 
 class RosBridge:
@@ -53,6 +73,11 @@ class RosBridge:
 
         self._voltage: Optional[float] = None
         self._e_stop = False
+        # 低電壓保護狀態（/battery/state）。沒收到訊息＝沒有 battery_guard，
+        # 語意是 UNKNOWN 而不是 OK。
+        self._battery_state: BatteryState = BatteryState.UNKNOWN
+        self._battery_stop_latched = False
+        self._battery_voltage: Optional[float] = None
         self._latest_map = None
         self._scan_count = 0  # 就緒探測用：確認 /scan 確實在發布
         self._latest_pose: Optional[Tuple[float, float, float]] = None  # (x_m, y_m, yaw_rad)
@@ -106,6 +131,12 @@ class RosBridge:
             node.create_subscription(Float32, '/motor/voltage', self._on_voltage, sensor_qos)
             node.create_subscription(Bool, '/e_stop', self._on_e_stop, latched_qos)
             node.create_subscription(OccupancyGrid, '/map', self._on_map, latched_qos)
+            # /battery/state 由 battery_guard 以 latched 發布；QoS 必須完全對齊
+            # （RELIABLE + TRANSIENT_LOCAL depth 1），否則 API server 晚於
+            # battery_guard 啟動時收不到「已經鎖存」的現況，UI 會誤顯示 unknown。
+            node.create_subscription(
+                DiagnosticStatus, '/battery/state', self._on_battery_state, latched_qos
+            )
 
             self._cmd_vel_pub = node.create_publisher(Twist, '/cmd_vel', 10)
             self._initialpose_pub = node.create_publisher(
@@ -167,6 +198,43 @@ class RosBridge:
             self._e_stop = bool(msg.data)
         if self.on_e_stop_changed is not None:
             self.on_e_stop_changed(bool(msg.data))
+
+    def _on_battery_state(self, msg: "DiagnosticStatus") -> None:
+        """解析 battery_guard 的診斷訊息。
+
+        以 ``state`` KeyValue 為準（那是 battery_policy 的一手判定結果）；
+        沒有這一欄時才退回 ``level``。兩者其實同源，但 level 只有 4 個等級、
+        語意較粗，能拿到字串就不猜。
+        """
+        values = {}
+        for kv in (getattr(msg, 'values', None) or []):
+            values[kv.key] = kv.value
+
+        raw_state = values.get('state')
+        if raw_state is not None:
+            state = _BATTERY_STATE_MAP.get(raw_state.strip().upper(), BatteryState.UNKNOWN)
+        else:
+            state = _LEVEL_TO_BATTERY_STATE.get(int(getattr(msg, 'level', 3)),
+                                                BatteryState.UNKNOWN)
+
+        # 明確比對 "true"：任何其他值（含空字串、缺欄位）都當作沒有鎖存，
+        # 但 SHUTDOWN 本身就蘊含鎖存，補上以免上游漏填時 UI 少一半資訊。
+        latched = values.get('stop_latched', '').strip().lower() == 'true'
+        if state == BatteryState.SHUTDOWN:
+            latched = True
+
+        voltage = None
+        raw_voltage = values.get('voltage', '').strip()
+        if raw_voltage:
+            try:
+                voltage = float(raw_voltage)
+            except ValueError:
+                logger.debug(f"Unparsable battery voltage in /battery/state: {raw_voltage!r}")
+
+        with self._lock:
+            self._battery_state = state
+            self._battery_stop_latched = latched
+            self._battery_voltage = voltage
 
     def _on_map(self, msg: "OccupancyGrid") -> None:
         with self._lock:
@@ -241,6 +309,26 @@ class RosBridge:
     def voltage(self) -> Optional[float]:
         with self._lock:
             return self._voltage
+
+    def battery_state(self) -> BatteryState:
+        """低電壓保護狀態；沒有 battery_guard 時為 UNKNOWN。"""
+        with self._lock:
+            return self._battery_state
+
+    def battery_stop_latched(self) -> bool:
+        """battery_guard 是否已鎖存停機（充電後重啟才會解除）。"""
+        with self._lock:
+            return self._battery_stop_latched
+
+    def battery_guard_voltage(self) -> Optional[float]:
+        """battery_guard 仲裁後的電壓。
+
+        與 ``voltage()``（原始 ``/motor/voltage``）刻意分開：前者已濾波並取
+        多來源最小值，是保護判定的依據；後者是 UI 一直在顯示的即時讀值。
+        目前只作為診斷用，不進 robot_info。
+        """
+        with self._lock:
+            return self._battery_voltage
 
     def pose(self) -> Optional[Tuple[float, float, float]]:
         """回傳 (x_m, y_m, yaw_rad)，取不到時回 None"""

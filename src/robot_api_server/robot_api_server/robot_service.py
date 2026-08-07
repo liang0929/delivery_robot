@@ -98,6 +98,8 @@ class RobotService:
             status=self._robot_status_fn(),
             battery=self._bridge.battery(),
             voltage=self._bridge.voltage(),
+            battery_state=self._bridge.battery_state(),
+            battery_stop_latched=self._bridge.battery_stop_latched(),
             location=location,
         )
 

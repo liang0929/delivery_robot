@@ -3,7 +3,7 @@
 
 import { useRobotStore } from '../store/useRobotStore';
 import { ROBOT_CONFIG } from '../config/robot.config';
-import type { OpMode, RobotStatus } from '../api/types';
+import type { BatteryState, OpMode, RobotStatus } from '../api/types';
 import styles from './StatusBar.module.css';
 
 const MODE_LABEL: Record<OpMode, string> = {
@@ -18,6 +18,32 @@ const STATUS_LABEL: Record<RobotStatus, string> = {
   moving: '導航中',
   go_charging: '前往充電座',
   switching_mode: '模式切換中',
+};
+
+// 低電壓保護（battery_guard）。ok 不顯示——電池正常是常態，不佔版面也不製造
+// 視覺噪音；其餘三態各自有 badge。shutdown 必須寫出解除方式，否則操作者只會
+// 看到「機器人不動了」而不知道能做什麼。
+const BATTERY_STATE_BADGE: Record<
+  Exclude<BatteryState, 'ok'>,
+  { className: string; text: string; title: string }
+> = {
+  warning: {
+    className: 'protectWarning',
+    text: '⚠ 電池低電壓警告',
+    title: '電池電壓已低於警告門檻，請儘快前往充電。',
+  },
+  shutdown: {
+    className: 'protectShutdown',
+    text: '🔴 低電壓停機 · 充電後重啟解除',
+    title:
+      'battery_guard 已鎖存停機命令，馬達不會動作。' +
+      '鎖存設計上只能由「充電後重啟 battery_guard」解除，前端無法解除。',
+  },
+  unknown: {
+    className: 'protectUnknown',
+    text: '電池保護狀態未知',
+    title: '尚未收到 /battery/state，battery_guard 可能未啟動。',
+  },
 };
 
 const CONNECTION_LABEL = {
@@ -41,6 +67,18 @@ export function StatusBar() {
   // 直接畫成空電量條會被誤讀成沒電，因此一律顯示「—」。
   const voltage = info?.voltage ?? null;
   const battery = voltage !== null ? (info?.battery ?? null) : null;
+
+  // 鎖存優先：只要 stop_latched 就當成停機顯示。正常情況下 shutdown 必然鎖存，
+  // 但反過來若上游只給了旗標沒給狀態，寧可顯示得嚴重一點也不要漏報。
+  const protectState: BatteryState | null = info
+    ? info.battery_stop_latched
+      ? 'shutdown'
+      : info.battery_state
+    : null;
+  const protectBadge =
+    protectState !== null && protectState !== 'ok'
+      ? BATTERY_STATE_BADGE[protectState]
+      : null;
 
   return (
     <div className={styles.bar}>
@@ -82,6 +120,18 @@ export function StatusBar() {
             : '—'}
         </span>
       </div>
+
+      {protectBadge && (
+        <div className={styles.item}>
+          <span
+            className={`${styles.protectBadge} ${styles[protectBadge.className]}`}
+            title={protectBadge.title}
+            data-battery-state={protectState}
+          >
+            {protectBadge.text}
+          </span>
+        </div>
+      )}
 
       <div className={styles.item}>
         <span className={styles.label}>位置</span>

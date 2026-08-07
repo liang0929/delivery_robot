@@ -37,12 +37,25 @@ export type EventCode =
   | 'CHG_STA_NOT_FOUND'
   | 'SHUTDOWN';
 
+/**
+ * 🟡 擴充：低電壓保護狀態，來自 battery_guard 的 /battery/state。
+ * - `ok`       電壓正常
+ * - `warning`  低於警告門檻，尚可行走
+ * - `shutdown` 低電壓停機鎖存，需充電後重啟 battery_guard 才會解除
+ * - `unknown`  沒有 battery_guard，或還沒收到資料
+ */
+export type BatteryState = 'ok' | 'warning' | 'shutdown' | 'unknown';
+
 export interface RobotInfo {
   op_mode: OpMode;
   status: RobotStatus;
   battery: number;
   /** 電池母線電壓（V）。後端取不到 /motor/voltage 時為 null */
   voltage: number | null;
+  /** 🟡 擴充：低電壓保護狀態。舊版後端不送此欄位，store 會補 'unknown' */
+  battery_state: BatteryState;
+  /** 🟡 擴充：停機鎖存中（機器人不會動）。舊版後端不送此欄位，store 會補 false */
+  battery_stop_latched: boolean;
   location: ApiLocation;
 }
 
@@ -91,9 +104,17 @@ export interface ApiErrorBody {
   event?: { code?: string };
 }
 
-/** WebSocket 訊息 */
-export interface RobotInfoMessage extends RobotInfo {
+/**
+ * WebSocket 訊息。
+ *
+ * `battery_state` / `battery_stop_latched` 在型別上是 optional：舊版後端
+ * （battery_guard 上線前）不會送這兩個鍵，store 收下時補預設值。
+ */
+export interface RobotInfoMessage
+  extends Omit<RobotInfo, 'battery_state' | 'battery_stop_latched'> {
   event: 'robot_info';
+  battery_state?: BatteryState;
+  battery_stop_latched?: boolean;
 }
 
 export type RobotEventName =

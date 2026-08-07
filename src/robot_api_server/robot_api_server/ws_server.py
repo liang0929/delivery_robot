@@ -4,8 +4,14 @@
 
 事件：
 
-- ``robot_info`` — 每 1 秒推播 ``{event, op_mode, status, battery, voltage, location}``
-  （``voltage`` 為 🟡 本專案擴充欄位）
+- ``robot_info`` — 每 1 秒推播 ``{event, op_mode, status, battery, voltage,
+  battery_state, battery_stop_latched, location}``（``voltage`` /
+  ``battery_state`` / ``battery_stop_latched`` 為 🟡 本專案擴充欄位）
+
+  ``battery_state`` 為 ``"ok" | "warning" | "shutdown" | "unknown"``，
+  ``battery_stop_latched`` 為 bool，兩者都來自 battery_guard 的
+  ``/battery/state``；沒有該節點時是 ``"unknown"`` / ``false``。
+  新增欄位對舊 client 相容：JSON 物件多鍵不影響既有欄位的解析。
 - ``go_point`` / ``go_charging`` / ``switch_mode`` / ``relocate`` / ``power``
   — 事件式 ``{event, code}``，code 取自 §7.6（一律大寫）
 """
@@ -139,6 +145,8 @@ class EventHub:
             "status": info.status.value,
             "battery": info.battery,
             "voltage": info.voltage,
+            "battery_state": info.battery_state.value,
+            "battery_stop_latched": info.battery_stop_latched,
             "location": info.location.model_dump(),
         }
 

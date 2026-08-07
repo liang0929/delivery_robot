@@ -76,6 +76,8 @@ function sameInfo(a: RobotInfo | null, b: RobotInfo): boolean {
     a.status === b.status &&
     a.battery === b.battery &&
     a.voltage === b.voltage &&
+    a.battery_state === b.battery_state &&
+    a.battery_stop_latched === b.battery_stop_latched &&
     a.location.x === b.location.x &&
     a.location.y === b.location.y &&
     a.location.orientation === b.location.orientation
@@ -100,12 +102,23 @@ export const useRobotStore = create<RobotState>((set, get) => ({
       onStateChange: (connection) => set({ connection }),
       onMessage: (msg: RobotSocketMessage) => {
         if (isRobotInfoMessage(msg)) {
-          const { op_mode, status, battery, voltage, location } = msg;
+          const {
+            op_mode,
+            status,
+            battery,
+            voltage,
+            battery_state,
+            battery_stop_latched,
+            location,
+          } = msg;
           const next: RobotInfo = {
             op_mode,
             status,
             battery,
             voltage: voltage ?? null,
+            // 舊版後端（battery_guard 上線前）不送這兩個鍵，補成「未知 / 未鎖存」
+            battery_state: battery_state ?? 'unknown',
+            battery_stop_latched: battery_stop_latched ?? false,
             location,
           };
           // 內容沒變就沿用舊物件：機器人靜止時不會每秒觸發一次重繪

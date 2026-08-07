@@ -28,6 +28,8 @@ setup(
     entry_points={
         'console_scripts': [
             'pico_sensor_node = pico_sensor_hub.pico_sensor_node:main',
+            # /pico/voltage + /pico/current → sensor_msgs/BatteryState
+            'battery_state_node = pico_sensor_hub.battery_state_node:main',
             # Mock 節點 (模擬模式)
             'mock_pico_sensor = pico_sensor_hub.mock_pico_sensor:main',
         ],

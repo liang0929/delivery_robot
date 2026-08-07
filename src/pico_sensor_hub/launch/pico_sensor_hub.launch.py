@@ -1,4 +1,9 @@
-"""啟動 pico_sensor_hub 節點（真實硬體）"""
+"""啟動 pico_sensor_hub 節點（真實硬體）與 battery_state adapter。
+
+adapter 預設一起啟動：它只是把同一份 `/pico/*` 資料換成標準
+`sensor_msgs/BatteryState`，成本是 2 Hz 一則訊息，而 opennav_docking 少了它
+就完全判不出充電中。要單獨關掉的話直接 `ros2 run` 起真節點即可。
+"""
 
 import os
 
@@ -27,5 +32,12 @@ def generate_launch_description():
             name='pico_sensor_hub',
             output='screen',
             parameters=[config, {'port': LaunchConfiguration('port')}],
+        ),
+        Node(
+            package='pico_sensor_hub',
+            executable='battery_state_node',
+            name='pico_battery_state',
+            output='screen',
+            parameters=[config],
         ),
     ])

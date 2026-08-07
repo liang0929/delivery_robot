@@ -22,3 +22,36 @@ pico_sensor_hub:
     # 連著但這麼久沒有有效資料就主動斷開重連（秒）。
     # 韌體 $US 是 10 Hz，3 秒等於連掉 30 幀，不可能是正常抖動。
     data_timeout: 3.0
+
+# battery_state adapter 節點參數
+#
+# 預設值與 battery_state_node.py 的 PARAMS 表一致。
+# 這個節點把 /pico/voltage + /pico/current 打包成 sensor_msgs/BatteryState
+# （**電流反號**：Pico 放電為正，BatteryState 充電為正）。
+pico_battery_state:
+  ros__parameters:
+    # 週期發布，與 battery_guard 同頻率。不是「收到才發」——來源死掉時
+    # 必須主動送退化訊息，否則消費端會凍結在最後一筆。
+    publish_rate_hz: 2.0
+
+    # 多久沒收到來源就退回 NaN + present=False（秒）。
+    # $PW 是 10 Hz，5 秒等於連掉 50 幀；同時對齊 robot_api_server 的
+    # battery_state_timeout_sec，整條鏈的「失聯」定義一致。
+    # 設為 0 或負值＝停用逾時判定（保留最後一筆）。
+    source_timeout_sec: 5.0
+
+    # 有效讀值範圍，與 motor_control/config/battery_guard.yaml 同值
+    min_valid_voltage: 5.0
+    max_valid_voltage: 60.0
+    # 電流絕對值上限（A）。只用來擋解析錯誤／感測器爆走，不是運轉上限。
+    max_valid_current_abs: 100.0
+
+    # 判 charging / discharging 的死區門檻（A，反號後）。
+    # 與 opennav_docking 的 charging_threshold 預設值相同，兩邊判定才不會分歧。
+    charging_current_threshold: 0.5
+
+    # 電芯數，只決定 cell_voltage / cell_temperature 陣列長度（值一律 NaN）。
+    # 0＝不填。7S 18650 鋰離子，見 docs/power_design.md §2。
+    cell_count: 7
+
+    log_throttle_sec: 10.0

@@ -1,8 +1,7 @@
 # opennav_docking / docking_server 參數
 #
-# 🔴 **這個檔現在還沒有人讀。** opennav_docking 尚未安裝
-# （待許可：ros-humble-opennav-docking 等 4 包），裝好之後由
-# launch/dock_perception.launch.py 檔尾的「待安裝」段落引用。
+# ✅ 已用實裝的 opennav_docking 跑過 on_configure 驗證通過（見下方版本註記）。
+# 由 launch/dock_perception.launch.py 檔尾的段 C 引用。
 #
 # 出處標記說明：
 #   §x.y     = 站內 opennav_docking 整合調研報告的章節
@@ -11,6 +10,24 @@
 #
 # ⚠️ 改任何一項前先確認：docking_server 是 lifecycle node，參數只在
 #    on_configure 讀一次，改完要重新 configure 才會生效。
+#
+# ===========================================================================
+# 🔴 實裝版本落差：ros-humble-opennav-docking **0.0.2-4**
+# ===========================================================================
+# 本檔原先照調研報告參考的 humble 分支 9d7819a 撰寫，但 apt 裝到的 0.0.2-4
+# 比那份原始碼舊，下列參數**在實裝版本裡根本沒有 declare**：
+#
+#     rotate_to_dock / rotate_to_dock_timeout / rotation_angular_tolerance
+#     odom_topic
+#     controller.use_collision_detection
+#
+# ROS 2 對沒 declare 的參數是**靜默忽略**（yaml 寫了也不會報錯、不會生效），
+# 所以它們一律先註解掉——留在檔裡只會讓人誤以為設定有效。
+# 驗證方式：`ros2 param list /docking_server` 沒有這幾個名字，
+# 且 `ros2 param get` 回 "Parameter not set"。
+# 升級到有這些參數的版本後再把註解打開（打開前務必重跑一次 param list 核對）。
+#
+# 🔴 這不只是「參數沒生效」，是**功能缺口**，見下方 rotate_to_dock 的說明。
 
 docking_server:
   ros__parameters:
@@ -30,28 +47,45 @@ docking_server:
     wait_charge_timeout: 15.0
 
     dock_approach_timeout: 30.0
-    rotate_to_dock_timeout: 10.0
+    # ❌ 0.0.2-4 未 declare（隨 rotate_to_dock 一起缺）。
+    # rotate_to_dock_timeout: 10.0
 
     # ---- 重試與座標 -------------------------------------------------
     max_retries: 3
     base_frame: base_link
     fixed_frame: odom
 
+    # ❌ 0.0.2-4 未 declare。這版沒有 odom_topic 參數，也就沒有可設定的
+    # 盲退里程計來源。影響待實機確認：本車權威里程計在 /odometry/filtered，
+    # 不是 /odom。
     # 非預設（"odom" → "/odometry/filtered"）：本車的里程計經
     # robot_localization 融合後發在 /odometry/filtered，原始 /odom 不是
     # 對外的權威來源。dock_backwards 的盲退段直接吃這個 topic。§2.5
-    odom_topic: /odometry/filtered
+    # odom_topic: /odometry/filtered
 
     # ---- 倒車入位（刷塊在車尾）--------------------------------------
     # 非預設（false → true）：充電刷塊裝在車尾，必須倒著進 dock。
+    # ✅ 0.0.2-4 有這個參數，已驗證讀進去（ros2 param get 回 True）。
     dock_backwards: true
-    # 非預設（false → true）：先原地轉到「車尾朝 dock」再退。
+
+    # ❌ 0.0.2-4 未 declare —— **這是本檔最大的功能缺口**。
+    # 原設計是「staging_yaw_offset 0.0（車頭朝 dock）→ 到位後原地轉 180°
+    # → 倒退進 dock」，中間那一步就是 rotate_to_dock。實裝版本沒有這個
+    # 階段，車不會自己轉身，等於到了 staging pose 就直接用倒退控制律
+    # 往 dock 開——而車頭是朝著 dock 的。
+    # 可能的收法（**需 planner 裁決，本工單不擅自改**）：
+    #   (a) staging_yaw_offset 改 3.14159，讓 staging pose 本身就車尾朝 dock，
+    #       轉身的責任交給 Nav2 的 NavigateToPose（但 Nav2 尚未啟動）；
+    #   (b) 升級 opennav_docking 到有 rotate_to_dock 的版本；
+    #   (c) 手動把車開成車尾朝 dock 再送 goal（初期人工陪跑時可行）。
     # 🔴 這兩個必須成對：rotate_to_dock=true 而 dock_backwards=false 會在
     #    on_configure 直接 throw（src:docking_server.cpp:79-82）。
-    rotate_to_dock: true
+    #    ——這道成對檢查在 0.0.2-4 也不存在，所以 configure 不會替我們把關。
+    # rotate_to_dock: true
 
     dock_prestaging_tolerance: 0.5
-    rotation_angular_tolerance: 0.05
+    # ❌ 0.0.2-4 未 declare（隨 rotate_to_dock 一起缺）。
+    # rotation_angular_tolerance: 0.05
     undock_linear_tolerance: 0.05
     undock_angular_tolerance: 0.05
 
@@ -121,18 +155,20 @@ docking_server:
       use_stall_detection: false
 
     # ---- 控制器 ---------------------------------------------------
-    controller:
-      # 非預設（true → false）：碰撞偵測需要 local_costmap
-      # （controller.costmap_topic 預設 local_costmap/costmap_raw），
-      # 而本車目前沒有跑 Nav2、沒有 local_costmap，開著會直接卡住。
-      # ⚠️ 這等於 dock 過程沒有任何碰撞保護，初期必須有人在旁邊看著。
-      # Nav2 上線後改回 true。§2.5
-      use_collision_detection: false
-      # 其餘 controller.* （k_phi / k_delta / beta / lambda /
-      # v_linear_min 0.1 / v_linear_max 0.25 / v_angular_max 0.75 /
-      # slowdown_radius 0.25 …）全部維持官方預設。
-      # use_collision_detection=false 時 costmap_topic / footprint_topic /
-      # dock_collision_threshold 根本不會被讀（src:controller.cpp:94-100）。
+    # 0.0.2-4 的 Controller 只有 k_phi / k_delta / beta / lambda /
+    # v_linear_min / v_linear_max / v_angular_max / slowdown_radius 八個參數
+    # （見 /opt/ros/humble/include/opennav_docking/controller.hpp），
+    # 全部維持官方預設，所以這裡整段不需要覆寫。
+    #
+    # ❌ controller.use_collision_detection 在 0.0.2-4 未 declare：
+    # 這版的 Controller 根本沒有碰撞偵測功能，不吃 costmap。
+    # 結果與原本想要的一樣（本車沒跑 Nav2、沒有 local_costmap，本來就要關），
+    # 但**不是因為我們關掉了，是因為這版沒有這個功能**。
+    # ⚠️ 這等於 dock 過程沒有任何碰撞保護，初期必須有人在旁邊看著。
+    # 升級到有碰撞偵測的版本後，這個參數要主動設 false，否則它預設是 true，
+    # 會去等一個不存在的 local_costmap。
+    # controller:
+    #   use_collision_detection: false
 
 # ⚠️ 送 dock_robot goal 時的注意事項（這些是 goal 欄位，不是參數）：
 #   navigate_to_staging_pose: false  ← Nav2 沒在跑，必須手動把車開到 staging

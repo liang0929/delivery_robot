@@ -1,8 +1,8 @@
 # 感知鏈參數：v4l2_camera（取像）＋ apriltag_ros（偵測）
 #
-# ⚠️ 這兩個節點的套件目前**都還沒安裝**（待許可）：
-#     ros-humble-v4l2-camera / ros-humble-image-proc / ros-humble-apriltag-ros
-#   本 package 的 dock_pose_bridge 不依賴它們，可以先 build 先測。
+# ✅ 套件已安裝（ros-humble-v4l2-camera 0.6.2 / ros-humble-image-proc 3.0.9 /
+#    ros-humble-apriltag-ros 3.4.0），本檔的參數名已用 ros2 param list 核對。
+#    apriltag 那半段已跑過合成影像的端到端 smoke test（見下方）。
 #
 # 相機硬體（已定案）：Waveshare OV9281 USB (A)，UVC、USB2.0、FOV 105°，
 # 裝在**車尾朝後**（充電刷塊在車尾，倒車入位）。
@@ -13,6 +13,13 @@
 # 為什麼是 YUY2(YUYV) 而不是 MJPG：MJPG 是有損壓縮，壓縮偽影會直接吃掉
 # AprilTag 邊緣的定位精度；USB2.0 下 YUYV 1280x720 只有約 10fps，但 docking
 # 是低速動作，10fps 夠用。（v4l2_camera 本來也不支援 MJPEG。）
+# 🔴 v4l2_camera 的 pixel_format 與 image_size **無法在沒有相機時驗證**：
+# 這兩個參數是在 open(video_device) 成功、讀到裝置能力之後才 declare 的，
+# 開不了裝置就不會存在（實測 log：Failed opening device → 隨後
+# `Failed to get parameters: pixel_format` / `image_size`）。
+# 相機接上後要重跑一次 `ros2 param get /v4l2_camera pixel_format` 確認。
+# video_device / output_encoding / camera_frame_id / camera_info_url
+# 這四個與裝置無關，已驗證確實讀進節點。
 v4l2_camera:
   ros__parameters:
     # ⚠️ 待相機接上後確認（可能是 /dev/video0 以外的號碼；建議之後補 udev rule
@@ -47,6 +54,13 @@ v4l2_camera:
 # 輸入 image_rect + camera_info，輸出 /tf（child frame = "tag36h11:<id>"）。
 # detections 訊息裡**沒有 pose 欄位**，位姿只能從 /tf 取——這就是
 # dock_pose_bridge 存在的理由。§4.1
+#
+# ✅ 已驗：餵一張合成的 tag36h11 id0 影像（1280x720 mono8，tag 200px，
+# camera_info 用 fx=fy=900 的理想針孔 P 矩陣），apriltag_node 偵測到
+# id=0 / hamming=0 / decision_margin=238，發出的 TF
+# dock_camera_optical_frame → tag36h11:0 距離 0.540 m，
+# 與 fx*size/px = 900*0.120/200 = 0.540 完全吻合——這同時證明下面的
+# size: 0.120 真的有被吃進去（用預設值會算出不同距離）。
 apriltag:
   ros__parameters:
     image_transport: raw

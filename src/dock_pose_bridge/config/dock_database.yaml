@@ -1,7 +1,8 @@
 # dock 資料庫（opennav_docking 的 dock_database 參數指向這裡）
 #
-# 🔴 **這個檔現在還沒有人讀**，待 opennav_docking 安裝後由
-# config/docking_server.yaml 的 dock_database 參數引用。
+# ✅ 已驗證能被實裝的 docking_server 解析：on_configure 時 log 出
+# 「Docking Server has 1 dock types and 1 dock instances available.」
+# 由 config/docking_server.yaml 的 dock_database 參數引用。
 #
 # 格式（src:dock_database.cpp / §2.4）：
 #   type  必填。必須等於 docking_server.yaml 裡 dock_plugins 的某個實例名。

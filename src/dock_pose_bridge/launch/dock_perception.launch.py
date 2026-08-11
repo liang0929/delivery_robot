@@ -10,26 +10,29 @@
                                                     ↓ /detected_dock_pose
                                        （opennav_docking，待安裝）
 
-## 現在可跑 vs 待安裝
+## 各段狀態
 
 | 段 | 節點 | 狀態 |
 |---|---|---|
-| A | `dock_pose_bridge` | ✅ **現在可跑**（本 package，只需 rclpy/tf2_ros） |
-| B | `v4l2_camera` / `rectify_node` / `apriltag_node` | ⏳ 待 apt 安裝感知套件 |
-| C | `docking_server` + `lifecycle_manager` | ⏳ 待 apt 安裝 opennav_docking（見檔尾註解） |
+| A | `dock_pose_bridge` | ✅ 可跑（本 package，只需 rclpy/tf2_ros） |
+| B | `v4l2_camera` / `rectify_node` / `apriltag_node` | ✅ 套件已裝、名稱已核對；`v4l2_camera` 待相機到貨 |
+| C | `docking_server` + `lifecycle_manager` | ✅ 套件已裝；仍以註解放在檔尾，理由見該處 |
 
-套件都還沒裝的現在，只有段 A 起得來：
+套件（ros-humble-v4l2-camera / image-proc / apriltag-ros / opennav-docking）
+都已安裝，段 B 的 executable 名稱已對照 `ros2 pkg executables` 逐一驗過。
 
-    ros2 launch dock_pose_bridge dock_perception.launch.py bridge_only:=true
-
-（沒有 tag TF 可查，節點會每 5 秒限流 warn 一次「等不到 tag36h11:0」，這是預期行為。）
-
-感知套件裝好之後就用預設值起整條 B+A：
+整條 B+A：
 
     ros2 launch dock_pose_bridge dock_perception.launch.py
 
-段 C 不在這支 launch 裡執行，只以註解形式放在檔尾——**它需要的套件尚未安裝，
-寫成可執行的節點會讓整支 launch 在現在直接失敗**。
+⚠️ 相機尚未接上（沒有 /dev/video*）時，`v4l2_camera` 會印
+`Failed opening device /dev/video0` 但**不會退出**，其餘節點照常運作；
+沒有影像就沒有 tag TF，`dock_pose_bridge` 會每 5 秒限流 warn 一次
+「等不到 tag36h11:0」——這兩個都是預期行為。
+
+只起段 A：
+
+    ros2 launch dock_pose_bridge dock_perception.launch.py bridge_only:=true
 """
 
 import os
@@ -50,8 +53,7 @@ def generate_launch_description():
     bridge_only_arg = DeclareLaunchArgument(
         'bridge_only',
         default_value='false',
-        description='只起 dock_pose_bridge，不起相機/rectify/apriltag'
-                    '（感知套件尚未安裝時的唯一可用組合）')
+        description='只起 dock_pose_bridge，不起相機/rectify/apriltag')
 
     camera_tf_arg = DeclareLaunchArgument(
         'publish_camera_tf',
@@ -64,10 +66,15 @@ def generate_launch_description():
     bridge_only = LaunchConfiguration('bridge_only')
 
     # ======================================================================
-    # 段 B：感知鏈（⏳ 待安裝 ros-humble-v4l2-camera / image-proc /
-    #               apriltag-ros；bridge_only:=true 時整段跳過）
+    # 段 B：感知鏈（bridge_only:=true 時整段跳過）
     # ======================================================================
-    # ⚠️ executable 名稱以安裝後 `ros2 pkg executables <pkg>` 為準再核對一次。
+    # executable 名稱已對照實裝核對過（`ros2 pkg executables <pkg>`）：
+    #   v4l2_camera  → v4l2_camera_node   ✅（另有 v4l2_camera_compose_test）
+    #   image_proc   → rectify_node       ✅
+    #   apriltag_ros → apriltag_node      ✅（該 package 只有這一個）
+    # 三個節點也都有對應的 composable 版本，改走 container 時用這些 plugin：
+    #   v4l2_camera::V4L2Camera / image_proc::RectifyNode / AprilTagNode
+    #   （apriltag_ros 的 plugin 沒有 namespace 前綴，別寫成 apriltag_ros::）
     camera = Node(
         package='v4l2_camera',
         executable='v4l2_camera_node',
@@ -147,11 +154,22 @@ def generate_launch_description():
 
 
 # ==========================================================================
-# 段 C：docking_server（⏳ 待安裝，**現在不要取消註解**）
+# 段 C：docking_server（套件已裝，仍**刻意保持註解**）
 # ==========================================================================
-# 需要先 apt 安裝 opennav_docking 的 4 個包（待許可）。裝好之後把下面這段
-# 搬進 generate_launch_description() 的回傳清單，並自行決定要不要跟感知鏈
-# 放同一支 launch——實務上建議分開起，感知鏈可以先單獨驗軸向與偵測距離。
+# opennav_docking 4 包已安裝，下面的 executable 名稱也已核對：
+#   opennav_docking        → opennav_docking   ✅
+#   nav2_lifecycle_manager → lifecycle_manager ✅
+# config/docking_server.yaml 已實跑過 on_configure，plugin 載入、
+# dock_database 解析都通過。
+#
+# 那為什麼還是註解？因為 **active 的 docking_server 會發 /cmd_vel**
+# （configure 就建好 publisher，active 後收到 goal 即輸出速度），
+# 而實裝的 0.0.2-4 缺 rotate_to_dock、也沒有任何碰撞偵測——
+# 詳見 config/docking_server.yaml 開頭的版本落差說明。
+# 在那個缺口收斂、且相機與 INA226 都上線之前，這段不該自動啟動。
+# 取消註解前請先確認：有人在旁邊看著、急停在手上。
+#
+# 另外實務上建議段 C 與感知鏈分開起：感知鏈可以先單獨驗軸向與偵測距離。
 #
 # docking_server 是 **lifecycle node**：只 Node(...) 起來它會停在
 # unconfigured，什麼都不做，必須有 lifecycle_manager 把它推到 active。

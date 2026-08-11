@@ -10,6 +10,15 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/launch', [
+            'launch/dock_perception.launch.py',
+        ]),
+        ('share/' + package_name + '/config', [
+            'config/dock_pose_bridge.yaml',
+            'config/camera_apriltag.yaml',
+            'config/docking_server.yaml',
+            'config/dock_database.yaml',
+        ]),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

@@ -1,0 +1,143 @@
+# opennav_docking / docking_server 參數
+#
+# 🔴 **這個檔現在還沒有人讀。** opennav_docking 尚未安裝
+# （待許可：ros-humble-opennav-docking 等 4 包），裝好之後由
+# launch/dock_perception.launch.py 檔尾的「待安裝」段落引用。
+#
+# 出處標記說明：
+#   §x.y     = 站內 opennav_docking 整合調研報告的章節
+#   src:file = opennav_docking humble 分支 9d7819a 的原始碼
+# 未標「非預設」的項目一律是官方預設值，列出來只為了讓現場一眼看到全貌。
+#
+# ⚠️ 改任何一項前先確認：docking_server 是 lifecycle node，參數只在
+#    on_configure 讀一次，改完要重新 configure 才會生效。
+
+docking_server:
+  ros__parameters:
+    # ---- 時間與頻率 -------------------------------------------------
+    # 非預設（50.0 → 20.0）：本車是差速輪、cmd_vel 走 motor_control，
+    # 50Hz 的控制迴圈對 Jetson 上的整條鏈是浪費；20Hz 已遠高於機構反應。§2.5
+    controller_frequency: 20.0
+
+    # 非預設（5.0 → 10.0）：相機 YUY2 1280x720 只有約 10fps，且 AprilTag
+    # 首次穩定偵測需要數幀；5 秒在這個幀率下太容易誤判成 FAILED_TO_DETECT_DOCK。§2.5
+    initial_perception_timeout: 10.0
+
+    # 非預設（5.0 → 15.0）：/battery_state 只有 2Hz，5 秒僅 10 筆；
+    # 加上刷塊接觸→K1 閉合→HLG-150H-30A 軟啟動爬過 2A 的未知延遲，
+    # 5 秒極可能來不及而誤報 FAILED_TO_CHARGE(906)，而重試會把已接觸好的
+    # 刷塊拉開。實機量到「接觸→電流過 2A」的真實耗時後再收斂。§3.7
+    wait_charge_timeout: 15.0
+
+    dock_approach_timeout: 30.0
+    rotate_to_dock_timeout: 10.0
+
+    # ---- 重試與座標 -------------------------------------------------
+    max_retries: 3
+    base_frame: base_link
+    fixed_frame: odom
+
+    # 非預設（"odom" → "/odometry/filtered"）：本車的里程計經
+    # robot_localization 融合後發在 /odometry/filtered，原始 /odom 不是
+    # 對外的權威來源。dock_backwards 的盲退段直接吃這個 topic。§2.5
+    odom_topic: /odometry/filtered
+
+    # ---- 倒車入位（刷塊在車尾）--------------------------------------
+    # 非預設（false → true）：充電刷塊裝在車尾，必須倒著進 dock。
+    dock_backwards: true
+    # 非預設（false → true）：先原地轉到「車尾朝 dock」再退。
+    # 🔴 這兩個必須成對：rotate_to_dock=true 而 dock_backwards=false 會在
+    #    on_configure 直接 throw（src:docking_server.cpp:79-82）。
+    rotate_to_dock: true
+
+    dock_prestaging_tolerance: 0.5
+    rotation_angular_tolerance: 0.05
+    undock_linear_tolerance: 0.05
+    undock_angular_tolerance: 0.05
+
+    # ---- dock 資料庫 -------------------------------------------------
+    # 由 launch 覆寫成 install 後的實際路徑（yaml 裡沒有 package share 的
+    # substitution 可用）。內容見同目錄 dock_database.yaml。
+    dock_database: /home/robot0/base_dev/install/dock_pose_bridge/share/dock_pose_bridge/config/dock_database.yaml
+
+    # plugin 實例名（不是型別名）；型別在下面的 charging_dock.plugin。
+    # dock_database.yaml 裡每個 dock 的 type 必須等於這個名字。
+    dock_plugins: ["charging_dock"]
+
+    charging_dock:
+      plugin: "opennav_docking::SimpleChargingDock"
+
+      # ---- 充電判定（唯一的成功條件）--------------------------------
+      # 判定式硬編碼為 `current > charging_threshold`，只讀 BatteryState
+      # 的 current，present / status / voltage 一律不看
+      # （src:simple_charging_dock.cpp:105-111）。§3.1
+      use_battery_status: true
+
+      # 非預設（0.5 → 2.0）：對齊 T21「充電電流 >2A 才算真的在充」。
+      # 沿用 0.5 會把涓流與接觸不良（0.5–2A）判成充電成功，
+      # dock 提早回報成功並掩蓋接觸不良。§3.2
+      charging_threshold: 2.0
+
+      # ---- 外部偵測（AprilTag）--------------------------------------
+      # 非預設（false → true）：走視覺 servoing，位姿來自
+      # /detected_dock_pose（由本 package 的 dock_pose_bridge 發布）。§4.3
+      use_external_detection_pose: true
+
+      # 非預設（1.0 → 2.0）：放寬對偶發漏偵的容忍。這個 timeout 比對的是
+      # PoseStamped 的 header.stamp，所以 bridge 絕不能填 now()。§2.5 / §4.3
+      external_detection_timeout: 2.0
+
+      # tag 平面 → 實際接觸點的偏移。**維持官方預設，待實機量測後修正**：
+      # 正確值取決於 tag 貼在 dock 上的實際位置與刷塊接觸面的距離，
+      # 現在填任何「看起來合理」的數字都是猜的。§2.5
+      external_detection_translation_x: -0.20
+      external_detection_translation_y: 0.0
+
+      # 官方預設就是為 AprilTag 偵測器的座標慣例調好的，不要動。
+      # 前提：apriltag_ros 的 pose_estimation_method 必須維持 pnp——
+      # homography 內部做了 x/y 軸交換與 z 反向，換了就會讓這兩個值失效。§4.3
+      external_detection_rotation_pitch: 1.57
+      external_detection_rotation_roll: -1.57
+      external_detection_rotation_yaw: 0.0
+
+      filter_coef: 0.1
+
+      # ---- 停止條件 -------------------------------------------------
+      # 非預設（0.05 → 0.03）：刷塊要真的壓上去才通電，3cm 是接觸容差。§2.5
+      docking_threshold: 0.03
+
+      # 官方預設就是 -0.7，與本案定案值相同：staging pose 在 dock 前方
+      # 0.7m（負號＝前方）。依據：120mm tag（黑框外緣）在 105° 鏡頭下，
+      # 0.7m 處成像約 84px，對偵測門檻仍有約 20% 裕度；再遠就吃掉裕度。
+      # ⚠️ 上機量到實際可穩定偵測距離後再收斂。§2.5 / §6.2
+      staging_x_offset: -0.7
+
+      # 維持 0.0：staging pose 與 dock 同向，車頭朝著 dock；
+      # 轉身交給 rotate_to_dock 做（src:simple_charging_dock.cpp:159-163）。
+      staging_yaw_offset: 0.0
+
+      # 非預設保持 false：差速輪沒有可靠的 joint effort 可用，
+      # 開了只會拿雜訊當「卡住」。§2.5
+      use_stall_detection: false
+
+    # ---- 控制器 ---------------------------------------------------
+    controller:
+      # 非預設（true → false）：碰撞偵測需要 local_costmap
+      # （controller.costmap_topic 預設 local_costmap/costmap_raw），
+      # 而本車目前沒有跑 Nav2、沒有 local_costmap，開著會直接卡住。
+      # ⚠️ 這等於 dock 過程沒有任何碰撞保護，初期必須有人在旁邊看著。
+      # Nav2 上線後改回 true。§2.5
+      use_collision_detection: false
+      # 其餘 controller.* （k_phi / k_delta / beta / lambda /
+      # v_linear_min 0.1 / v_linear_max 0.25 / v_angular_max 0.75 /
+      # slowdown_radius 0.25 …）全部維持官方預設。
+      # use_collision_detection=false 時 costmap_topic / footprint_topic /
+      # dock_collision_threshold 根本不會被讀（src:controller.cpp:94-100）。
+
+# ⚠️ 送 dock_robot goal 時的注意事項（這些是 goal 欄位，不是參數）：
+#   navigate_to_staging_pose: false  ← Nav2 沒在跑，必須手動把車開到 staging
+#                                      pose 附近（dock_prestaging_tolerance 0.5m 內）
+#   use_dock_id: true / dock_id: "home_dock"
+#   送 goal 前先自己檢查 /battery_state.present == true：opennav_docking
+#   不讀 present，感測器失聯與「真的沒在充」在它眼裡都是 906，
+#   會白白耗掉 3 次實體 retry。§3.4

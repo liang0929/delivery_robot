@@ -1,0 +1,84 @@
+# 感知鏈參數：v4l2_camera（取像）＋ apriltag_ros（偵測）
+#
+# ⚠️ 這兩個節點的套件目前**都還沒安裝**（待許可）：
+#     ros-humble-v4l2-camera / ros-humble-image-proc / ros-humble-apriltag-ros
+#   本 package 的 dock_pose_bridge 不依賴它們，可以先 build 先測。
+#
+# 相機硬體（已定案）：Waveshare OV9281 USB (A)，UVC、USB2.0、FOV 105°，
+# 裝在**車尾朝後**（充電刷塊在車尾，倒車入位）。
+
+# ---------------------------------------------------------------------------
+# 取像：v4l2_camera
+# ---------------------------------------------------------------------------
+# 為什麼是 YUY2(YUYV) 而不是 MJPG：MJPG 是有損壓縮，壓縮偽影會直接吃掉
+# AprilTag 邊緣的定位精度；USB2.0 下 YUYV 1280x720 只有約 10fps，但 docking
+# 是低速動作，10fps 夠用。（v4l2_camera 本來也不支援 MJPEG。）
+v4l2_camera:
+  ros__parameters:
+    # ⚠️ 待相機接上後確認（可能是 /dev/video0 以外的號碼；建議之後補 udev rule
+    # 固定成 /dev/dock_camera，不然 USB 重新列舉會漂移）。
+    video_device: /dev/video0
+
+    # 相機吐出來的格式。v4l2_camera 只認 YUYV / UYVY / GREY 三種。
+    pixel_format: YUYV
+    # 輸出成 mono8（從 YUYV 取 Y 通道）。apriltag_ros 原生吃 mono8
+    # （toCvShare(msg, "mono8")），整條鏈零色彩轉換。§4.1
+    output_encoding: mono8
+
+    image_size: [1280, 720]
+
+    # 🔴 這個 frame 名必須與 config/dock_pose_bridge.yaml 的
+    # camera_optical_frame 一致：apriltag_ros 把 tag 的 TF 掛在影像的
+    # header.frame_id 底下，bridge 就是照這個名字去查。
+    camera_frame_id: dock_camera_optical_frame
+
+    # 🔴 佔位，**待校正**。沒有內參就估不出位姿（apriltag_ros 只讀 P 矩陣的
+    # fx/fy/cx/cy）。校正方式：
+    #   ros2 run camera_calibration cameracalibrator \
+    #     --size 8x6 --square 0.025 --no-service-check \
+    #     --ros-args -r image:=/image_raw -r camera:=/camera
+    # 產出的 yaml 放到下面這個路徑（v4l2_camera 只在 URL 非空且通過
+    # validateURL() 時才載入，所以一律顯式寫 file:///）。
+    camera_info_url: file:///home/robot0/.ros/camera_info/dock_camera.yaml
+
+# ---------------------------------------------------------------------------
+# 偵測：apriltag_ros（christianrauch 版）
+# ---------------------------------------------------------------------------
+# 輸入 image_rect + camera_info，輸出 /tf（child frame = "tag36h11:<id>"）。
+# detections 訊息裡**沒有 pose 欄位**，位姿只能從 /tf 取——這就是
+# dock_pose_bridge 存在的理由。§4.1
+apriltag:
+  ros__parameters:
+    image_transport: raw
+    family: 36h11
+
+    # 🔴 tag 邊長，單位公尺，指**黑框外緣**（不含白邊），不是列印總寬。
+    # 已定案 120mm 黑框外緣 ＝ 列印總寬 150mm。
+    # 依據：120mm tag 在 105° 鏡頭、0.7m staging 距離下成像約 84px，
+    # 對偵測門檻仍有約 20% 裕度。§6.1 / §6.2
+    # ⚠️ 列印後務必實測黑框外緣寬度再回填——印表機縮放會讓實際尺寸不等於
+    # 設計值，而這個值直接線性影響估出來的距離。§6.1
+    size: 0.120
+
+    # 不接受任何位元糾錯：dock 認錯 tag 的代價是撞上去。
+    max_hamming: 0
+
+    # 固定 pnp。homography 內部做了 x/y 軸交換與 z 反向，換過去會讓
+    # docking_server.yaml 的 external_detection_rotation_pitch/roll 失效。§4.3
+    pose_estimation_method: "pnp"
+
+    detector:
+      threads: 2        # Jetson Orin NX 上留餘裕給其他節點
+      decimate: 2.0
+      blur: 0.0
+      refine: true
+      sharpening: 0.25
+
+    tag:
+      # 單一 ID。多一個 ID 就多一個認錯的機會，dock 只有一座。
+      ids: [0]
+      # 與上面的 size 同值（逐 ID 覆寫），黑框外緣 120mm。
+      sizes: [0.120]
+      # 不設 frames：維持預設命名 "tag36h11:0"，與
+      # config/dock_pose_bridge.yaml 的 tag_family + tag_id 對得起來。
+      # 若這裡改設 frames，記得把 bridge 的 tag_frame 一起改成同一個字串。

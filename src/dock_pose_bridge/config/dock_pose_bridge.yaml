@@ -1,0 +1,38 @@
+# dock_pose_bridge 節點參數
+#
+# 預設值與 dock_pose_bridge_node.py 的 PARAMS 表一致。
+# 這個節點把 apriltag_ros 發到 /tf 的 tag 位姿轉成
+# geometry_msgs/PoseStamped 發到 detected_dock_pose（opennav_docking 唯一認得
+# 的外部偵測輸入）。**現在就可以跑**，不需要 opennav_docking 安裝完成。
+dock_pose_bridge:
+  ros__parameters:
+    # 相機的光學 frame，必須與 camera_apriltag.yaml 的 camera_frame_id 相同：
+    # apriltag_ros 把 tag 的 TF 掛在「影像 header.frame_id」底下。
+    camera_optical_frame: dock_camera_optical_frame
+
+    # tag family 與 ID。apriltag_ros（christianrauch）預設把 TF child frame
+    # 命名為 "<family>:<id>"，即 tag36h11:0。
+    tag_family: tag36h11
+    tag_id: 0
+
+    # 非空時直接當 frame 名，family/id 不參與命名。
+    # 只有在 camera_apriltag.yaml 裡替 tag 設了 tag.frames 才需要填。
+    tag_frame: ""
+
+    # opennav_docking 訂的是相對名稱 "detected_dock_pose"，namespace 為空
+    # ⇒ 解析成 /detected_dock_pose，兩邊不需要 remap（調研報告 §4.3）。
+    output_topic: detected_dock_pose
+
+    # 查 TF 的頻率。相機是 YUY2 1280x720 約 10fps，設更高只會反覆查到同一筆
+    # （同 stamp 不重發），設更低則平白增加偵測延遲。
+    publish_rate_hz: 10.0
+
+    # 超過這個歲數的 transform 視同「tag 不見了」，停止發布。
+    # 為什麼需要：tf buffer 有 10 秒快取，tag 離開畫面後 lookup 仍然成功並
+    # 一直回同一筆舊值；只靠 lookup 失敗判定的話會安靜地餵十秒過期位姿。
+    # 0.5s 在 10fps 下等於連掉 5 幀（不會被單幀漏偵打斷），且遠小於
+    # docking_server.yaml 的 external_detection_timeout(2.0)，
+    # 下游仍有機會自己判逾時。0 或負值＝停用此判定。
+    max_transform_age_sec: 0.5
+
+    log_throttle_sec: 5.0

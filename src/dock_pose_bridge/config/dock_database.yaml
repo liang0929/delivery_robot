@@ -1,0 +1,28 @@
+# dock 資料庫（opennav_docking 的 dock_database 參數指向這裡）
+#
+# 🔴 **這個檔現在還沒有人讀**，待 opennav_docking 安裝後由
+# config/docking_server.yaml 的 dock_database 參數引用。
+#
+# 格式（src:dock_database.cpp / §2.4）：
+#   type  必填。必須等於 docking_server.yaml 裡 dock_plugins 的某個實例名。
+#         只有一種 plugin 時可以留空字串，但寫清楚比較不會出事。
+#   frame 選填，預設 "map"。
+#   pose  必填，[x, y, theta]，theta 單位 rad。
+#         **長度不是 3 會直接報錯。**
+
+docks:
+  home_dock:
+    type: "charging_dock"
+
+    # 🔴 佔位值，**待實測**。
+    # 這是 dock 本體（充電座接觸面）在 map 中的位姿，不是 staging pose——
+    # staging pose 由 staging_x_offset(-0.7) 從這裡往 dock 前方推算。
+    # theta 是 dock「面朝外」的方向：車要倒退進來，所以是車尾對著它。
+    #
+    # 量法：把車手動開到已對正、刷塊接觸的位置，讀當下的
+    #   ros2 run tf2_ros tf2_echo map base_link
+    # 再把 external_detection_translation_x 的偏移一起校掉。
+    # 前提是 map → odom 已經有 AMCL/SLAM 在維持；目前 Nav2 未啟動，
+    # 所以這一步必須等 Nav2 上線後才做得準。
+    frame: "map"
+    pose: [0.0, 0.0, 0.0]

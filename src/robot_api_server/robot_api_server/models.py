@@ -246,3 +246,35 @@ class MapMetadata(BaseModel):
     negate: int = 0
     occupied_thresh: float = 0.65
     free_thresh: float = 0.196
+
+
+class Pose2D(BaseModel):
+    """平面位姿。
+
+    刻意用 ROS 單位（公尺 / 弧度）而非 API 慣例的公分 + 度：這組數字要與
+    ``dock_database.yaml`` 的 ``pose: [x, y, theta]`` 對得起來，換算成公分
+    再換回去只會製造捨入誤差與比對困難。欄位名帶單位後綴避免誤讀；
+    ``yaw_deg`` 是給 UI 顯示用的衍生值。
+    """
+
+    x_m: float
+    y_m: float
+    yaw_rad: float
+    yaw_deg: float
+
+
+class DockPoseRecord(BaseModel):
+    """POST /v1/robot/dock/record_pose 的回應。"""
+
+    dock_id: str
+    #: 記錄所在的 frame。``map`` 以外一律是測試值（見 ``test_only``）
+    frame: str
+    #: 寫進 database 的 dock pose（已含 yaw + 180° 與 contact_offset 換算）
+    pose: Pose2D
+    #: 換算前查到的 base_link 位姿，讓現場能自行核對換算
+    base_link: Pose2D
+    contact_offset_m: float = 0.0
+    #: True＝非 map frame 的測試記錄，重開機後失效，不可當正式值
+    test_only: bool = False
+    recorded_at: str
+    database_path: str

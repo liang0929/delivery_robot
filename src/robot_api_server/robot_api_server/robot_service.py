@@ -15,7 +15,7 @@
 facade 函式）統一在 composition root ``ros_facade.py`` 完成。
 """
 
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 
 from .bridge_node import RosBridge
 from .mission import MissionTracker
@@ -116,6 +116,17 @@ class RobotService:
     # --- 重定位（阻塞方法）---
     def publish_initial_pose(self, x_m: float, y_m: float, yaw_rad: float) -> bool:
         return self._bridge.publish_initial_pose(x_m, y_m, yaw_rad)
+
+    # --- TF 查詢（阻塞方法）---
+    def lookup_pose(
+        self,
+        target_frame: str,
+        source_frame: str = 'base_link',
+        timeout_sec: float = 1.0,
+    ) -> Tuple[Optional[Tuple[float, float, float]], str]:
+        """指定 frame 下的機器人位姿，附失敗原因。見
+        :meth:`bridge_node.RosBridge.lookup_pose`。"""
+        return self._bridge.lookup_pose(target_frame, source_frame, timeout_sec)
 
     # --- 模式切換（阻塞方法）---
     def start_slam(self) -> None:

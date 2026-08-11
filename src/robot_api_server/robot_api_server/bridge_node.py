@@ -428,6 +428,41 @@ class RosBridge:
         with self._lock:
             return self._latest_pose
 
+    def lookup_pose(
+        self,
+        target_frame: str,
+        source_frame: str = 'base_link',
+        timeout_sec: float = 1.0,
+    ) -> Tuple[Optional[Tuple[float, float, float]], str]:
+        """查任意 frame 下的 ``source_frame`` 位姿，回傳 ``((x, y, yaw), 說明)``。
+
+        與 :meth:`pose` 的差別在於**失敗要說得出原因**：``pose()`` 是給
+        ``/info`` 用的，查不到就靜靜退回 AMCL topic；但「記錄充電座位置」
+        失敗時，操作者需要分辨是 Nav2 沒起來（沒有 map frame）、還是
+        tf2 不可用，否則只會看到一顆按鈕沒反應。
+
+        ``timeout_sec`` 交給 ``lookup_transform`` 阻塞等待：TF 是串流資料，
+        剛啟動或偶發抖動時等一下就有，立刻失敗反而讓使用者重按。
+        """
+        buffer_ = self._tf_buffer
+        if buffer_ is None:
+            return None, "tf2_ros 不可用（ROS 未就緒或 tf2_ros 匯入失敗）"
+        try:
+            from rclpy.duration import Duration
+            from rclpy.time import Time
+            tf = buffer_.lookup_transform(
+                target_frame, source_frame, Time(),
+                timeout=Duration(seconds=max(0.0, timeout_sec)),
+            )
+        except Exception as e:
+            return None, f"查不到 {target_frame}→{source_frame} 的 TF：{e}"
+        t = tf.transform.translation
+        q = tf.transform.rotation
+        return (
+            (t.x, t.y, quaternion_to_yaw(q.x, q.y, q.z, q.w)),
+            f"{target_frame}→{source_frame}",
+        )
+
     # --- 導航就緒探測 ---
     def is_localized(self) -> bool:
         """AMCL 是否已完成定位（以 map→odom 是否存在為準）。

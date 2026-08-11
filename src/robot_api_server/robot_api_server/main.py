@@ -24,7 +24,7 @@ from .config import (
 from .logging_config import get_logger, setup_logging
 from .models import EventCode, WsEvent
 from .ros_bridge import bridge, mission, nav_manager, state
-from .routers import edits, groups, maps, mode, points, robot, virtual_walls
+from .routers import dock, edits, groups, maps, mode, points, robot, virtual_walls
 from .store import store
 from .ws_server import hub
 
@@ -93,6 +93,7 @@ def create_app() -> FastAPI:
     # 🟡 本專案擴充
     app.include_router(mode.router, prefix=API_PREFIX)
     app.include_router(maps.router, prefix=API_PREFIX)
+    app.include_router(dock.router, prefix=API_PREFIX)
 
     return app
 

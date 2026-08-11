@@ -44,6 +44,7 @@ class Settings(BaseModel):
 
     workspace_root: str
     map_path: str
+    dock_database_path: str
 
     # --- 服務埠（規格 §3）---
     http_port: int = 5000
@@ -88,6 +89,15 @@ class Settings(BaseModel):
         default_map_path = os.path.join(workspace_root, 'map')
         map_path = os.environ.get('ROBOT_MAP_PATH', default_map_path)
 
+        # 指向 src/ 而非 install/：colcon 是 --symlink-install，
+        # install → build → src 三層全是 symlink（`readlink -f` 可驗），
+        # 寫 src 這一份就同時滿足「git 追蹤的檔案更新」與「docking_server
+        # 下次 on_configure 讀到新值」。寫 install/ 那一份反而會沿著
+        # symlink 寫回同一個檔案，只是路徑繞遠。
+        default_dock_db = os.path.join(
+            workspace_root, 'src', 'dock_pose_bridge', 'config', 'dock_database.yaml')
+        dock_database_path = os.environ.get('ROBOT_DOCK_DATABASE', default_dock_db)
+
         origins_env = os.environ.get('CORS_ORIGINS', '')
         allowed_origins = [o.strip() for o in origins_env.split(',') if o.strip()] or ['*']
         allow_all_origins = '*' in allowed_origins
@@ -95,6 +105,7 @@ class Settings(BaseModel):
         return cls(
             workspace_root=workspace_root,
             map_path=map_path,
+            dock_database_path=dock_database_path,
             http_port=int(os.environ.get('ROBOT_API_HTTP_PORT', '5000')),
             ws_port=int(os.environ.get('ROBOT_API_WS_PORT', '5001')),
             bind_host=os.environ.get('ROBOT_API_HOST', '0.0.0.0'),
@@ -122,6 +133,7 @@ settings = Settings.from_env()
 WORKSPACE_ROOT = settings.workspace_root
 DEFAULT_MAP_PATH = os.path.join(settings.workspace_root, 'map')
 MAP_PATH = settings.map_path
+DOCK_DATABASE_PATH = settings.dock_database_path
 
 HTTP_PORT = settings.http_port
 WS_PORT = settings.ws_port

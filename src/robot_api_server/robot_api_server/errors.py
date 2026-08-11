@@ -30,9 +30,13 @@ NOT_FOUND_IN_GROUP = "NOT_FOUND_IN_GROUP"
 ROBOT_BUSY = "ROBOT_BUSY"
 NOT_IN_NAVIGATION_MODE = "NOT_IN_NAVIGATION_MODE"
 POINT_NOT_IN_MAP = "POINT_NOT_IN_MAP"
+#: 🟡 擴充：查不到要記錄的位姿（例如 Nav2 未啟動時 map→base_link 不存在）
+DOCK_POSE_UNAVAILABLE = "DOCK_POSE_UNAVAILABLE"
 
 # --- 500（規格未列，內部錯誤用）---
 INTERNAL_ERROR = "INTERNAL_ERROR"
+#: 🟡 擴充：dock database 讀寫失敗
+DOCK_DB_WRITE_FAILED = "DOCK_DB_WRITE_FAILED"
 
 #: error code → 預設 HTTP 狀態碼
 DEFAULT_STATUS = {
@@ -49,7 +53,9 @@ DEFAULT_STATUS = {
     ROBOT_BUSY: 409,
     NOT_IN_NAVIGATION_MODE: 409,
     POINT_NOT_IN_MAP: 409,
+    DOCK_POSE_UNAVAILABLE: 409,
     INTERNAL_ERROR: 500,
+    DOCK_DB_WRITE_FAILED: 500,
 }
 
 
@@ -57,17 +63,31 @@ class ApiError(Exception):
     """以規格錯誤碼拋出的例外。
 
     ``status_code`` 省略時依 :data:`DEFAULT_STATUS` 推導。
+
+    ``detail`` 是選填的人話說明，只有擴充端點會用：規格的錯誤碼是給程式
+    判斷的固定字串，但像「查不到 map→base_link」這種失敗，操作者需要知道
+    的是「Nav2 沒起來還是沒定位」，光靠一個碼分不出來。省略時回應體與
+    規格 §6.1 逐字相同，既有端點不受影響。
     """
 
-    def __init__(self, code: str, status_code: Optional[int] = None):
+    def __init__(
+        self,
+        code: str,
+        status_code: Optional[int] = None,
+        detail: Optional[str] = None,
+    ):
         self.code = code
         self.status_code = status_code or DEFAULT_STATUS.get(code, 400)
+        self.detail = detail
         super().__init__(code)
 
 
-def error_body(code: str) -> dict:
-    """規格 §6.1 回應體"""
-    return {"event": {"code": code}}
+def error_body(code: str, detail: Optional[str] = None) -> dict:
+    """規格 §6.1 回應體（``detail`` 為擴充欄位，省略時完全等同規格）"""
+    event = {"code": code}
+    if detail:
+        event["detail"] = detail
+    return {"event": event}
 
 
 def register_exception_handlers(app) -> None:
@@ -75,7 +95,9 @@ def register_exception_handlers(app) -> None:
 
     @app.exception_handler(ApiError)
     async def _api_error_handler(request: Request, exc: ApiError):
-        return JSONResponse(status_code=exc.status_code, content=error_body(exc.code))
+        return JSONResponse(
+            status_code=exc.status_code, content=error_body(exc.code, exc.detail)
+        )
 
     @app.exception_handler(RequestValidationError)
     async def _validation_handler(request: Request, exc: RequestValidationError):

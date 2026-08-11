@@ -158,6 +158,16 @@ def test_odom_record_is_marked_as_test_only_in_file_and_result(db_path):
     assert '測試值' in text
 
 
+def test_test_frame_warning_names_the_actual_frame(db_path):
+    """警告文字不得寫死 odom——base_footprint 之類的 frame 也走這條路徑，
+    寫死會讓現場讀到一段與檔案內容矛盾的說明。"""
+    record_dock_pose(db_path, 0.0, 0.0, 0.0, frame='base_footprint')
+    text = open(db_path, encoding='utf-8').read()
+
+    assert 'base_footprint' in text
+    assert 'odom' not in text
+
+
 def test_corrupt_database_is_not_silently_overwritten(tmp_path):
     path = str(tmp_path / 'broken.yaml')
     open(path, 'w', encoding='utf-8').write('docks: [this is a list, not a map]\n')

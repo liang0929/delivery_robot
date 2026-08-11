@@ -168,7 +168,8 @@ def _format_dock_block(dock_id: str, entry: dict) -> str:
         if is_test_frame(frame):
             lines += [
                 f"    # 🔴 測試值，**不是正式座標**：記錄於 {frame} frame。",
-                "    # odom 在每次重開機歸零，這組數字下次開機就對不上實體 dock。",
+                f"    # 只有 map 是重開機後仍指向同一個實體位置的 frame；{frame} 不是，",
+                "    # 這組數字在機器人移動或重開機後就對不上實體 dock。",
                 "    # 正式記錄必須在 Nav2 起來、map→base_link 存在之後重做一次。",
             ]
         else:

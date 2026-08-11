@@ -1,29 +1,25 @@
 # dock 資料庫（opennav_docking 的 dock_database 參數指向這裡）
 #
-# ✅ 已驗證能被實裝的 docking_server 解析：on_configure 時 log 出
-# 「Docking Server has 1 dock types and 1 dock instances available.」
-# 由 config/docking_server.yaml 的 dock_database 參數引用。
+# ⚠️ 本檔會被 POST /v1/robot/dock/record_pose 整份重新產生。
+#    手寫的 dock 條目會保留（type / frame / pose 照抄），但自行加的
+#    註解不會——要留說明請寫進 docs/ 或 launch 註解。
 #
-# 格式（src:dock_database.cpp / §2.4）：
+# 格式（src:utils.hpp parseDockFile / opennav_docking 0.0.2）：
 #   type  必填。必須等於 docking_server.yaml 裡 dock_plugins 的某個實例名。
-#         只有一種 plugin 時可以留空字串，但寫清楚比較不會出事。
 #   frame 選填，預設 "map"。
-#   pose  必填，[x, y, theta]，theta 單位 rad。
+#   pose  必填，[x, y, theta]，x/y 單位 m、theta 單位 rad。
 #         **長度不是 3 會直接報錯。**
+#
+# 🔴 pose 的 theta 是 dock 的朝向，+x 軸指向 dock 內部（牆），也就是
+#    機器人接近 dock 的行進方向——staging pose 由此沿 -x 退
+#    staging_x_offset(0.7m) 算出（src:simple_charging_dock.cpp:158-159）。
+#    本車車尾對接，所以 dock theta ＝ 對接時 base_link yaw + 180°。
 
 docks:
   home_dock:
     type: "charging_dock"
 
-    # 🔴 佔位值，**待實測**。
-    # 這是 dock 本體（充電座接觸面）在 map 中的位姿，不是 staging pose——
-    # staging pose 由 staging_x_offset(-0.7) 從這裡往 dock 前方推算。
-    # theta 是 dock「面朝外」的方向：車要倒退進來，所以是車尾對著它。
-    #
-    # 量法：把車手動開到已對正、刷塊接觸的位置，讀當下的
-    #   ros2 run tf2_ros tf2_echo map base_link
-    # 再把 external_detection_translation_x 的偏移一起校掉。
-    # 前提是 map → odom 已經有 AMCL/SLAM 在維持；目前 Nav2 未啟動，
-    # 所以這一步必須等 Nav2 上線後才做得準。
+    # 🔴 佔位值，尚未記錄。把車開到與充電座完全對接的位置後，
+    # 用網頁的「記錄充電座位置」或 POST /v1/robot/dock/record_pose 寫入。
     frame: "map"
-    pose: [0.0, 0.0, 0.0]
+    pose: [0.0000, 0.0000, 0.0000]

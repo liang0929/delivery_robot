@@ -25,6 +25,7 @@ npm install -g serve
 echo "3. 安裝 systemd 服務..."
 sudo cp "$BASE_DIR/scripts/robot-core.service" /etc/systemd/system/
 sudo cp "$BASE_DIR/scripts/robot-web.service" /etc/systemd/system/
+sudo cp "$BASE_DIR/scripts/robot-pico-sensor.service" /etc/systemd/system/
 
 # 重新載入 systemd
 sudo systemctl daemon-reload
@@ -33,16 +34,18 @@ sudo systemctl daemon-reload
 echo "4. 啟用開機自動啟動..."
 sudo systemctl enable robot-core.service
 sudo systemctl enable robot-web.service
+sudo systemctl enable robot-pico-sensor.service
 
 echo ""
 echo "=== 安裝完成 ==="
 echo ""
 echo "服務管理指令："
-echo "  啟動服務:   sudo systemctl start robot-core robot-web"
-echo "  停止服務:   sudo systemctl stop robot-core robot-web"
-echo "  查看狀態:   sudo systemctl status robot-core robot-web"
+echo "  啟動服務:   sudo systemctl start robot-core robot-web robot-pico-sensor"
+echo "  停止服務:   sudo systemctl stop robot-core robot-web robot-pico-sensor"
+echo "  查看狀態:   sudo systemctl status robot-core robot-web robot-pico-sensor"
 echo "  查看日誌:   journalctl -u robot-core -f"
 echo "             journalctl -u robot-web -f"
+echo "             journalctl -u robot-pico-sensor -f"
 echo ""
 echo "重新開機後，服務會自動啟動"
 echo "網頁控制: http://<機器人IP>:3000"

@@ -1,0 +1,23 @@
+[Unit]
+Description=Pico Sensor Hub (ultrasonic + battery telemetry)
+After=network.target
+
+[Service]
+Type=simple
+User=robot0
+Group=robot0
+WorkingDirectory=/home/robot0/base_dev
+ExecStart=/home/robot0/base_dev/scripts/pico_sensor_bringup.sh
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# 環境變數
+Environment="HOME=/home/robot0"
+Environment="USER=robot0"
+# 載入專案 .env（不存在時忽略），見 .env.example
+EnvironmentFile=-/home/robot0/base_dev/.env
+
+[Install]
+WantedBy=multi-user.target

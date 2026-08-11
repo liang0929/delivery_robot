@@ -1,6 +1,7 @@
 // 自動導航分頁：切 navigate 模式 → 重定位 → 選點位或點地圖導航 → 停止。
 
 import { useCallback, useEffect, useState } from 'react';
+import { DockRecorder } from '../components/DockRecorder';
 import { MapCanvas, type MapInteraction } from '../components/MapCanvas';
 import { MapPicker, mapEmptyHint } from '../components/MapPicker';
 import { useStoredMap } from '../hooks/useMapSource';
@@ -260,6 +261,10 @@ export function NavigationPage() {
             </p>
           )}
         </section>
+
+        {/* 充電座座標是部署時設定一次的東西，放在導航流程之後、點位清單之前：
+            它不是每天要按的按鈕，但屬於同一個「讓車能自己回家」的流程。 */}
+        <DockRecorder />
 
         <section className="panel">
           <h2 className="panelTitle">

@@ -7,18 +7,24 @@ import type { ApiErrorBody } from './types';
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
+  /** 後端擴充端點帶回的人話說明（規格端點沒有，維持 undefined） */
+  readonly detail?: string;
 
-  constructor(status: number, code: string, message?: string) {
+  constructor(status: number, code: string, message?: string, detail?: string) {
     super(message ?? `${code} (HTTP ${status})`);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.detail = detail;
   }
 }
 
 /** 把任意 throw 出來的東西轉成可顯示的字串 */
 export function describeError(err: unknown): string {
-  if (err instanceof ApiError) return `${err.code} (HTTP ${err.status})`;
+  // 有 detail 就顯示 detail：錯誤碼留在後面供回報問題時對照
+  if (err instanceof ApiError) {
+    return err.detail ? `${err.detail}（${err.code}）` : `${err.code} (HTTP ${err.status})`;
+  }
   if (err instanceof DOMException && err.name === 'AbortError') return '請求已取消';
   if (err instanceof Error) return err.message;
   return String(err);
@@ -94,13 +100,15 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
 
 async function toApiError(res: Response): Promise<ApiError> {
   let code = `HTTP_${res.status}`;
+  let detail: string | undefined;
   try {
     const body = (await res.json()) as ApiErrorBody;
     if (body?.event?.code) code = body.event.code;
+    if (body?.event?.detail) detail = body.event.detail;
   } catch {
     // 回應非 JSON，維持預設 code
   }
-  return new ApiError(res.status, code);
+  return new ApiError(res.status, code, undefined, detail);
 }
 
 export async function request<T>(

@@ -5,6 +5,7 @@ import { absoluteUrl, LONG_TIMEOUT_MS, request, requestBlobUrl } from './client'
 import type {
   ApiLocation,
   ApiPosition,
+  DockPoseRecord,
   ManualDirection,
   MapMetadata,
   OpMode,
@@ -247,3 +248,21 @@ export const fetchLiveMapImageUrl = (o: Sig = {}) =>
 
 export const mapImageHref = (name: string) =>
   absoluteUrl(`/maps/${encodeURIComponent(name)}/image`);
+
+// ------------------------------------------------------------- 擴充端點：充電座
+
+/**
+ * 記錄「車已與充電座完全對接」時的位姿，寫進 opennav_docking 的 dock database。
+ *
+ * `frame` 預設 `map`（正式值）。傳 `odom` 是測試模式：odom 每次重開機歸零，
+ * 回應會帶 `test_only: true`，UI 必須照樣標示，否則使用者會把它當正式座標。
+ */
+export const recordDockPose = (
+  frame: 'map' | 'odom' = 'map',
+  o: Sig = {},
+) =>
+  request<DockPoseRecord>('/dock/record_pose', {
+    method: 'POST',
+    query: { frame },
+    signal: o.signal,
+  });

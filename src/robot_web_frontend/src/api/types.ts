@@ -99,9 +99,39 @@ export interface MapSummary {
   name: string;
 }
 
-/** §6 錯誤回應：{ "event": { "code": "..." } } */
+/**
+ * §6 錯誤回應：{ "event": { "code": "..." } }
+ *
+ * `detail` 是擴充端點才會帶的人話說明（規格沒有）。錯誤碼是給程式判斷用的
+ * 固定字串，但像「查不到 map→base_link」這種失敗，操作者需要知道的是
+ * 「Nav2 沒起來還是沒定位」——沒有 detail 就只能顯示一串大寫英文。
+ */
 export interface ApiErrorBody {
-  event?: { code?: string };
+  event?: { code?: string; detail?: string };
+}
+
+/** 平面位姿（ROS 單位：公尺 / 弧度，`yaw_deg` 是顯示用衍生值） */
+export interface Pose2D {
+  x_m: number;
+  y_m: number;
+  yaw_rad: number;
+  yaw_deg: number;
+}
+
+/** POST /dock/record_pose 🟡 的回應 */
+export interface DockPoseRecord {
+  dock_id: string;
+  /** 記錄所在的 frame；`map` 以外都是測試值 */
+  frame: string;
+  /** 寫進 dock_database.yaml 的值（已含 yaw + 180° 換算） */
+  pose: Pose2D;
+  /** 換算前查到的 base_link 位姿 */
+  base_link: Pose2D;
+  contact_offset_m: number;
+  /** true＝非 map frame 的測試記錄，重開機後失效，不可當正式值 */
+  test_only: boolean;
+  recorded_at: string;
+  database_path: string;
 }
 
 /**

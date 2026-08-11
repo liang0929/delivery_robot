@@ -1,0 +1,76 @@
+/* 確認區與結果區共用的框線盒子。左側粗邊條是嚴重度的唯一視覺區分：
+   確認＝中性、正式記錄＝成功綠、測試值＝警告紅。 */
+.confirmBox,
+.resultOk,
+.resultTest {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--muted);
+  border-radius: 6px;
+  background: var(--panel-2);
+}
+
+.confirmBox strong,
+.resultOk strong,
+.resultTest strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.confirmBox p,
+.resultOk p,
+.resultTest p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.confirmBox {
+  border-left-color: var(--accent);
+}
+
+.resultOk {
+  border-left-color: var(--ok);
+  background: rgba(61, 220, 132, 0.08);
+}
+
+.resultOk strong {
+  color: var(--ok);
+}
+
+/* 測試值必須一眼看出不是正式座標——這是誤用風險最高的一條路徑 */
+.resultTest,
+.testWarn {
+  border-left-color: var(--danger);
+}
+
+.resultTest {
+  background: rgba(255, 95, 109, 0.08);
+}
+
+.resultTest strong {
+  color: #ff9a9a;
+}
+
+.testWarn {
+  margin-top: 8px !important;
+  padding: 8px 10px;
+  border-left: 3px solid var(--danger);
+  border-radius: 4px;
+  background: rgba(255, 95, 109, 0.1);
+  color: #ff9a9a !important;
+}
+
+/* 座標是這個面板的主角，用等寬字避免數字跳動 */
+.poseLine {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  color: var(--text) !important;
+}
+
+.metaLine {
+  font-size: 12px;
+  opacity: 0.85;
+}

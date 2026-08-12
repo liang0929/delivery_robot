@@ -1,7 +1,11 @@
 [submodule "src/ros-imu-bno055"]
 	path = src/ros-imu-bno055
-	url = https://github.com/dheera/ros-imu-bno055.git
+	url = https://github.com/liang0929/ros-imu-bno055.git
+	branch = jetson-custom
+	ignore = untracked
 
 [submodule "src/sllidar_ros2"]
 	path = src/sllidar_ros2
-	url = https://github.com/Slamtec/sllidar_ros2.git
+	url = https://github.com/liang0929/sllidar_ros2.git
+	branch = jetson-custom
+	ignore = untracked

@@ -1,6 +1,7 @@
 # dock_pose_bridge 節點參數
 #
-# 預設值與 dock_pose_bridge_node.py 的 PARAMS 表一致。
+# 除 publish_rate_hz 外，其餘值與 dock_pose_bridge_node.py 的 PARAMS 表一致；
+# publish_rate_hz 這裡是 15.0（對齊 usb_cam 的 15fps），節點內建預設仍是 10.0。
 # 這個節點把 apriltag_ros 發到 /tf 的 tag 位姿轉成
 # geometry_msgs/PoseStamped 發到 detected_dock_pose（opennav_docking 唯一認得
 # 的外部偵測輸入）。**現在就可以跑**，不需要 opennav_docking 安裝完成。
@@ -23,14 +24,15 @@ dock_pose_bridge:
     # ⇒ 解析成 /detected_dock_pose，兩邊不需要 remap（調研報告 §4.3）。
     output_topic: detected_dock_pose
 
-    # 查 TF 的頻率。相機是 YUY2 1280x720 約 10fps，設更高只會反覆查到同一筆
+    # 查 TF 的頻率。與相機幀率對齊：usb_cam 走 MJPG 1280x720、framerate 刻意
+    # 壓在 15（見 camera_apriltag.yaml 取像段），設更高只會反覆查到同一筆
     # （同 stamp 不重發），設更低則平白增加偵測延遲。
-    publish_rate_hz: 10.0
+    publish_rate_hz: 15.0
 
     # 超過這個歲數的 transform 視同「tag 不見了」，停止發布。
     # 為什麼需要：tf buffer 有 10 秒快取，tag 離開畫面後 lookup 仍然成功並
     # 一直回同一筆舊值；只靠 lookup 失敗判定的話會安靜地餵十秒過期位姿。
-    # 0.5s 在 10fps 下等於連掉 5 幀（不會被單幀漏偵打斷），且遠小於
+    # 0.5s 在 15fps 下等於連掉 7 幀（不會被單幀漏偵打斷），且遠小於
     # docking_server.yaml 的 external_detection_timeout(2.0)，
     # 下游仍有機會自己判逾時。0 或負值＝停用此判定。
     max_transform_age_sec: 0.5

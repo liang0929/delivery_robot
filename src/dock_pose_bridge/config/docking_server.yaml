@@ -36,8 +36,9 @@ docking_server:
     # 50Hz 的控制迴圈對 Jetson 上的整條鏈是浪費；20Hz 已遠高於機構反應。§2.5
     controller_frequency: 20.0
 
-    # 非預設（5.0 → 10.0）：相機 YUY2 1280x720 只有約 10fps，且 AprilTag
-    # 首次穩定偵測需要數幀；5 秒在這個幀率下太容易誤判成 FAILED_TO_DETECT_DOCK。§2.5
+    # 非預設（5.0 → 10.0）：相機走 usb_cam MJPG 1280x720、幀率刻意壓在 15
+    # （見 camera_apriltag.yaml），且 AprilTag 首次穩定偵測需要數幀；實測
+    # 真 tag 的逐幀命中率只有 4~6 成，5 秒太容易誤判成 FAILED_TO_DETECT_DOCK。§2.5
     initial_perception_timeout: 10.0
 
     # 非預設（5.0 → 15.0）：/battery_state 只有 2Hz，5 秒僅 10 筆；

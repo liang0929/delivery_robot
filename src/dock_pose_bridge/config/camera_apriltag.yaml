@@ -1,51 +1,84 @@
-# 感知鏈參數：v4l2_camera（取像）＋ apriltag_ros（偵測）
+# 感知鏈參數：usb_cam（取像）＋ apriltag_ros（偵測）
 #
-# ✅ 套件已安裝（ros-humble-v4l2-camera 0.6.2 / ros-humble-image-proc 3.0.9 /
+# ✅ 套件已安裝（ros-humble-usb-cam 0.8.1 / ros-humble-image-proc 3.0.9 /
 #    ros-humble-apriltag-ros 3.4.0），本檔的參數名已用 ros2 param list 核對。
-#    apriltag 那半段已跑過合成影像的端到端 smoke test（見下方）。
+#    整條鏈已用**真實相機＋真實 tag** 端到端驗過（見下方）。
 #
 # 相機硬體（已定案）：Waveshare OV9281 USB (A)，UVC、USB2.0、FOV 105°，
 # 裝在**車尾朝後**（充電刷塊在車尾，倒車入位）。
 
 # ---------------------------------------------------------------------------
-# 取像：v4l2_camera
+# 取像：usb_cam
 # ---------------------------------------------------------------------------
-# 為什麼是 YUY2(YUYV) 而不是 MJPG：MJPG 是有損壓縮，壓縮偽影會直接吃掉
-# AprilTag 邊緣的定位精度；USB2.0 下 YUYV 1280x720 只有約 10fps，但 docking
-# 是低速動作，10fps 夠用。（v4l2_camera 本來也不支援 MJPEG。）
-# 🔴 v4l2_camera 的 pixel_format 與 image_size **無法在沒有相機時驗證**：
-# 這兩個參數是在 open(video_device) 成功、讀到裝置能力之後才 declare 的，
-# 開不了裝置就不會存在（實測 log：Failed opening device → 隨後
-# `Failed to get parameters: pixel_format` / `image_size`）。
-# 相機接上後要重跑一次 `ros2 param get /v4l2_camera pixel_format` 確認。
-# video_device / output_encoding / camera_frame_id / camera_info_url
-# 這四個與裝置無關，已驗證確實讀進節點。
-v4l2_camera:
+# 為什麼從 v4l2_camera 換成 usb_cam：這顆相機**只吐 MJPG**，
+# `v4l2-ctl --list-formats-ext` 枚舉出來只有 Motion-JPEG 一種
+# （1280x720 / 800x600 / 640x480，各 120 與 60 Hz）；而 v4l2_camera 只認
+# YUYV / UYVY / GREY，完全對不上，開得起來也拿不到影像。usb_cam 有
+# MJPEG 解碼路徑（libavcodec），且是 C++ 解碼，比臨時的 Python 橋接省 CPU。
+#
+# 🔴 為什麼不是 mono8（明明 apriltag 原生吃 mono8）：
+# usb_cam 0.8.1 的 pixel_format 共 11 種
+# （rgb8 / yuyv / yuyv2rgb / uyvy / uyvy2rgb / mono8 / mono16 / y102mono8 /
+#  raw_mjpeg / mjpeg2rgb / m4202rgb，見 include/usb_cam/usb_cam.hpp 的
+#  driver_supported_formats()），但選定的 format 必須通過
+#  `set_pixel_format()` 的檢查：它的 V4L2 fourcc 得出現在裝置枚舉清單裡
+#  （usb_cam.hpp:346 `fmt.v4l2_fmt.pixel_format == found_driver_format->v4l2()`）。
+#    - mono8      → V4L2_PIX_FMT_GREY（formats/mono.hpp:49）→ 本機沒有，出局
+#    - mono16     → V4L2_PIX_FMT_Y16                        → 沒有，出局
+#    - y102mono8  → V4L2_PIX_FMT_Y10                        → 沒有，出局
+#    - raw_mjpeg  → fourcc 對得上，但 requires_conversion=false，
+#                   等於把 JPEG bytes 原封不動塞進 sensor_msgs/Image，
+#                   下游 rectify/apriltag 會把壓縮位元組當像素讀，出局
+#    - mjpeg2rgb  → fourcc 對得上，libavcodec 真解碼，輸出 rgb8 ✅
+#  ⇒ **只有 mjpeg2rgb 可用**，代價是 apriltag 端多一次 rgb8→mono8
+#    （cv_bridge toCvShare(msg,"mono8") 自動轉，不必額外節點）。
+usb_cam:
   ros__parameters:
-    # ⚠️ 待相機接上後確認（可能是 /dev/video0 以外的號碼；建議之後補 udev rule
-    # 固定成 /dev/dock_camera，不然 USB 重新列舉會漂移）。
-    video_device: /dev/video0
+    # udev rule 固定的 symlink（/etc/udev/rules.d/99-dock-camera.rules：
+    # idVendor 32e6 / idProduct 9251 / ATTR{index}==0 → SYMLINK dock_camera）。
+    # 這顆相機會佔掉兩個 /dev/videoN，index=0 才是取像節點，用號碼會漂。
+    video_device: /dev/dock_camera
 
-    # 相機吐出來的格式。v4l2_camera 只認 YUYV / UYVY / GREY 三種。
-    pixel_format: YUYV
-    # 輸出成 mono8（從 YUYV 取 Y 通道）。apriltag_ros 原生吃 mono8
-    # （toCvShare(msg, "mono8")），整條鏈零色彩轉換。§4.1
-    output_encoding: mono8
+    # MJPEG → libavcodec 解碼 → swscale 轉 rgb8。理由見上面那段。
+    pixel_format: mjpeg2rgb
 
-    image_size: [1280, 720]
+    # 送進 libavcodec 的來源像素格式。相機 JPEG 實測是 4:2:2
+    # （PIL get_sampling() = 1），所以是 422P 而不是 420P。
+    # 不用 AV_PIX_FMT_YUVJ422P：實測輸出的亮度統計與 YUV422P 完全相同
+    # （min/max/mean/std 皆 63/255/171.9/71.3），但會多噴一行
+    # 「deprecated pixel format used」；官方 params_1.yaml 也是用 YUV422P。
+    av_device_format: AV_PIX_FMT_YUV422P
+
+    image_width: 1280
+    image_height: 720
+
+    # 🔴 刻意壓低。裝置只枚舉 120/60 Hz 兩種 interval，但 usb_cam 的
+    # framerate **不是**丟給 V4L2 S_PARM，而是節點自己的 timer 週期
+    # （實測 log：「Timer triggering every 66 ms」＝1/15s），所以不受
+    # 裝置 interval 清單限制，15 這種非枚舉值照樣生效
+    # （實測 `ros2 topic hz /image_raw` 平均 14.0–15.1 Hz）。
+    # 為什麼是 15 而不是 60/120：apriltag 是 CPU 大戶（前次量測 10fps 時
+    # 就吃掉 34.6%），docking 又是低速動作，15fps 綽綽有餘。
+    framerate: 15.0
+
+    io_method: mmap
+    camera_name: dock_camera
 
     # 🔴 這個 frame 名必須與 config/dock_pose_bridge.yaml 的
     # camera_optical_frame 一致：apriltag_ros 把 tag 的 TF 掛在影像的
     # header.frame_id 底下，bridge 就是照這個名字去查。
-    camera_frame_id: dock_camera_optical_frame
+    frame_id: dock_camera_optical_frame
 
-    # 🔴 佔位，**待校正**。沒有內參就估不出位姿（apriltag_ros 只讀 P 矩陣的
-    # fx/fy/cx/cy）。校正方式：
+    # 🔴 目前是**幾何推算的佔位內參，不是標定結果**（標定另約）：
+    # fx=fy=(1468.6/2)/tan(105°/2)≈563.4、cx/cy=影像中心、D 全 0。
+    # 沒有內參就估不出位姿（apriltag_ros 只讀 P 矩陣的 fx/fy/cx/cy）。
+    # 標定方式：
     #   ros2 run camera_calibration cameracalibrator \
     #     --size 8x6 --square 0.025 --no-service-check \
     #     --ros-args -r image:=/image_raw -r camera:=/camera
-    # 產出的 yaml 放到下面這個路徑（v4l2_camera 只在 URL 非空且通過
-    # validateURL() 時才載入，所以一律顯式寫 file:///）。
+    # 產出的 yaml 覆蓋到下面這個路徑（usb_cam 走 camera_info_manager，
+    # URL 一律顯式寫 file:///；檔案不存在只會 warn，然後發全零 camera_info，
+    # 那會讓 apriltag 估不出位姿——所以這個檔必須存在）。
     camera_info_url: file:///home/robot0/.ros/camera_info/dock_camera.yaml
 
 # ---------------------------------------------------------------------------
@@ -61,6 +94,13 @@ v4l2_camera:
 # dock_camera_optical_frame → tag36h11:0 距離 0.540 m，
 # 與 fx*size/px = 900*0.120/200 = 0.540 完全吻合——這同時證明下面的
 # size: 0.120 真的有被吃進去（用預設值會算出不同距離）。
+#
+# ✅ 也已用**真相機＋真 tag**（螢幕顯示 tag36h11 id0）跑過整條鏈：
+# id=0 / hamming=0 / decision_margin 95～127，/detected_dock_pose 連續流動。
+# ⚠️ 逐幀命中率只有 4~6 成（30 秒內 426 幀命中 180、391 幀命中 247），
+# 所以 dock_pose_bridge 的 max_transform_age_sec 不能設太小，
+# docking_server 的 initial_perception_timeout 也保持放寬。
+# 這是拍螢幕的量測值（刷新率拍頻＋反光），實體列印的 tag 應該會更好。
 apriltag:
   ros__parameters:
     image_transport: raw

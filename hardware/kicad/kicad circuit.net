@@ -1,8 +1,8 @@
 (export
 	(version "E")
 	(design
-		(source "D:\\Projects\\愛吠的狗機器人\\kicad circuit\\kicad circuit.kicad_sch")
-		(date "2026-08-04T15:03:12")
+		(source "D:\\Projects\\barkingdog-robot\\kicad circuit\\kicad circuit.kicad_sch")
+		(date "2026-08-18T00:14:40")
 		(tool "Eeschema 10.0.5")
 		(sheet
 			(number "1")
@@ -879,72 +879,6 @@
 			)
 		)
 		(comp
-			(ref "D2")
-			(value "Ideal Diode Module")
-			(description "Diode")
-			(fields
-				(field
-					(name "Sim.Device") "D")
-				(field
-					(name "Sim.Pins") "1=K 2=A")
-				(field
-					(name "Footprint")
-				)
-				(field
-					(name "Datasheet")
-				)
-				(field
-					(name "Description") "Diode")
-			)
-			(libsource
-				(lib "Device")
-				(part "D")
-				(description "Diode")
-			)
-			(property
-				(name "Sim.Device")
-				(value "D")
-			)
-			(property
-				(name "Sim.Pins")
-				(value "1=K 2=A")
-			)
-			(property
-				(name "Sheetname")
-				(value "kicad circuit")
-			)
-			(property
-				(name "Sheetfile")
-				(value "kicad circuit.kicad_sch")
-			)
-			(property
-				(name "ki_keywords")
-				(value "diode")
-			)
-			(property
-				(name "ki_fp_filters")
-				(value "TO-???* *_Diode_* *SingleDiode* D_*")
-			)
-			(sheetpath
-				(names "/")
-				(tstamps "/")
-			)
-			(tstamps "6688bbb2-2cfd-4551-918d-e1327d86a828")
-			(units
-				(unit
-					(name "A")
-					(pins
-						(pin
-							(num "1")
-						)
-						(pin
-							(num "2")
-						)
-					)
-				)
-			)
-		)
-		(comp
 			(ref "D3")
 			(value "SMCJ30A")
 			(footprint "SMCJ30A:DIOM6859X262N")
@@ -1232,7 +1166,7 @@
 		)
 		(comp
 			(ref "F5")
-			(value "5A ATO")
+			(value "7.5A ATO")
 			(description "Fuse")
 			(fields
 				(field
@@ -1276,66 +1210,6 @@
 				(tstamps "/")
 			)
 			(tstamps "fd45ec8d-a0bb-42ec-91b1-b14dbb5354a0")
-			(units
-				(unit
-					(name "A")
-					(pins
-						(pin
-							(num "1")
-						)
-						(pin
-							(num "2")
-						)
-					)
-				)
-			)
-		)
-		(comp
-			(ref "F6")
-			(value "5A ATO")
-			(description "Fuse")
-			(fields
-				(field
-					(name "DocRef") "F5-B")
-				(field
-					(name "Footprint")
-				)
-				(field
-					(name "Datasheet")
-				)
-				(field
-					(name "Description") "Fuse")
-			)
-			(libsource
-				(lib "Device")
-				(part "Fuse")
-				(description "Fuse")
-			)
-			(property
-				(name "DocRef")
-				(value "F5-B")
-			)
-			(property
-				(name "Sheetname")
-				(value "kicad circuit")
-			)
-			(property
-				(name "Sheetfile")
-				(value "kicad circuit.kicad_sch")
-			)
-			(property
-				(name "ki_keywords")
-				(value "fuse")
-			)
-			(property
-				(name "ki_fp_filters")
-				(value "*Fuse*")
-			)
-			(sheetpath
-				(names "/")
-				(tstamps "/")
-			)
-			(tstamps "43fdbb2e-d0b6-475c-853d-8d383fdec0ad")
 			(units
 				(unit
 					(name "A")
@@ -1813,6 +1687,60 @@
 			)
 		)
 		(comp
+			(ref "J9")
+			(value "車端刷塊引線（⊕上/⊖下）")
+			(fields
+				(field
+					(name "Footprint")
+				)
+				(field
+					(name "Datasheet")
+				)
+				(field
+					(name "Description")
+				)
+			)
+			(libsource
+				(lib "Connector")
+				(part "Screw_Terminal_01x02")
+				(description "Generic screw terminal, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)")
+			)
+			(property
+				(name "Sheetname")
+				(value "kicad circuit")
+			)
+			(property
+				(name "Sheetfile")
+				(value "kicad circuit.kicad_sch")
+			)
+			(property
+				(name "ki_keywords")
+				(value "screw terminal")
+			)
+			(property
+				(name "ki_fp_filters")
+				(value "TerminalBlock*:*")
+			)
+			(sheetpath
+				(names "/")
+				(tstamps "/")
+			)
+			(tstamps "005b4ec5-b197-43cb-b821-df86f7b74fa6")
+			(units
+				(unit
+					(name "A")
+					(pins
+						(pin
+							(num "1")
+						)
+						(pin
+							(num "2")
+						)
+					)
+				)
+			)
+		)
+		(comp
 			(ref "R1")
 			(value "2.5mohm FL-2 30A/75mV")
 			(description "Shunt resistor with Kelvin connections")
@@ -2021,202 +1949,6 @@
 						)
 						(pin
 							(num "2")
-						)
-					)
-				)
-			)
-		)
-		(comp
-			(ref "U1")
-			(value "36V　無線充電模組")
-			(footprint "module")
-			(datasheet "https://zanrobot.com/shop/wirelesspowermodule/")
-			(fields
-				(field
-					(name "Footprint") "module")
-				(field
-					(name "Datasheet") "https://zanrobot.com/shop/wirelesspowermodule/")
-				(field
-					(name "Description")
-				)
-			)
-			(libsource
-				(lib "Wireless Charging Module")
-				(part "Wireless_Charging_Module")
-				(description "")
-			)
-			(property
-				(name "Sheetname")
-				(value "kicad circuit")
-			)
-			(property
-				(name "Sheetfile")
-				(value "kicad circuit.kicad_sch")
-			)
-			(sheetpath
-				(names "/")
-				(tstamps "/")
-			)
-			(tstamps "357eb665-ce8e-4268-90b4-534349817202")
-			(units
-				(unit
-					(name "A")
-					(pins
-						(pin
-							(num "1")
-						)
-						(pin
-							(num "2")
-						)
-					)
-				)
-			)
-		)
-		(comp
-			(ref "U2")
-			(value "36V　無線充電模組")
-			(footprint "module")
-			(datasheet "https://zanrobot.com/shop/wirelesspowermodule/")
-			(fields
-				(field
-					(name "Footprint") "module")
-				(field
-					(name "Datasheet") "https://zanrobot.com/shop/wirelesspowermodule/")
-				(field
-					(name "Description")
-				)
-			)
-			(libsource
-				(lib "Wireless Charging Module")
-				(part "Wireless_Charging_Module")
-				(description "")
-			)
-			(property
-				(name "Sheetname")
-				(value "kicad circuit")
-			)
-			(property
-				(name "Sheetfile")
-				(value "kicad circuit.kicad_sch")
-			)
-			(sheetpath
-				(names "/")
-				(tstamps "/")
-			)
-			(tstamps "7b6bf599-7e31-4849-b040-d14c5d0c998e")
-			(units
-				(unit
-					(name "A")
-					(pins
-						(pin
-							(num "1")
-						)
-						(pin
-							(num "2")
-						)
-					)
-				)
-			)
-		)
-		(comp
-			(ref "U3")
-			(value "XL4016 CC/CV")
-			(footprint "module")
-			(fields
-				(field
-					(name "Footprint") "module")
-				(field
-					(name "Datasheet")
-				)
-				(field
-					(name "Description")
-				)
-			)
-			(libsource
-				(lib "Buck Converter")
-				(part "XL4016_CV_module")
-				(description "")
-			)
-			(property
-				(name "Sheetname")
-				(value "kicad circuit")
-			)
-			(property
-				(name "Sheetfile")
-				(value "kicad circuit.kicad_sch")
-			)
-			(sheetpath
-				(names "/")
-				(tstamps "/")
-			)
-			(tstamps "d2209ec0-4695-4382-9ce0-c4e375f4688d")
-			(units
-				(unit
-					(name "A")
-					(pins
-						(pin
-							(num "1")
-						)
-						(pin
-							(num "2")
-						)
-						(pin
-							(num "3")
-						)
-						(pin
-							(num "4")
-						)
-					)
-				)
-			)
-		)
-		(comp
-			(ref "U4")
-			(value "XL4016 CC/CV")
-			(footprint "module")
-			(fields
-				(field
-					(name "Footprint") "module")
-				(field
-					(name "Datasheet")
-				)
-				(field
-					(name "Description")
-				)
-			)
-			(libsource
-				(lib "Buck Converter")
-				(part "XL4016_CV_module")
-				(description "")
-			)
-			(property
-				(name "Sheetname")
-				(value "kicad circuit")
-			)
-			(property
-				(name "Sheetfile")
-				(value "kicad circuit.kicad_sch")
-			)
-			(sheetpath
-				(names "/")
-				(tstamps "/")
-			)
-			(tstamps "b37f86e9-1df4-4f4c-b85b-bf1caff055cc")
-			(units
-				(unit
-					(name "A")
-					(pins
-						(pin
-							(num "1")
-						)
-						(pin
-							(num "2")
-						)
-						(pin
-							(num "3")
-						)
-						(pin
-							(num "4")
 						)
 					)
 				)
@@ -4800,36 +4532,6 @@
 			)
 		)
 		(libpart
-			(lib "Wireless Charging Module")
-			(part "Wireless_Charging_Module")
-			(docs "https://zanrobot.com/shop/wirelesspowermodule/")
-			(fields
-				(field
-					(name "Reference") "U")
-				(field
-					(name "Value") "48V　無線充電模組")
-				(field
-					(name "Footprint") "module")
-				(field
-					(name "Datasheet") "https://zanrobot.com/shop/wirelesspowermodule/")
-				(field
-					(name "Description")
-				)
-			)
-			(pins
-				(pin
-					(num "1")
-					(name "OUT+")
-					(type "power_out")
-				)
-				(pin
-					(num "2")
-					(name "OUT-")
-					(type "power_out")
-				)
-			)
-		)
-		(libpart
 			(lib "lidar")
 			(part "A2M12")
 			(fields
@@ -4966,7 +4668,7 @@
 	(libraries
 		(library
 			(logical "Buck Converter")
-			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/Buck Converter.kicad_sym")
+			(uri "${KIPRJMOD}/Buck Converter.kicad_sym")
 		)
 		(library
 			(logical "Connector")
@@ -4986,7 +4688,7 @@
 		)
 		(library
 			(logical "Jetson")
-			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/Jetson.kicad_sym")
+			(uri "${KIPRJMOD}/Jetson.kicad_sym")
 		)
 		(library
 			(logical "MCU_Module")
@@ -4994,7 +4696,7 @@
 		)
 		(library
 			(logical "SMCJ30A")
-			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/SMCJ30A/SMCJ30A.kicad_sym")
+			(uri "${KIPRJMOD}/SMCJ30A.kicad_sym")
 		)
 		(library
 			(logical "Sensor_Motion")
@@ -5002,27 +4704,23 @@
 		)
 		(library
 			(logical "Signal Conversion Module")
-			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/Signal Conversion Module.kicad_sym")
+			(uri "${KIPRJMOD}/Signal Conversion Module.kicad_sym")
 		)
 		(library
 			(logical "Switch")
 			(uri "${KICAD10_SYMBOL_DIR}/Switch.kicad_sym")
 		)
 		(library
-			(logical "Wireless Charging Module")
-			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/Wireless Charging Module.kicad_sym")
-		)
-		(library
 			(logical "lidar")
-			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/lidar.kicad_sym")
+			(uri "${KIPRJMOD}/lidar.kicad_sym")
 		)
 		(library
 			(logical "motor driver")
-			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/motor driver.kicad_sym")
+			(uri "${KIPRJMOD}/motor driver.kicad_sym")
 		)
 		(library
 			(logical "power sencer")
-			(uri "C:/Users/laing/OneDrive/文件/KiCad/9.0/symbols/power sencer.kicad_sym")
+			(uri "${KIPRJMOD}/power sencer.kicad_sym")
 		)
 	)
 	(nets
@@ -5219,6 +4917,40 @@
 		)
 		(net
 			(code "6")
+			(name "/BRUSH_N")
+			(class "Default")
+			(node
+				(ref "J1")
+				(pin "3")
+				(pinfunction "Pin_3_3")
+				(pintype "passive")
+			)
+			(node
+				(ref "J9")
+				(pin "2")
+				(pinfunction "Pin_2_2")
+				(pintype "passive")
+			)
+		)
+		(net
+			(code "7")
+			(name "/BRUSH_P")
+			(class "Default")
+			(node
+				(ref "D1")
+				(pin "2")
+				(pinfunction "A_2")
+				(pintype "passive")
+			)
+			(node
+				(ref "J9")
+				(pin "1")
+				(pinfunction "Pin_1_1")
+				(pintype "passive")
+			)
+		)
+		(net
+			(code "8")
 			(name "/BUS_12V")
 			(class "Default")
 			(node
@@ -5234,8 +4966,8 @@
 			)
 		)
 		(net
-			(code "7")
-			(name "/BUS_CHG_A")
+			(code "9")
+			(name "/BUS_CHG")
 			(class "Default")
 			(node
 				(ref "F5")
@@ -5250,23 +4982,7 @@
 			)
 		)
 		(net
-			(code "8")
-			(name "/BUS_CHG_B")
-			(class "Default")
-			(node
-				(ref "F6")
-				(pin "2")
-				(pintype "passive")
-			)
-			(node
-				(ref "J2")
-				(pin "4")
-				(pinfunction "Pin_4_4")
-				(pintype "passive")
-			)
-		)
-		(net
-			(code "9")
+			(code "10")
 			(name "/BUS_MOTOR")
 			(class "Default")
 			(node
@@ -5293,7 +5009,7 @@
 			)
 		)
 		(net
-			(code "10")
+			(code "11")
 			(name "/BUS_SENSE")
 			(class "Default")
 			(node
@@ -5310,7 +5026,7 @@
 			)
 		)
 		(net
-			(code "11")
+			(code "12")
 			(name "/BUS_SHUNT")
 			(class "Default")
 			(node
@@ -5326,25 +5042,8 @@
 			)
 		)
 		(net
-			(code "12")
-			(name "/CHG_A_BUCK_OUT")
-			(class "Default")
-			(node
-				(ref "D1")
-				(pin "2")
-				(pinfunction "A_2")
-				(pintype "passive")
-			)
-			(node
-				(ref "U3")
-				(pin "3")
-				(pinfunction "OUT+_3")
-				(pintype "power_out")
-			)
-		)
-		(net
 			(code "13")
-			(name "/CHG_A_DIODE_OUT")
+			(name "/CHG_DIODE_OUT")
 			(class "Default")
 			(node
 				(ref "D1")
@@ -5360,39 +5059,6 @@
 		)
 		(net
 			(code "14")
-			(name "/CHG_B_BUCK_OUT")
-			(class "Default")
-			(node
-				(ref "D2")
-				(pin "2")
-				(pinfunction "A_2")
-				(pintype "passive")
-			)
-			(node
-				(ref "U4")
-				(pin "3")
-				(pinfunction "OUT+_3")
-				(pintype "power_out")
-			)
-		)
-		(net
-			(code "15")
-			(name "/CHG_B_DIODE_OUT")
-			(class "Default")
-			(node
-				(ref "D2")
-				(pin "1")
-				(pinfunction "K_1")
-				(pintype "passive")
-			)
-			(node
-				(ref "F6")
-				(pin "1")
-				(pintype "passive")
-			)
-		)
-		(net
-			(code "16")
 			(name "/ESTOP_X0")
 			(class "Default")
 			(node
@@ -5409,7 +5075,7 @@
 			)
 		)
 		(net
-			(code "17")
+			(code "15")
 			(name "/GND_12V")
 			(class "Default")
 			(node
@@ -5426,7 +5092,7 @@
 			)
 		)
 		(net
-			(code "18")
+			(code "16")
 			(name "/GND_BATT")
 			(class "Default")
 			(node
@@ -5449,41 +5115,7 @@
 			)
 		)
 		(net
-			(code "19")
-			(name "/GND_CHG_A")
-			(class "Default")
-			(node
-				(ref "J1")
-				(pin "3")
-				(pinfunction "Pin_3_3")
-				(pintype "passive")
-			)
-			(node
-				(ref "U3")
-				(pin "4")
-				(pinfunction "OUT-_4")
-				(pintype "power_out")
-			)
-		)
-		(net
-			(code "20")
-			(name "/GND_CHG_B")
-			(class "Default")
-			(node
-				(ref "J1")
-				(pin "4")
-				(pinfunction "Pin_4_4")
-				(pintype "passive")
-			)
-			(node
-				(ref "U4")
-				(pin "4")
-				(pinfunction "OUT-_4")
-				(pintype "power_out")
-			)
-		)
-		(net
-			(code "21")
+			(code "17")
 			(name "/GND_JETSON")
 			(class "Default")
 			(node
@@ -5529,7 +5161,7 @@
 			)
 		)
 		(net
-			(code "22")
+			(code "18")
 			(name "/GND_MOTOR")
 			(class "Default")
 			(node
@@ -5556,7 +5188,7 @@
 			)
 		)
 		(net
-			(code "23")
+			(code "19")
 			(name "/GND_PICO")
 			(class "Default")
 			(node
@@ -5708,7 +5340,7 @@
 			)
 		)
 		(net
-			(code "24")
+			(code "20")
 			(name "/I2C_SCL")
 			(class "Default")
 			(node
@@ -5725,7 +5357,7 @@
 			)
 		)
 		(net
-			(code "25")
+			(code "21")
 			(name "/I2C_SDA")
 			(class "Default")
 			(node
@@ -5742,7 +5374,7 @@
 			)
 		)
 		(net
-			(code "26")
+			(code "22")
 			(name "/INA226_ALERT")
 			(class "Default")
 			(node
@@ -5759,7 +5391,7 @@
 			)
 		)
 		(net
-			(code "27")
+			(code "23")
 			(name "/JET_3V3")
 			(class "Default")
 			(node
@@ -5782,7 +5414,7 @@
 			)
 		)
 		(net
-			(code "28")
+			(code "24")
 			(name "/JET_I2C_SCL")
 			(class "Default")
 			(node
@@ -5799,7 +5431,7 @@
 			)
 		)
 		(net
-			(code "29")
+			(code "25")
 			(name "/JET_I2C_SDA")
 			(class "Default")
 			(node
@@ -5816,7 +5448,7 @@
 			)
 		)
 		(net
-			(code "30")
+			(code "26")
 			(name "/PWR_BTN")
 			(class "Default")
 			(node
@@ -5833,7 +5465,7 @@
 			)
 		)
 		(net
-			(code "31")
+			(code "27")
 			(name "/PWR_BTN_GND")
 			(class "Default")
 			(node
@@ -5850,7 +5482,7 @@
 			)
 		)
 		(net
-			(code "32")
+			(code "28")
 			(name "/PWR_LED_K")
 			(class "Default")
 			(node
@@ -5867,7 +5499,7 @@
 			)
 		)
 		(net
-			(code "33")
+			(code "29")
 			(name "/PWR_LED_P")
 			(class "Default")
 			(node
@@ -5883,7 +5515,7 @@
 			)
 		)
 		(net
-			(code "34")
+			(code "30")
 			(name "/RS232_RX")
 			(class "Default")
 			(node
@@ -5900,7 +5532,7 @@
 			)
 		)
 		(net
-			(code "35")
+			(code "31")
 			(name "/RS232_TX")
 			(class "Default")
 			(node
@@ -5917,75 +5549,7 @@
 			)
 		)
 		(net
-			(code "36")
-			(name "/RX_A+")
-			(class "Default")
-			(node
-				(ref "U2")
-				(pin "1")
-				(pinfunction "OUT+_1")
-				(pintype "power_out")
-			)
-			(node
-				(ref "U3")
-				(pin "1")
-				(pinfunction "IN+_1")
-				(pintype "power_in")
-			)
-		)
-		(net
-			(code "37")
-			(name "/RX_A-")
-			(class "Default")
-			(node
-				(ref "U2")
-				(pin "2")
-				(pinfunction "OUT-_2")
-				(pintype "power_out")
-			)
-			(node
-				(ref "U3")
-				(pin "2")
-				(pinfunction "IN-_2")
-				(pintype "power_in")
-			)
-		)
-		(net
-			(code "38")
-			(name "/RX_B+")
-			(class "Default")
-			(node
-				(ref "U1")
-				(pin "1")
-				(pinfunction "OUT+_1")
-				(pintype "power_out")
-			)
-			(node
-				(ref "U4")
-				(pin "1")
-				(pinfunction "IN+_1")
-				(pintype "power_in")
-			)
-		)
-		(net
-			(code "39")
-			(name "/RX_B-")
-			(class "Default")
-			(node
-				(ref "U1")
-				(pin "2")
-				(pinfunction "OUT-_2")
-				(pintype "power_out")
-			)
-			(node
-				(ref "U4")
-				(pin "2")
-				(pinfunction "IN-_2")
-				(pintype "power_in")
-			)
-		)
-		(net
-			(code "40")
+			(code "32")
 			(name "/SGND")
 			(class "Default")
 			(node
@@ -6008,7 +5572,7 @@
 			)
 		)
 		(net
-			(code "41")
+			(code "33")
 			(name "/SHUNT_SENSE+")
 			(class "Default")
 			(node
@@ -6024,7 +5588,7 @@
 			)
 		)
 		(net
-			(code "42")
+			(code "34")
 			(name "/SHUNT_SENSE-")
 			(class "Default")
 			(node
@@ -6040,7 +5604,7 @@
 			)
 		)
 		(net
-			(code "43")
+			(code "35")
 			(name "/US1_ECHO")
 			(class "Default")
 			(node
@@ -6057,7 +5621,7 @@
 			)
 		)
 		(net
-			(code "44")
+			(code "36")
 			(name "/US1_TRIG")
 			(class "Default")
 			(node
@@ -6074,7 +5638,7 @@
 			)
 		)
 		(net
-			(code "45")
+			(code "37")
 			(name "/US2_ECHO")
 			(class "Default")
 			(node
@@ -6091,7 +5655,7 @@
 			)
 		)
 		(net
-			(code "46")
+			(code "38")
 			(name "/US2_TRIG")
 			(class "Default")
 			(node
@@ -6108,7 +5672,7 @@
 			)
 		)
 		(net
-			(code "47")
+			(code "39")
 			(name "/US3_ECHO")
 			(class "Default")
 			(node
@@ -6125,7 +5689,7 @@
 			)
 		)
 		(net
-			(code "48")
+			(code "40")
 			(name "/US3_TRIG")
 			(class "Default")
 			(node
@@ -6142,7 +5706,7 @@
 			)
 		)
 		(net
-			(code "49")
+			(code "41")
 			(name "/US4_ECHO")
 			(class "Default")
 			(node
@@ -6159,7 +5723,7 @@
 			)
 		)
 		(net
-			(code "50")
+			(code "42")
 			(name "/US4_TRIG")
 			(class "Default")
 			(node
@@ -6176,7 +5740,7 @@
 			)
 		)
 		(net
-			(code "51")
+			(code "43")
 			(name "/US5_ECHO")
 			(class "Default")
 			(node
@@ -6193,7 +5757,7 @@
 			)
 		)
 		(net
-			(code "52")
+			(code "44")
 			(name "/US5_TRIG")
 			(class "Default")
 			(node
@@ -6210,7 +5774,7 @@
 			)
 		)
 		(net
-			(code "53")
+			(code "45")
 			(name "/US6_ECHO")
 			(class "Default")
 			(node
@@ -6227,7 +5791,7 @@
 			)
 		)
 		(net
-			(code "54")
+			(code "46")
 			(name "/US6_TRIG")
 			(class "Default")
 			(node
@@ -6244,7 +5808,7 @@
 			)
 		)
 		(net
-			(code "55")
+			(code "47")
 			(name "/US7_ECHO")
 			(class "Default")
 			(node
@@ -6261,7 +5825,7 @@
 			)
 		)
 		(net
-			(code "56")
+			(code "48")
 			(name "/US7_TRIG")
 			(class "Default")
 			(node
@@ -6278,7 +5842,7 @@
 			)
 		)
 		(net
-			(code "57")
+			(code "49")
 			(name "/US8_ECHO")
 			(class "Default")
 			(node
@@ -6295,7 +5859,7 @@
 			)
 		)
 		(net
-			(code "58")
+			(code "50")
 			(name "/US8_TRIG")
 			(class "Default")
 			(node
@@ -6312,7 +5876,7 @@
 			)
 		)
 		(net
-			(code "59")
+			(code "51")
 			(name "/USB_LIDAR")
 			(class "Default")
 			(node
@@ -6329,7 +5893,7 @@
 			)
 		)
 		(net
-			(code "60")
+			(code "52")
 			(name "/USB_PICO")
 			(class "Default")
 			(node
@@ -6346,7 +5910,7 @@
 			)
 		)
 		(net
-			(code "61")
+			(code "53")
 			(name "/USB_RS232")
 			(class "Default")
 			(node
@@ -6363,7 +5927,7 @@
 			)
 		)
 		(net
-			(code "62")
+			(code "54")
 			(name "Net-(D4-A)")
 			(class "Default")
 			(node
@@ -6379,7 +5943,7 @@
 			)
 		)
 		(net
-			(code "63")
+			(code "55")
 			(name "unconnected-(A1-3V3_EN-Pad37)")
 			(class "Default")
 			(node
@@ -6390,7 +5954,7 @@
 			)
 		)
 		(net
-			(code "64")
+			(code "56")
 			(name "unconnected-(A1-ADC_VREF-Pad35)")
 			(class "Default")
 			(node
@@ -6401,7 +5965,7 @@
 			)
 		)
 		(net
-			(code "65")
+			(code "57")
 			(name "unconnected-(A1-GPIO19-Pad25)")
 			(class "Default")
 			(node
@@ -6412,7 +5976,7 @@
 			)
 		)
 		(net
-			(code "66")
+			(code "58")
 			(name "unconnected-(A1-GPIO20-Pad26)")
 			(class "Default")
 			(node
@@ -6423,7 +5987,7 @@
 			)
 		)
 		(net
-			(code "67")
+			(code "59")
 			(name "unconnected-(A1-GPIO21-Pad27)")
 			(class "Default")
 			(node
@@ -6434,7 +5998,7 @@
 			)
 		)
 		(net
-			(code "68")
+			(code "60")
 			(name "unconnected-(A1-GPIO22-Pad29)")
 			(class "Default")
 			(node
@@ -6445,7 +6009,7 @@
 			)
 		)
 		(net
-			(code "69")
+			(code "61")
 			(name "unconnected-(A1-GPIO26_ADC0-Pad31)")
 			(class "Default")
 			(node
@@ -6456,7 +6020,7 @@
 			)
 		)
 		(net
-			(code "70")
+			(code "62")
 			(name "unconnected-(A1-GPIO27_ADC1-Pad32)")
 			(class "Default")
 			(node
@@ -6467,7 +6031,7 @@
 			)
 		)
 		(net
-			(code "71")
+			(code "63")
 			(name "unconnected-(A1-GPIO28_ADC2-Pad34)")
 			(class "Default")
 			(node
@@ -6478,7 +6042,7 @@
 			)
 		)
 		(net
-			(code "72")
+			(code "64")
 			(name "unconnected-(A1-RUN-Pad30)")
 			(class "Default")
 			(node
@@ -6489,7 +6053,7 @@
 			)
 		)
 		(net
-			(code "73")
+			(code "65")
 			(name "unconnected-(A1-VSYS-Pad39)")
 			(class "Default")
 			(node
@@ -6500,7 +6064,29 @@
 			)
 		)
 		(net
-			(code "74")
+			(code "66")
+			(name "unconnected-(J1-Pin_4-Pad4)")
+			(class "Default")
+			(node
+				(ref "J1")
+				(pin "4")
+				(pinfunction "Pin_4_4")
+				(pintype "passive+no_connect")
+			)
+		)
+		(net
+			(code "67")
+			(name "unconnected-(J2-Pin_4-Pad4)")
+			(class "Default")
+			(node
+				(ref "J2")
+				(pin "4")
+				(pinfunction "Pin_4_4")
+				(pintype "passive+no_connect")
+			)
+		)
+		(net
+			(code "68")
 			(name "unconnected-(U8-USB3-Pad5)")
 			(class "Default")
 			(node
@@ -6511,7 +6097,7 @@
 			)
 		)
 		(net
-			(code "75")
+			(code "69")
 			(name "unconnected-(U19-BL_IND-Pad10)")
 			(class "Default")
 			(node
@@ -6522,7 +6108,7 @@
 			)
 		)
 		(net
-			(code "76")
+			(code "70")
 			(name "unconnected-(U19-CAP-Pad9)")
 			(class "Default")
 			(node
@@ -6533,7 +6119,7 @@
 			)
 		)
 		(net
-			(code "77")
+			(code "71")
 			(name "unconnected-(U19-COM2-Pad18)")
 			(class "Default")
 			(node
@@ -6544,7 +6130,7 @@
 			)
 		)
 		(net
-			(code "78")
+			(code "72")
 			(name "unconnected-(U19-COM3-Pad17)")
 			(class "Default")
 			(node
@@ -6555,7 +6141,7 @@
 			)
 		)
 		(net
-			(code "79")
+			(code "73")
 			(name "unconnected-(U19-INT-Pad14)")
 			(class "Default")
 			(node
@@ -6566,7 +6152,7 @@
 			)
 		)
 		(net
-			(code "80")
+			(code "74")
 			(name "unconnected-(U19-PIN1-Pad1)")
 			(class "Default")
 			(node
@@ -6577,7 +6163,7 @@
 			)
 		)
 		(net
-			(code "81")
+			(code "75")
 			(name "unconnected-(U19-PIN7-Pad7)")
 			(class "Default")
 			(node
@@ -6588,7 +6174,7 @@
 			)
 		)
 		(net
-			(code "82")
+			(code "76")
 			(name "unconnected-(U19-PIN8-Pad8)")
 			(class "Default")
 			(node
@@ -6599,7 +6185,7 @@
 			)
 		)
 		(net
-			(code "83")
+			(code "77")
 			(name "unconnected-(U19-PIN12-Pad12)")
 			(class "Default")
 			(node
@@ -6610,7 +6196,7 @@
 			)
 		)
 		(net
-			(code "84")
+			(code "78")
 			(name "unconnected-(U19-PIN13-Pad13)")
 			(class "Default")
 			(node
@@ -6621,7 +6207,7 @@
 			)
 		)
 		(net
-			(code "85")
+			(code "79")
 			(name "unconnected-(U19-PIN15-Pad15)")
 			(class "Default")
 			(node
@@ -6632,7 +6218,7 @@
 			)
 		)
 		(net
-			(code "86")
+			(code "80")
 			(name "unconnected-(U19-PIN16-Pad16)")
 			(class "Default")
 			(node
@@ -6643,7 +6229,7 @@
 			)
 		)
 		(net
-			(code "87")
+			(code "81")
 			(name "unconnected-(U19-PIN21-Pad21)")
 			(class "Default")
 			(node
@@ -6654,7 +6240,7 @@
 			)
 		)
 		(net
-			(code "88")
+			(code "82")
 			(name "unconnected-(U19-PIN22-Pad22)")
 			(class "Default")
 			(node
@@ -6665,7 +6251,7 @@
 			)
 		)
 		(net
-			(code "89")
+			(code "83")
 			(name "unconnected-(U19-PIN23-Pad23)")
 			(class "Default")
 			(node
@@ -6676,7 +6262,7 @@
 			)
 		)
 		(net
-			(code "90")
+			(code "84")
 			(name "unconnected-(U19-PIN24-Pad24)")
 			(class "Default")
 			(node
@@ -6687,7 +6273,7 @@
 			)
 		)
 		(net
-			(code "91")
+			(code "85")
 			(name "unconnected-(U19-PS0-Pad6)")
 			(class "Default")
 			(node
@@ -6698,7 +6284,7 @@
 			)
 		)
 		(net
-			(code "92")
+			(code "86")
 			(name "unconnected-(U19-PS1-Pad5)")
 			(class "Default")
 			(node
@@ -6709,7 +6295,7 @@
 			)
 		)
 		(net
-			(code "93")
+			(code "87")
 			(name "unconnected-(U19-XIN32-Pad27)")
 			(class "Default")
 			(node
@@ -6720,7 +6306,7 @@
 			)
 		)
 		(net
-			(code "94")
+			(code "88")
 			(name "unconnected-(U19-XOUT32-Pad26)")
 			(class "Default")
 			(node
@@ -6731,7 +6317,7 @@
 			)
 		)
 		(net
-			(code "95")
+			(code "89")
 			(name "unconnected-(U19-~{BOOT_LOAD_PIN}-Pad4)")
 			(class "Default")
 			(node
@@ -6742,7 +6328,7 @@
 			)
 		)
 		(net
-			(code "96")
+			(code "90")
 			(name "unconnected-(U19-~{RESET}-Pad11)")
 			(class "Default")
 			(node
